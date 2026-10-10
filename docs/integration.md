@@ -445,8 +445,8 @@ Display input and output hook fees separately from native v4 LP fees:
 
 ```text
 native v4 LP fee: creator selected per pool (static, 0 through 999,999 pips)
-default input hook fee:   5 BPS on the realized input leg
-default output hook fee:  5 BPS on the realized output leg
+default input hook fee:   500 pips (5 BPS) on the realized input leg
+default output hook fee:  500 pips (5 BPS) on the realized output leg
 launch split: 15% managed POL / 30% deposited BasketTokens /
               30% global Statics stakers /
               5% creator (fixed) / 20% treasury
@@ -454,7 +454,7 @@ launch split: 15% managed POL / 30% deposited BasketTokens /
 
 Governance may update the global bilateral default, set or clear PoolId-specific
 overrides, and update the configurable allocation shares. The combined
-input/output rate is capped at 200 BPS and the
+input/output rate is capped at 20,000 pips (200 BPS) and the
 configurable shares always total 9,500 BPS beside the fixed 500-BPS creator
 share. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
@@ -491,7 +491,7 @@ amount, which is forwarded atomically to treasury. Read it through
 `POOL_CREATION_FEE_AMOUNT`.
 
 Creator attribution uses EIP-712 authorization under the domain
-`name = "Statics Protocol Pools"`, `version = "4"`, the current `chainId`, and
+`name = "Statics Protocol Pools"`, `version = "5"`, the current `chainId`, and
 `verifyingContract = StaticsDiamond`. `SignatureChecker` validates both EOA and
 ERC-1271 creators. The signed digest binds the PoolId, normalized price, input
 hook fee, output hook fee, creator, managed-POL activation choice, nonce, and deadline. Because PoolId commits
@@ -515,14 +515,13 @@ a new PoolId, so a second creation with the same currencies, native LP fee,
 tick spacing, and Statics hook reverts as a duplicate.
 
 Hook-fee **rate** and fee **allocation** are separate policy dimensions. New
-basket pools inherit the live global default, initially 5 BPS input plus 5 BPS
-output. A general-pool creator supplies `initialFeeRate`. Each selected leg must
-be at least the live default at transaction execution and the combined rate must
-satisfy `inputFeeBps + outputFeeBps <= 200`. Selecting the exact default stores
-no override, so the pool inherits future default changes. Selecting either leg
-above the default stores both selected legs as a fixed PoolId override.
+basket pools inherit the live global default, initially 500 pips input plus 500 pips
+output. A general-pool creator supplies `initialFeeRate`. Each selected leg must be at least 10 pips at transaction execution and the
+combined rate must satisfy `inputFeePips + outputFeePips <= 20_000`. Selecting
+the exact default stores no override, so the pool inherits future default
+changes. Any other selection stores both selected legs as a fixed PoolId override.
 
-Timelocked governance may update the default with
+The Diamond owner may update the default with
 `setDefaultProtocolPoolFeeRate(feeRate)`, affecting every non-overridden pool
 immediately. It may replace a pool rate with
 `setProtocolPoolFeeRate(poolId, feeRate)` and restore inheritance with

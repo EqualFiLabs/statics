@@ -76,8 +76,8 @@ contract FormalProtocolPolPoolManager {
 }
 
 contract FormalProtocolPolSwapFeeHook is StaticsSwapFeeHook {
-    constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps)
-        StaticsSwapFeeHook(manager, diamond, inputFeeBps, outputFeeBps, address(1))
+    constructor(IPoolManager manager, address diamond, uint16 inputFeePips, uint16 outputFeePips)
+        StaticsSwapFeeHook(manager, diamond, inputFeePips, outputFeePips, address(1))
     {}
 
     function formalAccrueSwapLegFee(

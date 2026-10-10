@@ -593,7 +593,7 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
                 fee,
                 10,
                 SQRT_PRICE_1_1,
-                IStaticsProtocolPools.PoolSwapFeeRate(25, 25),
+                IStaticsProtocolPools.PoolSwapFeeRate(2_500, 2_500),
                 alice,
                 false,
                 0,

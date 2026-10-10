@@ -26,8 +26,8 @@ interface IStaticsSwapFeeHook {
     /// @notice PoolId-local Statics bilateral swap-fee rate. Allocation of the collected fee is
     /// governed by the global class profiles rather than this per-pool rate.
     struct PoolFeeRate {
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
         bool overridden;
     }
 
@@ -76,8 +76,8 @@ interface IStaticsSwapFeeHook {
         PoolId indexed poolId, Currency indexed currency, address indexed receiver, uint256 amount
     );
     event PoolDecommissioned(PoolId indexed poolId);
-    event PoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps, bool overridden);
-    event DefaultFeeRateSet(uint16 inputFeeBps, uint16 outputFeeBps);
+    event PoolFeeRateSet(PoolId indexed poolId, uint16 inputFeePips, uint16 outputFeePips, bool overridden);
+    event DefaultFeeRateSet(uint16 inputFeePips, uint16 outputFeePips);
     event BasketFeeAllocationSet(
         uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
     );
@@ -88,9 +88,9 @@ interface IStaticsSwapFeeHook {
     function staticsDiamond() external view returns (address);
 
     // --- Fee rate (PoolId-local) ---
-    function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps);
-    function setDefaultFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) external;
-    function setPoolFeeRate(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external;
+    function defaultFeeRate() external view returns (uint16 inputFeePips, uint16 outputFeePips);
+    function setDefaultFeeRate(uint16 inputFeePips, uint16 outputFeePips) external;
+    function setPoolFeeRate(PoolId poolId, uint16 inputFeePips, uint16 outputFeePips) external;
     function clearPoolFeeRate(PoolId poolId) external;
     function poolFeeRate(PoolId poolId) external view returns (PoolFeeRate memory rate);
 

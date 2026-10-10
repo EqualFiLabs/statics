@@ -334,10 +334,12 @@ maintain a second upgrade policy beside ownership.
 
 ## Governance boundary
 
-The Phase 1 launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
-of `StaticsDiamond`. Later phases add selectors to that same address; the
-full-stack fresh-deployment reference applies the same ownership model to both
-Diamonds. Core administration derives from the Core Diamond owner
+The Phase 1 launcher deploys one OpenZeppelin-based `StaticsTimelock`. The
+governance Safe initially owns `StaticsDiamond` to perform launch configuration
+and initial pool creation without a timelock delay, then transfers ownership to
+the timelock after launch verification. Later phases add selectors to that same address.
+The full-stack fresh-deployment reference assigns its timelock as the initial
+owner of both Diamonds. Core administration derives from the Core Diamond owner
 and does not maintain a second protocol-governor role, internal proposal queue,
 or irreversible configuration locks. The timelock constructor selects two
 minutes for Robinhood testnet and local development, while Robinhood mainnet

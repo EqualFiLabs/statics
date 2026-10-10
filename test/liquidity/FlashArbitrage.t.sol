@@ -329,7 +329,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         PoolKey memory pool = _initializeAndSeed(basketId, basketToken, address(assetA));
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         protocolPools.setDefaultProtocolPoolFeeRate(
-            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25})
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 25, outputFeePips: 25})
         );
         protocolPools.setBasketFeeAllocation(
             IStaticsProtocolPools.BasketFeeAllocation({
@@ -493,14 +493,14 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 rawBundleAmount,
         uint256 rawFeeShares,
         uint256 rawFlashFeeBps,
-        uint256 rawInputFeeBps,
-        uint256 rawOutputFeeBps
+        uint256 rawInputFeePips,
+        uint256 rawOutputFeePips
     ) public {
         uint256 shares = bound(rawShares, 0.5 ether, 1 ether);
         uint256 bundleAmount = bound(rawBundleAmount, 1.4 ether, 2 ether);
         uint256 feeShares = bound(rawFeeShares, 0, 0.02 ether);
         uint16 flashFeeBps = uint16(bound(rawFlashFeeBps, 0, 100));
-        _setHookFees(rawInputFeeBps, rawOutputFeeBps);
+        _setHookFees(rawInputFeePips, rawOutputFeePips);
         UnderpricedArbitrage memory plan = _prepareUnderpricedArbitrage(bundleAmount, feeShares, flashFeeBps);
 
         (, uint256[] memory profits) = plan.receiver
@@ -519,14 +519,14 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 rawBundleAmount,
         uint256 rawFeeShares,
         uint256 rawFlashFeeBps,
-        uint256 rawInputFeeBps,
-        uint256 rawOutputFeeBps
+        uint256 rawInputFeePips,
+        uint256 rawOutputFeePips
     ) public {
         uint256 shares = bound(rawShares, 0.5 ether, 1 ether);
         uint256 bundleAmount = bound(rawBundleAmount, 0.2 ether, 0.4 ether);
         uint256 feeShares = bound(rawFeeShares, 0, 0.02 ether);
         uint16 flashFeeBps = uint16(bound(rawFlashFeeBps, 0, 100));
-        _setHookFees(rawInputFeeBps, rawOutputFeeBps);
+        _setHookFees(rawInputFeePips, rawOutputFeePips);
 
         OverpricedArbitrage memory plan = _prepareOverpricedArbitrage(shares, bundleAmount, feeShares, flashFeeBps);
         vm.startPrank(alice);
@@ -773,11 +773,12 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         protocolPools.settleProtocolPoolRevenue(pool.toId(), Currency.unwrap(pool.currency1));
     }
 
-    function _setHookFees(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) private {
+    function _setHookFees(uint256 rawInputFeePips, uint256 rawOutputFeePips) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         protocolPools.setDefaultProtocolPoolFeeRate(
             IStaticsProtocolPools.PoolSwapFeeRate({
-                inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)), outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100))
+                inputFeePips: uint16(bound(rawInputFeePips, 0, 100)),
+                outputFeePips: uint16(bound(rawOutputFeePips, 0, 100))
             })
         );
         protocolPools.setBasketFeeAllocation(

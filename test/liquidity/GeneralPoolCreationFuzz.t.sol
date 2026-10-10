@@ -54,28 +54,24 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 512
-    function testFuzzCreatorInitialFeeBounds(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) public {
-        uint16 inputFeeBps = uint16(bound(rawInputFeeBps, 0, type(uint16).max));
-        uint16 outputFeeBps = uint16(bound(rawOutputFeeBps, 0, type(uint16).max));
+    function testFuzzCreatorInitialFeeBounds(uint256 rawInputFeePips, uint256 rawOutputFeePips) public {
+        uint16 inputFeePips = uint16(bound(rawInputFeePips, 0, type(uint16).max));
+        uint16 outputFeePips = uint16(bound(rawOutputFeePips, 0, type(uint16).max));
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
         params.initialFeeRate =
-            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps});
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: inputFeePips, outputFeePips: outputFeePips});
 
-        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) {
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeePips, outputFeePips)) {
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, inputFeeBps, outputFeeBps
+                    ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, inputFeePips, outputFeePips
                 )
             );
             pools.quotePool(params);
-        } else if (inputFeeBps < 25 || outputFeeBps < 25) {
+        } else if (inputFeePips < 10 || outputFeePips < 10) {
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
-                    inputFeeBps,
-                    outputFeeBps,
-                    uint16(25),
-                    uint16(25)
+                    ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, inputFeePips, outputFeePips
                 )
             );
             pools.quotePool(params);
@@ -147,7 +143,7 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
-            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 25, outputFeePips: 25}),
             creator: address(this),
             activateManagedPol: false,
             nonce: 1,
@@ -272,7 +268,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
             lpFee: 3_000,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: 1 << 96,
-            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 25, outputFeePips: 25}),
             creator: creator,
             activateManagedPol: false,
             nonce: 1,

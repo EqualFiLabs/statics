@@ -196,9 +196,9 @@ expect_call_revert "old creator recipient update" \
     --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
 expect_call_revert "old creator POL activation" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
+    --value "$STATICS_POL_ACTIVATION_FEE" --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$(anvil_private_key "$SUCCESSOR_INDEX")" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$(anvil_private_key "$SUCCESSOR_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/creator-handover-pol-activate.json"
 read -r pol_activated _ _ <<<"$(
     cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolFundingConfig(bytes32)(bool,bool,uint16)' \

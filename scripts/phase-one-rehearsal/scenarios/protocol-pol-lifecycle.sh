@@ -65,23 +65,23 @@ assert_eq "$PENDING1" 0 "disabled POL currency1 pending"
 TREASURY_BEFORE=$(cast balance "$TREASURY" --rpc-url "$RPC_URL")
 expect_call_revert "non-creator POL activation" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --from "$TRADER" --rpc-url "$RPC_URL" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --from "$TRADER" --rpc-url "$RPC_URL" \
     >"$RUN_DIR/protocol-pol-unauthorized-activation-revert.txt"
 expect_call_revert "incorrect POL activation fee" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
     --from "$CREATOR" --rpc-url "$RPC_URL" \
     >"$RUN_DIR/protocol-pol-wrong-activation-fee-revert.txt"
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 \
+    --value "$STATICS_POL_ACTIVATION_FEE" \
     --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/protocol-pol-activate.json"
 TREASURY_AFTER=$(cast balance "$TREASURY" --rpc-url "$RPC_URL")
 assert_eq "$(printf '%s - %s\n' "$TREASURY_AFTER" "$TREASURY_BEFORE" | bc)" \
-    100000000000000000 \
+    "$STATICS_POL_ACTIVATION_FEE" \
     "POL activation fee transfer"
 expect_call_revert "duplicate POL activation" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --from "$CREATOR" --rpc-url "$RPC_URL" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --from "$CREATOR" --rpc-url "$RPC_URL" \
     >"$RUN_DIR/protocol-pol-duplicate-activation-revert.txt"
 
 v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \

@@ -20,7 +20,7 @@ contract ProtocolPoolMaintenanceTest is GeneralPoolLifecycleTestBase {
     function setUp() public override {
         super.setUp();
         pools.setProtocolPoolMaintenanceConfig(
-            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 500})
+            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 100})
         );
     }
 
@@ -31,7 +31,7 @@ contract ProtocolPoolMaintenanceTest is GeneralPoolLifecycleTestBase {
         IStaticsSwapFeeHook.FeeDistribution memory pending0 = swapFeeHook.pendingFeeDistribution(poolId, key.currency0);
         IStaticsSwapFeeHook.FeeDistribution memory pending1 = swapFeeHook.pendingFeeDistribution(poolId, key.currency1);
         uint256 grossExpected = _total(pending0);
-        uint256 tipExpected = Math.mulDiv(pending0.treasury, 500, 10_000);
+        uint256 tipExpected = Math.mulDiv(pending0.treasury, 100, 10_000);
         assertGt(grossExpected, 0);
         assertGt(_total(pending1), 0);
 

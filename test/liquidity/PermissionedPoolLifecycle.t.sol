@@ -455,7 +455,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
-            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 25, outputFeePips: 25}),
             creator: creator,
             activateManagedPol: false,
             nonce: 1,

@@ -15,7 +15,10 @@ library LibProtocolPoolFee {
     uint16 internal constant CONFIGURABLE_SHARE_BPS = 9_500;
 
     /// @dev Maximum combined bilateral swap-fee rate.
-    uint256 internal constant MAX_COMBINED_FEE_BPS = 200;
+    uint256 internal constant MAX_COMBINED_FEE_PIPS = 20_000;
+
+    /// @dev Minimum initial hook fee on each leg of a creator-selected general pool.
+    uint16 internal constant MIN_CREATOR_FEE_PIPS = 10;
 
     uint16 internal constant MAX_REVENUE_TIP_BPS = 2_000;
 
@@ -27,9 +30,9 @@ library LibProtocolPoolFee {
     int24 internal constant MIN_TICK_SPACING = 1;
     int24 internal constant MAX_TICK_SPACING = 32_767;
 
-    /// @return valid Whether `inputFeeBps + outputFeeBps` satisfies the canonical Statics bound.
-    function isValidFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) internal pure returns (bool valid) {
-        return uint256(inputFeeBps) + uint256(outputFeeBps) <= MAX_COMBINED_FEE_BPS;
+    /// @return valid Whether `inputFeePips + outputFeePips` satisfies the canonical Statics bound.
+    function isValidFeeRate(uint16 inputFeePips, uint16 outputFeePips) internal pure returns (bool valid) {
+        return uint256(inputFeePips) + uint256(outputFeePips) <= MAX_COMBINED_FEE_PIPS;
     }
 
     /// @return valid Whether `lpFee` is an allowed static Uniswap v4 fee for a Statics pool.

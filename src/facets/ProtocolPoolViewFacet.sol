@@ -114,13 +114,13 @@ contract ProtocolPoolViewFacet {
         IStaticsSwapFeeHook.PoolFeeRate memory stored =
             IStaticsSwapFeeHook(_liquidityStorage().hook).poolFeeRate(poolId);
         feeRate = IStaticsProtocolPools.PoolFeeRateView({
-            inputFeeBps: stored.inputFeeBps, outputFeeBps: stored.outputFeeBps, overridden: stored.overridden
+            inputFeePips: stored.inputFeePips, outputFeePips: stored.outputFeePips, overridden: stored.overridden
         });
     }
 
     function defaultProtocolPoolFeeRate() external view returns (IStaticsProtocolPools.PoolSwapFeeRate memory feeRate) {
-        (uint16 inputFeeBps, uint16 outputFeeBps) = IStaticsSwapFeeHook(_liquidityStorage().hook).defaultFeeRate();
-        feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps});
+        (uint16 inputFeePips, uint16 outputFeePips) = IStaticsSwapFeeHook(_liquidityStorage().hook).defaultFeeRate();
+        feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: inputFeePips, outputFeePips: outputFeePips});
     }
 
     function protocolPoolCreator(PoolId poolId) external view returns (address creator) {

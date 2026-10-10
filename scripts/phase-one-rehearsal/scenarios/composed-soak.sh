@@ -106,7 +106,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'fundGaugeReserve(uint256)(uint256)' 100000
     >"$RUN_DIR/composed-reserve-fund.json"
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$(cast calldata 'activateGaugeSchedule()')" composed-activate-schedule
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" \
     --legacy --json >"$RUN_DIR/composed-activate-pol.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointRewardAssets(address[])' "[$CURRENCY0,$CURRENCY1]" \
     --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" --rpc-url "$RPC_URL" \

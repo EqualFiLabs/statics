@@ -65,7 +65,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointRewardAssets(address[])' "[$CURR
 wrap_weth "$TRADER_INDEX" 10000000000000000000 fee-policy-trader
 acquire_genesis_statics "$TRADER_INDEX" 2000000000000000000 fee-policy-trader >/dev/null
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/fee-policy-activate-pol.json"
 
 account_state() {
@@ -112,23 +112,23 @@ swap_and_assert_allocation() {
 }
 
 DEFAULT_RATE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'defaultProtocolPoolFeeRate()((uint16,uint16))' --rpc-url "$RPC_URL" --json)
-assert_eq "$(jq -r '.[0][0]' <<<"$DEFAULT_RATE")" 5 "default input fee"
-assert_eq "$(jq -r '.[0][1]' <<<"$DEFAULT_RATE")" 5 "default output fee"
+assert_eq "$(jq -r '.[0][0]' <<<"$DEFAULT_RATE")" 500 "default input fee"
+assert_eq "$(jq -r '.[0][1]' <<<"$DEFAULT_RATE")" 500 "default output fee"
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
-    "$(cast calldata 'setProtocolPoolFeeRate(bytes32,(uint16,uint16))' "$POOL_ID" '(10,20)')" fee-policy-pool-override
+    "$(cast calldata 'setProtocolPoolFeeRate(bytes32,(uint16,uint16))' "$POOL_ID" '(1000,2000)')" fee-policy-pool-override
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
-    "$(cast calldata 'setDefaultProtocolPoolFeeRate((uint16,uint16))' '(30,40)')" fee-policy-default-change
+    "$(cast calldata 'setDefaultProtocolPoolFeeRate((uint16,uint16))' '(3000,4000)')" fee-policy-default-change
 POOL_RATE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolFeeRate(bytes32)((uint16,uint16,bool))' "$POOL_ID" --rpc-url "$RPC_URL" --json)
-assert_eq "$(jq -r '.[0][0]' <<<"$POOL_RATE")" 10 "pool input fee override"
-assert_eq "$(jq -r '.[0][1]' <<<"$POOL_RATE")" 20 "pool output fee override"
+assert_eq "$(jq -r '.[0][0]' <<<"$POOL_RATE")" 1000 "pool input fee override"
+assert_eq "$(jq -r '.[0][1]' <<<"$POOL_RATE")" 2000 "pool output fee override"
 assert_eq "$(jq -r '.[0][2]' <<<"$POOL_RATE")" true "pool fee override marker"
 swap_and_assert_allocation fee-policy-override-swap true 4000 3500
 
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
     "$(cast calldata 'clearProtocolPoolFeeRate(bytes32)' "$POOL_ID")" fee-policy-clear-rate
 POOL_RATE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolFeeRate(bytes32)((uint16,uint16,bool))' "$POOL_ID" --rpc-url "$RPC_URL" --json)
-assert_eq "$(jq -r '.[0][0]' <<<"$POOL_RATE")" 30 "cleared pool input fee"
-assert_eq "$(jq -r '.[0][1]' <<<"$POOL_RATE")" 40 "cleared pool output fee"
+assert_eq "$(jq -r '.[0][0]' <<<"$POOL_RATE")" 3000 "cleared pool input fee"
+assert_eq "$(jq -r '.[0][1]' <<<"$POOL_RATE")" 4000 "cleared pool output fee"
 assert_eq "$(jq -r '.[0][2]' <<<"$POOL_RATE")" false "cleared pool fee marker"
 
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
@@ -169,7 +169,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'settleProtocolPoolRevenue(bytes32,address)
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/fee-policy-maintenance-settle.json"
 MAINTAINER_BALANCE_AFTER=$(cast call "$CURRENCY0" 'balanceOf(address)(uint256)' "$MAINTAINER" --rpc-url "$RPC_URL" | awk '{print $1}')
 TIP=$(printf '%s - %s\n' "$MAINTAINER_BALANCE_AFTER" "$MAINTAINER_BALANCE_BEFORE" | bc)
-assert_eq "$TIP" "$(printf '%s * 500 / 10000\n' "$TREASURY_PENDING_BEFORE" | bc)" "maintenance Treasury-funded tip"
+assert_eq "$TIP" "$(printf '%s * 100 / 10000\n' "$TREASURY_PENDING_BEFORE" | bc)" "maintenance Treasury-funded tip"
 
 assert_phase_one_solvency fee-policy "$CURRENCY0" "$CURRENCY1" "$STAKING_TOKEN"
 record_result protocol-fees rate-precedence pass "$POOL_ID"

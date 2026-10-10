@@ -7,7 +7,7 @@
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
 - Superseded decisions: zero native LP fees, custom Diamond-custodied LP
-  rewards, creator-selected hook fees without governed per-leg floors, and a
+  rewards, creator-selected hook fees with a 10-pip initial per-leg minimum, and a
   deployment-wide native LP fee. The managed-POL ADR replaces every hook-owned
   full-range compounding and decommissioning decision in this document.
 
@@ -368,15 +368,15 @@ The supported rate consists of the hook's input-side and output-side fee paramet
 
 ```solidity
 struct PoolSwapFeeRate {
-    uint16 inputFeeBps;
-    uint16 outputFeeBps;
+    uint16 inputFeePips;
+    uint16 outputFeePips;
 }
 ```
 
 The requested rate must satisfy the same canonical constraint enforced by `StaticsSwapFeeHook`:
 
 ```text
-inputFeeBps + outputFeeBps <= 200
+inputFeePips + outputFeePips <= 20,000
 ```
 
 The Diamond and hook must use one shared pure fee-policy implementation. The Diamond must not maintain an independent copy of the bound that can diverge from hook validation.
@@ -522,8 +522,8 @@ The intended surface is conceptually:
 
 ```solidity
 struct PoolSwapFeeRate {
-    uint16 inputFeeBps;
-    uint16 outputFeeBps;
+    uint16 inputFeePips;
+    uint16 outputFeePips;
 }
 
 struct CreatePoolParams {
@@ -572,9 +572,9 @@ native currency is unsupported
 TickMath.MIN_SQRT_PRICE <= normalized sqrtPriceX96 < TickMath.MAX_SQRT_PRICE
 0 <= PoolKey.fee <= 999,999 pips and the dynamic-fee flag is absent
 PoolKey.hooks == installed Statics hook
-inputFeeBps + outputFeeBps <= 200
-inputFeeBps >= live default inputFeeBps at transaction execution
-outputFeeBps >= live default outputFeeBps at transaction execution
+inputFeePips + outputFeePips <= 20,000
+inputFeePips >= 10 at transaction execution
+outputFeePips >= 10 at transaction execution
 PoolId is absent from basket and general registries
 PoolId is absent from hook registration
 PoolManager has not initialized the PoolId
@@ -596,8 +596,8 @@ The signed authorization binds:
 ```text
 PoolId
 normalized sqrtPriceX96
-inputFeeBps
-outputFeeBps
+inputFeePips
+outputFeePips
 creator
 nonce
 deadline
@@ -1222,8 +1222,8 @@ event ProtocolPoolCreated(
     address indexed currency0,
     address currency1,
     int24 tickSpacing,
-    uint16 inputFeeBps,
-    uint16 outputFeeBps,
+    uint16 inputFeePips,
+    uint16 outputFeePips,
     uint160 sqrtPriceX96,
     int24 tick
 );
@@ -1414,8 +1414,7 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 - Exact PoolKey duplicates cannot create a second Statics market or creator.
 - Tick spacing is creator-selectable only within valid PoolManager bounds.
 - Initial Statics fee rates are creator-selectable only when each leg is at
-  least the live governed default and the combined rate is within canonical
-  protocol bounds.
+  least 10 pips and the combined rate is within canonical protocol bounds.
 - Pool registration rejects a zero creator, and zero-fee creation remains owner-only even when the caller names itself as creator.
 - Creator authorization binds PoolId, normalized price, fee rate, creator, nonce, and deadline under the Diamond's EIP-712 domain.
 - Relayed creator authorization supports EOAs and ERC-1271 creators.
@@ -1470,8 +1469,8 @@ and none of these public artifacts can be redacted after the fact.
 9. Distinct native fees or tick spacings for the same pair may create distinct PoolIds.
 10. A different Statics fee rate alone cannot create a distinct PoolId.
 11. A different initial price alone cannot create a distinct PoolId.
-12. Every accepted initial fee rate satisfies `inputFeeBps + outputFeeBps <= 200`
-    and each leg is at least the corresponding live default at execution.
+12. Every accepted initial fee rate satisfies `inputFeePips + outputFeePips <= 20,000`
+    and each leg is at least 10 pips at execution.
 13. When `poolCreationFeeAmount == 0`, only the Diamond owner may create a general pool and `msg.value` must be zero.
 14. When `poolCreationFeeAmount > 0`, every caller supplies exactly the configured amount.
 15. The pool creation fee is independent from basket and PositionNFT creation fees.

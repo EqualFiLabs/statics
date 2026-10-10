@@ -93,14 +93,15 @@ accounting, permanent-liquidity accounting, or protocol-pool status.
 
 ## Fee authority
 
-Deployment initializes the global default to 5 BPS input and 5 BPS output.
-Basket canonical pools inherit that default. A general-pool creator selects an
-initial input and output rate during creation. Each leg must be at least the live
-default at transaction execution, and the combined rate cannot exceed 200 BPS.
+Deployment initializes the global default to 500 pips (5 BPS) input and
+500 pips (5 BPS) output. Basket canonical pools inherit that default. A
+general-pool creator selects an initial input and output rate during creation.
+Each leg must be at least 10 pips, and the combined rate cannot exceed
+20,000 pips (200 BPS).
 
 Selecting the exact live default stores no PoolId override, so the new pool
-continues to inherit future default changes. Selecting either leg above the
-default stores both selected legs as a fixed PoolId override. This preserves an
+continues to inherit future default changes. Any other selection stores both selected
+legs as a fixed PoolId override. This preserves an
 explicit asymmetric selection without silently moving its other leg when the
 global default changes.
 
@@ -141,8 +142,8 @@ Creation reverts if that key is already registered or initialized.
 ## Consequences
 
 - Creators can choose the native fee appropriate for each market and LP base.
-- General-pool creators can select higher initial bilateral hook fees while the
-  governed live default remains a per-leg floor.
+- General-pool creators can select initial bilateral hook fees at or above
+  10 pips per leg, including rates below the governed live default.
 - Ordinary concentrated and full-range positions earn native v4 fees without
   Statics custody or reward enrollment.
 - Indexers and interfaces must display native LP fees separately from input and

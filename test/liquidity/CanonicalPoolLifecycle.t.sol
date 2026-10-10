@@ -14,7 +14,7 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
-    event ProtocolPoolFeeRateSet(bytes32 indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
+    event ProtocolPoolFeeRateSet(bytes32 indexed poolId, uint16 inputFeePips, uint16 outputFeePips);
     event ProtocolPoolFeeRateCleared(bytes32 indexed poolId);
 
     function testLaunchHelpersRejectDirectCalls() public {
@@ -68,22 +68,22 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
         protocolPools.setProtocolPoolFeeRate(
-            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit ProtocolPoolFeeRateSet(PoolId.unwrap(pool.poolId), 40, 60);
         protocolPools.setProtocolPoolFeeRate(
-            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
         );
 
         IStaticsProtocolPools.PoolFeeRateView memory effective = protocolPools.protocolPoolFeeRate(pool.poolId);
-        assertEq(effective.inputFeeBps, 40);
-        assertEq(effective.outputFeeBps, 60);
+        assertEq(effective.inputFeePips, 40);
+        assertEq(effective.outputFeePips, 60);
         assertTrue(effective.overridden);
         IStaticsSwapFeeHook.PoolFeeRate memory hookRate = swapFeeHook.poolFeeRate(pool.poolId);
-        assertEq(hookRate.inputFeeBps, effective.inputFeeBps);
-        assertEq(hookRate.outputFeeBps, effective.outputFeeBps);
+        assertEq(hookRate.inputFeePips, effective.inputFeePips);
+        assertEq(hookRate.outputFeePips, effective.outputFeePips);
         assertTrue(hookRate.overridden);
 
         vm.prank(bob);
@@ -94,8 +94,8 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         emit ProtocolPoolFeeRateCleared(PoolId.unwrap(pool.poolId));
         protocolPools.clearProtocolPoolFeeRate(pool.poolId);
         effective = protocolPools.protocolPoolFeeRate(pool.poolId);
-        assertEq(effective.inputFeeBps, 25);
-        assertEq(effective.outputFeeBps, 25);
+        assertEq(effective.inputFeePips, 25);
+        assertEq(effective.outputFeePips, 25);
         assertFalse(effective.overridden);
     }
 
@@ -104,7 +104,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         PoolId unregistered = PoolId.wrap(keccak256("unregistered"));
         vm.expectRevert();
         protocolPools.setProtocolPoolFeeRate(
-            unregistered, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+            unregistered, IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
         );
         vm.expectRevert();
         protocolPools.clearProtocolPoolFeeRate(unregistered);

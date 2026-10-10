@@ -36,6 +36,13 @@ assert_eq \
     "maximum reward assets"
 
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
+    "$(cast calldata 'setNonSwapStakerShareBps(uint16)' 6000)" configuration-non-swap-share
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'nonSwapStakerShareBps()(uint16)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    6000 \
+    "non-swap staker share"
+
+timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
     "$(cast calldata 'setProtocolPoolMaintenanceConfig((uint16))' '(750)')" configuration-maintenance
 MAINTENANCE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolMaintenanceConfig()((uint16))' \
     --rpc-url "$RPC_URL" --json)
@@ -86,5 +93,5 @@ assert_eq \
     "treasury update"
 
 record_result configuration governance-surface pass \
-    "guardian, Treasury, fees, limits, gauges, and trusted periphery"
+    "guardian, Treasury, fees, limits, gauges, non-swap share, and trusted periphery"
 note "governed Phase 1 configuration surface passed"

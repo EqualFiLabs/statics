@@ -73,8 +73,8 @@ contract HookInvariantFeeReceiver {
         return IStaticsSwapFeeHook(hook).registerPool(key, IStaticsSwapFeeHook.PoolKind.General, address(this));
     }
 
-    function setPoolFeeRate(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external {
-        IStaticsSwapFeeHook(hook).setPoolFeeRate(poolId, inputFeeBps, outputFeeBps);
+    function setPoolFeeRate(PoolId poolId, uint16 inputFeePips, uint16 outputFeePips) external {
+        IStaticsSwapFeeHook(hook).setPoolFeeRate(poolId, inputFeePips, outputFeePips);
     }
 
     function setGeneralFeeAllocation(IStaticsSwapFeeHook.GeneralFeeAllocation calldata allocation) external {
@@ -120,17 +120,17 @@ contract HookAccountingHandler is Test {
     }
 
     function setPoolConfiguration(
-        uint256 rawInputFeeBps,
-        uint256 rawOutputFeeBps,
+        uint256 rawInputFeePips,
+        uint256 rawOutputFeePips,
         uint256 rawPolShareBps,
         uint256 rawStakerShareBps
     ) external {
-        uint256 inputFeeBps = bound(rawInputFeeBps, 1, 199);
-        uint256 outputFeeBps = bound(rawOutputFeeBps, 1, 200 - inputFeeBps);
+        uint256 inputFeePips = bound(rawInputFeePips, 1, 19_999);
+        uint256 outputFeePips = bound(rawOutputFeePips, 1, 20_000 - inputFeePips);
         uint256 polShareBps = bound(rawPolShareBps, 0, 9_500);
         uint256 staticsStakerShareBps = bound(rawStakerShareBps, 0, 9_500 - polShareBps);
         uint256 treasuryShareBps = 9_500 - polShareBps - staticsStakerShareBps;
-        receiver.setPoolFeeRate(poolId, uint16(inputFeeBps), uint16(outputFeeBps));
+        receiver.setPoolFeeRate(poolId, uint16(inputFeePips), uint16(outputFeePips));
         receiver.setGeneralFeeAllocation(
             IStaticsSwapFeeHook.GeneralFeeAllocation({
                 polShareBps: uint16(polShareBps),
@@ -214,7 +214,7 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
 
     function invariantEffectivePoolConfigurationIsValid() public view {
         IStaticsSwapFeeHook.PoolFeeRate memory rate = hook.poolFeeRate(poolId);
-        assertLe(uint256(rate.inputFeeBps) + uint256(rate.outputFeeBps), 200);
+        assertLe(uint256(rate.inputFeePips) + uint256(rate.outputFeePips), 20_000);
         IStaticsSwapFeeHook.GeneralFeeAllocation memory allocation = hook.generalFeeAllocation();
         assertEq(
             uint256(allocation.polShareBps) + uint256(allocation.staticsStakerShareBps)

@@ -7,6 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -61,8 +62,8 @@ struct StaticsPhaseOneLiquidityConfig {
     uint256 positionCreationFeeAmount;
     uint256 poolCreationFeeAmount;
     uint16 weeklyGaugeReleaseBps;
-    uint16 inputFeeBps;
-    uint16 outputFeeBps;
+    uint16 inputFeePips;
+    uint16 outputFeePips;
     uint16 revenueMaintenanceTipBps;
     address protocolPolOperator;
     uint256 protocolPolActivationFee;
@@ -97,12 +98,16 @@ interface IPermissionedPositionClaimsBindings {
     function permissionedHook() external view returns (address);
 }
 
-/// @notice Timelock ceremony for installing only the v4 dependencies used by the Phase 1 DEX.
+/// @notice Validates Phase 1 liquidity installation and governance handoff.
 contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig {
     uint256 private constant LOCAL_CHAIN_ID = 31_337;
     uint256 private constant MAX_WEEKLY_GAUGE_RELEASE_BPS = 1_000;
     uint256 private constant MAX_REVENUE_MAINTENANCE_TIP_BPS = 2_000;
     uint256 private constant DEFAULT_POSITION_ROYALTY_BPS = 500;
+    uint256 private constant LAUNCH_POSITION_CREATION_FEE = 0.001 ether;
+    uint256 private constant LAUNCH_POOL_CREATION_FEE = 0.01 ether;
+    uint256 private constant LAUNCH_POL_ACTIVATION_FEE = 0.025 ether;
+    uint256 private constant LAUNCH_REVENUE_TIP_BPS = 100;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -126,11 +131,112 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     error UnsupportedInterface(bytes4 interfaceId);
     error ConfigurationValueOutOfRange(string field, uint256 value, uint256 maximum);
     error InvalidMaintenanceConfiguration();
+    error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
     error UnexpectedFacetCount(uint256 expected, uint256 actual);
     error UnexpectedSelectorCount(uint256 expected, uint256 actual);
     error UnexpectedSelector(bytes4 selector, bool expectedInstalled, bool installed);
     error LiquidityAlreadyInstalled();
     error LiquidityInstallationFailed();
+    error InvalidLaunchOwner(address expected, address actual);
+    error MissingLaunchPools();
+    error LaunchPoolMissing(PoolId poolId);
+
+    /// @notice Installs Phase 1 liquidity with the deployment signer, then transfers ownership to the Safe.
+    /// @dev Run after the exact-0.8.26 permissioned periphery has been deployed.
+    function runFinalizeDeployment() external {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
+        StaticsPhaseOneLiquidityConfig memory config = _loadRobinhoodConfig();
+        address bootstrapOwner = vm.addr(privateKey);
+        _validateBootstrapOwner(diamond, timelock, config, false, bootstrapOwner);
+
+        vm.startBroadcast(privateKey);
+        configureDeployment(diamond, timelock, config, bootstrapOwner);
+        vm.stopBroadcast();
+    }
+
+    /// @notice Prepares the old Safe-owned bootstrap for a deployment already owned by the Safe.
+    function runPrepareBootstrap() external view {
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
+        StaticsPhaseOneLiquidityConfig memory config = _loadRobinhoodConfig();
+        (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
+            prepareBootstrap(diamond, timelock, config);
+        for (uint256 i; i < targets.length; ++i) {
+            console2.log("SAFE_BATCH_INDEX", i);
+            console2.log("SAFE_BATCH_TARGET", targets[i]);
+            console2.log("SAFE_BATCH_VALUE", values[i]);
+            console2.log("SAFE_BATCH_CALLDATA");
+            console2.logBytes(payloads[i]);
+        }
+    }
+
+    /// @notice Prints the Safe's final ownership transfer after launch pools are live.
+    function runPrepareHandoff() external view returns (address target, uint256 value, bytes memory data) {
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
+        StaticsPhaseOneLiquidityConfig memory config = _loadRobinhoodConfig();
+        bytes32[] memory publicIds = vm.envBytes32("STATICS_LAUNCH_PUBLIC_POOL_IDS", ",");
+        bytes32[] memory permissionedIds = vm.envOr("STATICS_LAUNCH_PERMISSIONED_POOL_IDS", ",", new bytes32[](0));
+        (target, value, data) = prepareHandoff(diamond, timelock, config, publicIds, permissionedIds);
+        console2.log("SAFE_HANDOFF_TARGET", target);
+        console2.log("SAFE_HANDOFF_VALUE", value);
+        console2.log("SAFE_HANDOFF_CALLDATA");
+        console2.logBytes(data);
+    }
+
+    function prepareBootstrap(address diamond, address timelock, StaticsPhaseOneLiquidityConfig memory config)
+        public
+        view
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        _validateBootstrap(diamond, timelock, config, false);
+        return buildBatch(diamond, config);
+    }
+
+    function configureDeployment(
+        address diamond,
+        address timelock,
+        StaticsPhaseOneLiquidityConfig memory config,
+        address bootstrapOwner
+    ) public {
+        _validateBootstrapOwner(diamond, timelock, config, false, bootstrapOwner);
+        (address[] memory targets,, bytes[] memory payloads) = buildBatch(diamond, config);
+        for (uint256 i; i < targets.length; ++i) {
+            (bool ok, bytes memory result) = targets[i].call(payloads[i]);
+            if (!ok) {
+                assembly ("memory-safe") {
+                    revert(add(result, 32), mload(result))
+                }
+            }
+        }
+        _validateInstallState(diamond, config, true);
+        IERC173(diamond).transferOwnership(config.governanceSafe);
+        _validateBootstrap(diamond, timelock, config, true);
+    }
+
+    function prepareHandoff(
+        address diamond,
+        address timelock,
+        StaticsPhaseOneLiquidityConfig memory config,
+        bytes32[] memory publicPoolIds,
+        bytes32[] memory permissionedPoolIds
+    ) public view returns (address target, uint256 value, bytes memory data) {
+        _validateBootstrap(diamond, timelock, config, true);
+        if (publicPoolIds.length == 0) revert MissingLaunchPools();
+        for (uint256 i; i < publicPoolIds.length; ++i) {
+            PoolId poolId = PoolId.wrap(publicPoolIds[i]);
+            if (!IStaticsProtocolPools(diamond).isProtocolPool(poolId)) revert LaunchPoolMissing(poolId);
+        }
+        for (uint256 i; i < permissionedPoolIds.length; ++i) {
+            PoolId poolId = PoolId.wrap(permissionedPoolIds[i]);
+            if (!IStaticsPermissionedPools(diamond).isPermissionedPool(poolId)) revert LaunchPoolMissing(poolId);
+        }
+        target = diamond;
+        value = 0;
+        data = abi.encodeCall(IERC173.transferOwnership, (timelock));
+    }
 
     /// @notice Builds the single timelock scheduling call for submission by the governance Safe.
     /// @dev This preparation path never broadcasts and does not require a Safe private key.
@@ -233,16 +339,50 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         if (diamond.code.length == 0) revert InvalidDiamond(diamond);
         _validateContract(diamond, config.diamondCodeHash);
         address owner = IERC173(diamond).owner();
-        if (owner.code.length == 0) revert InvalidTimelock(owner);
-        _validateContract(owner, keccak256(type(StaticsTimelock).runtimeCode));
-        timelock = TimelockController(payable(owner));
+        timelock = _validateTimelock(owner, config);
+
+        _validateDependencies(diamond, config);
+        _validateInstallState(diamond, config, requireInstalled);
+    }
+
+    function _validateBootstrap(
+        address diamond,
+        address timelockAddress,
+        StaticsPhaseOneLiquidityConfig memory config,
+        bool requireInstalled
+    ) private view {
+        _validateBootstrapOwner(diamond, timelockAddress, config, requireInstalled, config.governanceSafe);
+    }
+
+    function _validateBootstrapOwner(
+        address diamond,
+        address timelockAddress,
+        StaticsPhaseOneLiquidityConfig memory config,
+        bool requireInstalled,
+        address expectedOwner
+    ) private view {
+        if (diamond.code.length == 0) revert InvalidDiamond(diamond);
+        _validateContract(diamond, config.diamondCodeHash);
+        address owner = IERC173(diamond).owner();
+        if (owner != expectedOwner) revert InvalidLaunchOwner(expectedOwner, owner);
+        _validateTimelock(timelockAddress, config);
+
+        _validateDependencies(diamond, config);
+        _validateInstallState(diamond, config, requireInstalled);
+    }
+
+    function _validateTimelock(address timelockAddress, StaticsPhaseOneLiquidityConfig memory config)
+        private
+        view
+        returns (TimelockController timelock)
+    {
+        if (timelockAddress.code.length == 0) revert InvalidTimelock(timelockAddress);
+        _validateContract(timelockAddress, keccak256(type(StaticsTimelock).runtimeCode));
+        timelock = TimelockController(payable(timelockAddress));
         uint256 expectedDelay = _expectedInitialDelay();
         uint256 actualDelay = timelock.getMinDelay();
         if (actualDelay != expectedDelay) revert InvalidTimelockDelay(expectedDelay, actualDelay);
         _validateTimelockRoles(timelock, config.governanceSafe, config.guardian);
-
-        _validateDependencies(diamond, config);
-        _validateInstallState(diamond, config, requireInstalled);
     }
 
     function _validateDependencies(address diamond, StaticsPhaseOneLiquidityConfig memory config) private view {
@@ -277,9 +417,9 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.weth, hook.weth());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
-        (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
-        if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
-            revert InvalidHookFees(config.inputFeeBps, inputFeeBps, config.outputFeeBps, outputFeeBps);
+        (uint16 inputFeePips, uint16 outputFeePips) = hook.defaultFeeRate();
+        if (inputFeePips != config.inputFeePips || outputFeePips != config.outputFeePips) {
+            revert InvalidHookFees(config.inputFeePips, inputFeePips, config.outputFeePips, outputFeePips);
         }
         uint160 actualFlags = uint160(config.hook) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert InvalidHookFlags(REQUIRED_HOOK_FLAGS, actualFlags);
@@ -536,10 +676,27 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _loadRobinhoodConfig() private view returns (StaticsPhaseOneLiquidityConfig memory config) {
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
-        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
-        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeePips");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeePips");
         uint256 weeklyGaugeReleaseBps = vm.envOr("WEEKLY_GAUGE_RELEASE_BPS", uint256(400));
-        uint256 revenueTipBps = vm.envOr("STATICS_REVENUE_MAINTENANCE_TIP_BPS", uint256(500));
+        uint256 revenueTipBps = vm.envOr("STATICS_REVENUE_MAINTENANCE_TIP_BPS", uint256(100));
+        uint256 positionCreationFee = vm.envUint("POSITION_CREATION_FEE_AMOUNT");
+        uint256 poolCreationFee = vm.envUint("POOL_CREATION_FEE_AMOUNT");
+        uint256 polActivationFee = vm.envUint("STATICS_POL_ACTIVATION_FEE");
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            if (revenueTipBps != LAUNCH_REVENUE_TIP_BPS) {
+                revert InvalidLaunchFee("revenueTipBps", LAUNCH_REVENUE_TIP_BPS, revenueTipBps);
+            }
+            if (positionCreationFee != LAUNCH_POSITION_CREATION_FEE) {
+                revert InvalidLaunchFee("positionCreationFee", LAUNCH_POSITION_CREATION_FEE, positionCreationFee);
+            }
+            if (poolCreationFee != LAUNCH_POOL_CREATION_FEE) {
+                revert InvalidLaunchFee("poolCreationFee", LAUNCH_POOL_CREATION_FEE, poolCreationFee);
+            }
+            if (polActivationFee != LAUNCH_POL_ACTIVATION_FEE) {
+                revert InvalidLaunchFee("polActivationFee", LAUNCH_POL_ACTIVATION_FEE, polActivationFee);
+            }
+        }
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
         }
@@ -567,14 +724,14 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
-            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
-            poolCreationFeeAmount: 0,
+            positionCreationFeeAmount: positionCreationFee,
+            poolCreationFeeAmount: poolCreationFee,
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps),
-            inputFeeBps: uint16(inputFee),
-            outputFeeBps: uint16(outputFee),
+            inputFeePips: uint16(inputFee),
+            outputFeePips: uint16(outputFee),
             revenueMaintenanceTipBps: uint16(revenueTipBps),
             protocolPolOperator: vm.envAddress("STATICS_POL_OPERATOR"),
-            protocolPolActivationFee: vm.envUint("STATICS_POL_ACTIVATION_FEE"),
+            protocolPolActivationFee: polActivationFee,
             diamondCodeHash: vm.envBytes32("STATICS_DIAMOND_RUNTIME_CODE_HASH"),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
