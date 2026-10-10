@@ -777,7 +777,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         protocolPools.setDefaultProtocolPoolFeeRate(
             IStaticsProtocolPools.PoolSwapFeeRate({
-                inputFeePips: uint16(bound(rawInputFeePips, 0, 100)), outputFeePips: uint16(bound(rawOutputFeePips, 0, 100))
+                inputFeePips: uint16(bound(rawInputFeePips, 0, 100)),
+                outputFeePips: uint16(bound(rawOutputFeePips, 0, 100))
             })
         );
         protocolPools.setBasketFeeAllocation(

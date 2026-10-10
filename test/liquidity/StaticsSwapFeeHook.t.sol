@@ -420,9 +420,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 uint256 liability0Before = hook.claimLiability(key.currency0);
                 uint256 liability1Before = hook.claimLiability(key.currency1);
 
-                BalanceDelta delta = swap(
-                    key, zeroForOne, exactInput ? -int256(specifiedAmount) : int256(specifiedAmount), ""
-                );
+                BalanceDelta delta =
+                    swap(key, zeroForOne, exactInput ? -int256(specifiedAmount) : int256(specifiedAmount), "");
                 uint256 fee0 = uint128(diamond.lastStaticsFeesPacked());
                 uint256 fee1 = uint128(diamond.lastStaticsFeesPacked() >> 128);
                 uint256 specifiedFee = exactInput

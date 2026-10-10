@@ -252,8 +252,10 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
             revert InvalidInitialFeeRate(initialFeeRate.inputFeePips, initialFeeRate.outputFeePips);
         }
         (uint16 defaultInputFeePips, uint16 defaultOutputFeePips) = hook.defaultFeeRate();
-        if (initialFeeRate.inputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS
-            || initialFeeRate.outputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS) {
+        if (
+            initialFeeRate.inputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS
+                || initialFeeRate.outputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS
+        ) {
             revert InitialFeeRateBelowMinimum(initialFeeRate.inputFeePips, initialFeeRate.outputFeePips);
         }
         overridden =

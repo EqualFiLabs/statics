@@ -71,9 +71,7 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
         } else if (inputFeePips < 10 || outputFeePips < 10) {
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector,
-                    inputFeePips,
-                    outputFeePips
+                    ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, inputFeePips, outputFeePips
                 )
             );
             pools.quotePool(params);

@@ -182,7 +182,9 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertEq(rate.outputFeePips, 60);
         assertTrue(rate.overridden);
 
-        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 40}));
+        pools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 40})
+        );
         rate = pools.protocolPoolFeeRate(poolId);
         assertEq(rate.inputFeePips, 25);
         assertEq(rate.outputFeePips, 60);
@@ -207,9 +209,13 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
 
         IStaticsProtocolPools.CreatePoolParams memory invalid = _params(address(assetA), address(assetC()), alice);
         invalid.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 9, outputFeePips: 10});
-        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, uint16(9), uint16(10)));
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, uint16(9), uint16(10))
+        );
         pools.quotePool(invalid);
-        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, uint16(9), uint16(10)));
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolPoolCreationFacet.InitialFeeRateBelowMinimum.selector, uint16(9), uint16(10))
+        );
         pools.createPool(invalid, "");
     }
 
@@ -217,7 +223,9 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
         params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 10_000, outputFeePips: 10_001});
         vm.expectRevert(
-            abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, uint16(10_000), uint16(10_001))
+            abi.encodeWithSelector(
+                ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, uint16(10_000), uint16(10_001)
+            )
         );
         pools.quotePool(params);
     }
@@ -225,7 +233,9 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
     function testCreationUsesSelectedRateWhenDefaultChangesAfterQuote() public {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
         pools.quotePool(params);
-        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 30, outputFeePips: 30}));
+        pools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 30, outputFeePips: 30})
+        );
         PoolId poolId = pools.createPool(params, "");
         IStaticsProtocolPools.PoolFeeRateView memory rate = pools.protocolPoolFeeRate(poolId);
         assertEq(rate.inputFeePips, 25);
@@ -436,7 +446,9 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertEq(initial.inputFeePips, 25);
         assertEq(initial.outputFeePips, 25);
 
-        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60}));
+        pools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
+        );
         IStaticsProtocolPools.PoolFeeRateView memory firstRate = pools.protocolPoolFeeRate(first);
         IStaticsProtocolPools.PoolFeeRateView memory secondRate = pools.protocolPoolFeeRate(second);
         assertEq(firstRate.inputFeePips, 40);
@@ -444,8 +456,12 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertFalse(firstRate.overridden);
         assertFalse(secondRate.overridden);
 
-        pools.setProtocolPoolFeeRate(first, IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 10, outputFeePips: 20}));
-        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 30, outputFeePips: 40}));
+        pools.setProtocolPoolFeeRate(
+            first, IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 10, outputFeePips: 20})
+        );
+        pools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 30, outputFeePips: 40})
+        );
         firstRate = pools.protocolPoolFeeRate(first);
         secondRate = pools.protocolPoolFeeRate(second);
         assertEq(firstRate.inputFeePips, 10);
