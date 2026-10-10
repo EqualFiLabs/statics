@@ -434,11 +434,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 if (exactInput) {
                     assertEq(unspecifiedFee, _feeFromNet(uint256(uint128(unspecifiedDelta)), OUTPUT_FEE_PIPS));
                 } else {
-                    uint256 grossInput = uint256(-int256(unspecifiedDelta));
-                    assertEq(
-                        unspecifiedFee,
-                        Math.mulDiv(grossInput - unspecifiedFee, INPUT_FEE_PIPS, 1_000_000, Math.Rounding.Ceil)
-                    );
+                    uint256 realizedInput = uint256(-int256(unspecifiedDelta));
+                    assertEq(unspecifiedFee, Math.mulDiv(realizedInput, INPUT_FEE_PIPS, 1_000_000, Math.Rounding.Ceil));
                 }
                 assertEq(hook.claimLiability(key.currency0) - liability0Before, fee0);
                 assertEq(hook.claimLiability(key.currency1) - liability1Before, fee1);
