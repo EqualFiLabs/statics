@@ -76,7 +76,7 @@ abstract contract GeneralPoolLifecycleTestBase is CanonicalPoolTestBase {
             lpFee: lpFee,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1_LOCAL,
-            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 25, outputFeePips: 25}),
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 2_500, outputFeePips: 2_500}),
             creator: creator,
             activateManagedPol: false,
             nonce: 1,
