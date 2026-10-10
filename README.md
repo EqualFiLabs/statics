@@ -609,6 +609,10 @@ to the address emitted by the Phase 1 deployment. Prepare the nine direct Diamon
 calls for a governance Safe batch. The Safe owns the Phase 1 Diamond during
 launch; the timelock does not delay these calls:
 
+Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` for the launch batch and verify
+that `setProtocolPoolMaintenanceConfig` carries `revenueTipBps: 100` before
+Safe execution. This is 1% of the settled Treasury share.
+
 ```shell
 forge script \
   script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
@@ -943,7 +947,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH` | Exact runtime hash of the companion claim-backed unwind proceeds contract |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Phase 1 v4 liquidity manager deployed by the launcher and installed through the liquidity ceremony |
 | `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash required by Phase 1 installation and later-phase provenance checks |
-| `STATICS_REVENUE_MAINTENANCE_TIP_BPS` | Permissionless revenue-settlement tip paid from the settled treasury share; default 500 BPS |
+| `STATICS_REVENUE_MAINTENANCE_TIP_BPS` | Permissionless revenue-settlement tip paid from the settled treasury share; default 100 BPS |
 | `STATICS_PROTOCOL_POL_OPERATOR` | Optional strategy operator authorized to manage custody-constrained protocol POL positions |
 | `STATICS_POL_ACTIVATION_FEE` | Exact native fee a general-pool creator pays to activate prospective managed POL funding |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |

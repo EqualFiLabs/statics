@@ -169,7 +169,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'settleProtocolPoolRevenue(bytes32,address)
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/fee-policy-maintenance-settle.json"
 MAINTAINER_BALANCE_AFTER=$(cast call "$CURRENCY0" 'balanceOf(address)(uint256)' "$MAINTAINER" --rpc-url "$RPC_URL" | awk '{print $1}')
 TIP=$(printf '%s - %s\n' "$MAINTAINER_BALANCE_AFTER" "$MAINTAINER_BALANCE_BEFORE" | bc)
-assert_eq "$TIP" "$(printf '%s * 500 / 10000\n' "$TREASURY_PENDING_BEFORE" | bc)" "maintenance Treasury-funded tip"
+assert_eq "$TIP" "$(printf '%s * 100 / 10000\n' "$TREASURY_PENDING_BEFORE" | bc)" "maintenance Treasury-funded tip"
 
 assert_phase_one_solvency fee-policy "$CURRENCY0" "$CURRENCY1" "$STAKING_TOKEN"
 record_result protocol-fees rate-precedence pass "$POOL_ID"

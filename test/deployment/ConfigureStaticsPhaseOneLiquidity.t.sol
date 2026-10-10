@@ -120,7 +120,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             weeklyGaugeReleaseBps: 400,
             inputFeeBps: 25,
             outputFeeBps: 25,
-            revenueMaintenanceTipBps: 500,
+            revenueMaintenanceTipBps: 100,
             protocolPolOperator: makeAddr("protocolPolOperator"),
             protocolPolActivationFee: 0.1 ether,
             diamondCodeHash: bytes32(0),
@@ -650,7 +650,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             weeklyGaugeReleaseBps: IStaticsGaugeIncentives(deployment.diamond).gaugeReserve().releaseBps,
             inputFeeBps: 25,
             outputFeeBps: 25,
-            revenueMaintenanceTipBps: 500,
+            revenueMaintenanceTipBps: 100,
             protocolPolOperator: protocolPolOperator,
             protocolPolActivationFee: 0.1 ether,
             diamondCodeHash: deployment.diamond.codehash,
@@ -715,7 +715,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         assertTrue(IStaticsPermissionedSwapFeeHook(hook).trustedPeriphery(quoter));
         IStaticsProtocolPools.ProtocolPoolMaintenanceConfig memory maintenance =
             IStaticsProtocolPools(deployment.diamond).protocolPoolMaintenanceConfig();
-        assertEq(maintenance.revenueTipBps, 500);
+        assertEq(maintenance.revenueTipBps, 100);
         assertEq(IStaticsProtocolPools(deployment.diamond).protocolPolOperator(), polOperator);
         assertEq(IStaticsProtocolPools(deployment.diamond).protocolPolActivationFee(), 0.1 ether);
     }
