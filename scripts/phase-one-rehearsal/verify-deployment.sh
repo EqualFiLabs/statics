@@ -202,8 +202,8 @@ assert_runtime_matches_build_context \
 read -r input_fee output_fee <<<"$(
     cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" 'defaultFeeRate()(uint16,uint16)' --rpc-url "$RPC_URL" | tr '\n' ' '
 )"
-assert_eq "$input_fee" "5" "public input fee"
-assert_eq "$output_fee" "5" "public output fee"
+assert_eq "$input_fee" "500" "public input fee"
+assert_eq "$output_fee" "500" "public output fee"
 
 declare -a facets
 mapfile -t facets < <(

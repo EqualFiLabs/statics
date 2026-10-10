@@ -67,7 +67,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$CREATO
     --value "$POSITION_FEE" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-paused-lp-position.json"
 CREATION_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 604800 ))
-PAUSED_POOL_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,(5,5),$CREATOR,false,404,$CREATION_DEADLINE)"
+PAUSED_POOL_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,(500,500),$CREATOR,false,404,$CREATION_DEADLINE)"
 PAUSED_POOL_QUOTE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
     "$PAUSED_POOL_PARAMS" --rpc-url "$RPC_URL" --json)

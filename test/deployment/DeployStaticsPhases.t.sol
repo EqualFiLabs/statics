@@ -300,8 +300,8 @@ contract DeployStaticsPhasesTest is Test {
                 poolManager: address(fixture.poolManager),
                 positionManager: address(fixture.positionManager),
                 permit2: address(fixture.permit2),
-                inputFeeBps: 25,
-                outputFeeBps: 25,
+                inputFeePips: 25,
+                outputFeePips: 25,
                 poolManagerCodeHash: address(fixture.poolManager).codehash,
                 positionManagerCodeHash: address(fixture.positionManager).codehash,
                 permit2CodeHash: address(fixture.permit2).codehash

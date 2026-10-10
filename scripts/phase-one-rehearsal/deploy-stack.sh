@@ -175,7 +175,7 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "
 
 note "creating the initial public pool before timelock ownership"
 LAUNCH_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
-LAUNCH_PARAMS="($STATICS_TOKEN,$WETH,777,37,79228162514264337593543950336,(5,5),$GOVERNANCE,false,1,$LAUNCH_DEADLINE)"
+LAUNCH_PARAMS="($STATICS_TOKEN,$WETH,50,37,79228162514264337593543950336,(25,25),$GOVERNANCE,false,1,$LAUNCH_DEADLINE)"
 STATICS_LAUNCH_PUBLIC_POOL_IDS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
     "$LAUNCH_PARAMS" --rpc-url "$RPC_URL" --json | jq -er '.[0][1]')
@@ -187,6 +187,15 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     >"$RUN_DIR/safe-phase-one-launch-pool.json"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
     "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL")" true "initial public pool"
+LAUNCH_POOL_VIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))' \
+    "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][1][2]' <<<"$LAUNCH_POOL_VIEW")" 50 "launch pool LP fee in pips"
+LAUNCH_POOL_RATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'protocolPoolFeeRate(bytes32)((uint16,uint16,bool))' "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][0]' <<<"$LAUNCH_POOL_RATE")" 25 "launch pool input hook fee in pips"
+assert_eq "$(jq -r '.[0][1]' <<<"$LAUNCH_POOL_RATE")" 25 "launch pool output hook fee in pips"
+assert_eq "$(jq -r '.[0][2]' <<<"$LAUNCH_POOL_RATE")" true "launch pool fee override marker"
 
 HANDOFF_LOG="$RUN_DIR/prepare-phase-one-handoff.log"
 note "preparing the Safe handoff after initial pool verification"

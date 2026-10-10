@@ -52,8 +52,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address poolManager;
         address positionManager;
         address permit2;
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
@@ -65,7 +65,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
-    error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
+    error InvalidHookFees(uint256 inputFeePips, uint256 outputFeePips);
     error HookAddressMismatch(address expected, address actual);
     error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
 
@@ -181,8 +181,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         bytes memory constructorArgs = abi.encode(
             IPoolManager(config.poolManager),
             deployment.diamond,
-            config.inputFeeBps,
-            config.outputFeeBps,
+            config.inputFeePips,
+            config.outputFeePips,
             deployment.weth
         );
         (address expectedHook, bytes32 salt) =
@@ -190,8 +190,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
             IPoolManager(config.poolManager),
             deployment.diamond,
-            config.inputFeeBps,
-            config.outputFeeBps,
+            config.inputFeePips,
+            config.outputFeePips,
             deployment.weth
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
@@ -247,9 +247,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     function _validateV4(V4Config memory config) private view {
         if (
-            config.inputFeeBps == 0 || config.outputFeeBps == 0
-                || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
-        ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
+            config.inputFeePips == 0 || config.outputFeePips == 0
+                || uint256(config.inputFeePips) + uint256(config.outputFeePips) > 20_000
+        ) revert InvalidHookFees(config.inputFeePips, config.outputFeePips);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -274,8 +274,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 expectedChainId = vm.parseJsonUint(manifest, ".chainId");
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
-        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
-        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeePips");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeePips");
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(inputFee, outputFee);
         }
@@ -283,8 +283,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
-            inputFeeBps: uint16(inputFee),
-            outputFeeBps: uint16(outputFee),
+            inputFeePips: uint16(inputFee),
+            outputFeePips: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")

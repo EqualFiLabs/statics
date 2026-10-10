@@ -258,7 +258,7 @@ create_public_pool() {
     local tick_spacing=${7:-60}
     local deadline params currency0 currency1 encoded pool_id
     deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
-    params="($token_a,$token_b,$lp_fee,$tick_spacing,79228162514264337593543950336,(5,5),$creator,false,$nonce,$deadline)"
+    params="($token_a,$token_b,$lp_fee,$tick_spacing,79228162514264337593543950336,(500,500),$creator,false,$nonce,$deadline)"
     local creation_fee
     creation_fee=$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
     cast rpc --rpc-url "$RPC_URL" anvil_impersonateAccount "$creator" >/dev/null

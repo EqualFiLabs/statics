@@ -62,8 +62,8 @@ struct StaticsPhaseOneLiquidityConfig {
     uint256 positionCreationFeeAmount;
     uint256 poolCreationFeeAmount;
     uint16 weeklyGaugeReleaseBps;
-    uint16 inputFeeBps;
-    uint16 outputFeeBps;
+    uint16 inputFeePips;
+    uint16 outputFeePips;
     uint16 revenueMaintenanceTipBps;
     address protocolPolOperator;
     uint256 protocolPolActivationFee;
@@ -417,9 +417,9 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.weth, hook.weth());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
-        (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
-        if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
-            revert InvalidHookFees(config.inputFeeBps, inputFeeBps, config.outputFeeBps, outputFeeBps);
+        (uint16 inputFeePips, uint16 outputFeePips) = hook.defaultFeeRate();
+        if (inputFeePips != config.inputFeePips || outputFeePips != config.outputFeePips) {
+            revert InvalidHookFees(config.inputFeePips, inputFeePips, config.outputFeePips, outputFeePips);
         }
         uint160 actualFlags = uint160(config.hook) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert InvalidHookFlags(REQUIRED_HOOK_FLAGS, actualFlags);
@@ -676,8 +676,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _loadRobinhoodConfig() private view returns (StaticsPhaseOneLiquidityConfig memory config) {
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
-        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
-        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeePips");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeePips");
         uint256 weeklyGaugeReleaseBps = vm.envOr("WEEKLY_GAUGE_RELEASE_BPS", uint256(400));
         uint256 revenueTipBps = vm.envOr("STATICS_REVENUE_MAINTENANCE_TIP_BPS", uint256(100));
         uint256 positionCreationFee = vm.envUint("POSITION_CREATION_FEE_AMOUNT");
@@ -727,8 +727,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             positionCreationFeeAmount: positionCreationFee,
             poolCreationFeeAmount: poolCreationFee,
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps),
-            inputFeeBps: uint16(inputFee),
-            outputFeeBps: uint16(outputFee),
+            inputFeePips: uint16(inputFee),
+            outputFeePips: uint16(outputFee),
             revenueMaintenanceTipBps: uint16(revenueTipBps),
             protocolPolOperator: vm.envAddress("STATICS_POL_OPERATOR"),
             protocolPolActivationFee: polActivationFee,

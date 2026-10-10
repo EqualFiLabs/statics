@@ -137,8 +137,8 @@ contract DeployStaticsTest is Test {
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
             revenueMaintenanceTipBps: 500,
-            inputFeeBps: 25,
-            outputFeeBps: 25,
+            inputFeePips: 25,
+            outputFeePips: 25,
             protocolPolOperator: config.multisig,
             protocolPolActivationFee: 0.1 ether,
             poolManagerCodeHash: deployment.poolManager.codehash,
@@ -205,9 +205,9 @@ contract DeployStaticsTest is Test {
         assertEq(manager, deployment.liquidityManager);
         assertEq(StaticsSwapFeeHook(payable(hook)).staticsDiamond(), diamond);
         assertEq(address(StaticsSwapFeeHook(payable(hook)).poolManager()), deployment.poolManager);
-        (uint16 inputFeeBps, uint16 outputFeeBps) = StaticsSwapFeeHook(payable(hook)).defaultFeeRate();
-        assertEq(inputFeeBps, 25);
-        assertEq(outputFeeBps, 25);
+        (uint16 inputFeePips, uint16 outputFeePips) = StaticsSwapFeeHook(payable(hook)).defaultFeeRate();
+        assertEq(inputFeePips, 25);
+        assertEq(outputFeePips, 25);
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
@@ -340,8 +340,8 @@ contract DeployStaticsTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
-            inputFeeBps: 25,
-            outputFeeBps: 25,
+            inputFeePips: 25,
+            outputFeePips: 25,
             poolManagerCodeHash: address(poolManager).codehash,
             positionManagerCodeHash: address(positionManager).codehash,
             permit2CodeHash: address(permit2Contract).codehash

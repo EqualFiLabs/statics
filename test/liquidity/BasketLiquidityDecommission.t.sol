@@ -123,7 +123,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
     function testGovernanceCanUpdateCappedFeeConfiguration() public {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         protocolPools.setDefaultProtocolPoolFeeRate(
-            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
         );
         protocolPools.setBasketFeeAllocation(
             IStaticsProtocolPools.BasketFeeAllocation({
@@ -132,8 +132,8 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         );
         IStaticsProtocolPools.PoolSwapFeeRate memory rate = protocolPools.defaultProtocolPoolFeeRate();
         IStaticsProtocolPools.BasketFeeAllocation memory stored = protocolPools.basketFeeAllocation();
-        assertEq(rate.inputFeeBps, 40);
-        assertEq(rate.outputFeeBps, 60);
+        assertEq(rate.inputFeePips, 40);
+        assertEq(rate.outputFeePips, 60);
         assertEq(stored.polShareBps, 6_000);
         assertEq(stored.staticsStakerShareBps, 3_000);
     }

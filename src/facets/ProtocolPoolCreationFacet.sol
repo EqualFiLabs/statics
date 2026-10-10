@@ -33,9 +33,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant DOMAIN_NAME_HASH = keccak256(bytes("Statics Protocol Pools"));
-    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("4"));
+    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("5"));
     bytes32 private constant CREATE_POOL_TYPEHASH = keccak256(
-        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,bool activateManagedPol,uint256 nonce,uint256 deadline)"
+        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeePips,uint16 outputFeePips,address creator,bool activateManagedPol,uint256 nonce,uint256 deadline)"
     );
 
     error LiquidityIntegrationNotInstalled();
@@ -45,10 +45,8 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     error InvalidTickSpacing(int24 tickSpacing);
     error InvalidPoolPrice(uint160 sqrtPriceBPerAX96);
     error InvalidNativeLpFee(uint24 lpFee);
-    error InvalidInitialFeeRate(uint16 inputFeeBps, uint16 outputFeeBps);
-    error InitialFeeRateBelowDefault(
-        uint16 inputFeeBps, uint16 outputFeeBps, uint16 defaultInputFeeBps, uint16 defaultOutputFeeBps
-    );
+    error InvalidInitialFeeRate(uint16 inputFeePips, uint16 outputFeePips);
+    error InitialFeeRateBelowMinimum(uint16 inputFeePips, uint16 outputFeePips);
     error PoolAlreadyInitialized(PoolId poolId);
     error PoolAlreadyRegisteredInHook(PoolId poolId);
     error ActionPaused(uint256 action);
@@ -108,7 +106,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
 
         hook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, params.creator);
         if (overrideInitialFeeRate) {
-            hook.setPoolFeeRate(poolId, params.initialFeeRate.inputFeeBps, params.initialFeeRate.outputFeeBps);
+            hook.setPoolFeeRate(poolId, params.initialFeeRate.inputFeePips, params.initialFeeRate.outputFeePips);
         }
         IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
         (, int24 tick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
@@ -190,8 +188,8 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
                 CREATE_POOL_TYPEHASH,
                 PoolId.unwrap(poolId),
                 sqrtPriceX96,
-                params.initialFeeRate.inputFeeBps,
-                params.initialFeeRate.outputFeeBps,
+                params.initialFeeRate.inputFeePips,
+                params.initialFeeRate.outputFeePips,
                 params.creator,
                 params.activateManagedPol,
                 params.nonce,
@@ -250,17 +248,16 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         IStaticsSwapFeeHook hook,
         IStaticsProtocolPools.PoolSwapFeeRate calldata initialFeeRate
     ) private view returns (bool overridden) {
-        if (!LibProtocolPoolFee.isValidFeeRate(initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps)) {
-            revert InvalidInitialFeeRate(initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps);
+        if (!LibProtocolPoolFee.isValidFeeRate(initialFeeRate.inputFeePips, initialFeeRate.outputFeePips)) {
+            revert InvalidInitialFeeRate(initialFeeRate.inputFeePips, initialFeeRate.outputFeePips);
         }
-        (uint16 defaultInputFeeBps, uint16 defaultOutputFeeBps) = hook.defaultFeeRate();
-        if (initialFeeRate.inputFeeBps < defaultInputFeeBps || initialFeeRate.outputFeeBps < defaultOutputFeeBps) {
-            revert InitialFeeRateBelowDefault(
-                initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps, defaultInputFeeBps, defaultOutputFeeBps
-            );
+        (uint16 defaultInputFeePips, uint16 defaultOutputFeePips) = hook.defaultFeeRate();
+        if (initialFeeRate.inputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS
+            || initialFeeRate.outputFeePips < LibProtocolPoolFee.MIN_CREATOR_FEE_PIPS) {
+            revert InitialFeeRateBelowMinimum(initialFeeRate.inputFeePips, initialFeeRate.outputFeePips);
         }
         overridden =
-            initialFeeRate.inputFeeBps != defaultInputFeeBps || initialFeeRate.outputFeeBps != defaultOutputFeeBps;
+            initialFeeRate.inputFeePips != defaultInputFeePips || initialFeeRate.outputFeePips != defaultOutputFeePips;
     }
 
     function _enforceLiquidityAvailable() private view {

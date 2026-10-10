@@ -47,7 +47,7 @@ verification cannot accidentally accept stale shared build output.
 - `public-pool-creation.sh` exercises exact native creation fees, invalid
   payment and configuration paths, distinct PoolKeys, direct and relayed
   creator authorization, nonce invalidation and replay, reciprocal pricing, and
-  stale defaults.
+  creator rates below a later default and the 10-pip floor.
 - `vanilla-v4-gas.sh` initializes a no-hook v4 pool, mints full-range liquidity,
   and records cold and steady exact-input swap gas.
 - `public-market-tape.sh` creates a Statics public pool, provides two managed

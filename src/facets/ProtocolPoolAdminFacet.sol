@@ -48,15 +48,15 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
 
     function setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate) external {
         LibDiamond.enforceIsContractOwner();
-        IStaticsSwapFeeHook(_liquidityStorage().hook).setDefaultFeeRate(feeRate.inputFeeBps, feeRate.outputFeeBps);
-        emit IStaticsProtocolPools.DefaultProtocolPoolFeeRateSet(feeRate.inputFeeBps, feeRate.outputFeeBps);
+        IStaticsSwapFeeHook(_liquidityStorage().hook).setDefaultFeeRate(feeRate.inputFeePips, feeRate.outputFeePips);
+        emit IStaticsProtocolPools.DefaultProtocolPoolFeeRateSet(feeRate.inputFeePips, feeRate.outputFeePips);
     }
 
     function setProtocolPoolFeeRate(PoolId poolId, IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate) external {
         LibDiamond.enforceIsContractOwner();
         _enforcePublicProtocolPool(poolId);
-        IStaticsSwapFeeHook(_liquidityStorage().hook).setPoolFeeRate(poolId, feeRate.inputFeeBps, feeRate.outputFeeBps);
-        emit IStaticsProtocolPools.ProtocolPoolFeeRateSet(poolId, feeRate.inputFeeBps, feeRate.outputFeeBps);
+        IStaticsSwapFeeHook(_liquidityStorage().hook).setPoolFeeRate(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
+        emit IStaticsProtocolPools.ProtocolPoolFeeRateSet(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
     }
 
     function clearProtocolPoolFeeRate(PoolId poolId) external {
