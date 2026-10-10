@@ -578,8 +578,17 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-After explicit authorization, set `POOL_CREATION_FEE_AMOUNT` to the chosen
-nonzero native fee in wei. The Phase 1 launcher rejects zero. The deployment command is:
+The approved Phase 1 mainnet launch fees are 0.01 ETH per public pool, 0.001
+ETH per new PositionNFT, and 0.025 ETH for managed-POL activation. Set the exact
+wei values before preparing deployment and the Safe bootstrap batch:
+
+```shell
+export POOL_CREATION_FEE_AMOUNT=10000000000000000
+export POSITION_CREATION_FEE_AMOUNT=1000000000000000
+export STATICS_POL_ACTIVATION_FEE=25000000000000000
+```
+
+The Phase 1 mainnet scripts reject different values. The deployment command is:
 
 ```shell
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
@@ -609,9 +618,10 @@ to the address emitted by the Phase 1 deployment. Prepare the nine direct Diamon
 calls for a governance Safe batch. The Safe owns the Phase 1 Diamond during
 launch; the timelock does not delay these calls:
 
-Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` for the launch batch and verify
-that `setProtocolPoolMaintenanceConfig` carries `revenueTipBps: 100` before
-Safe execution. This is 1% of the settled Treasury share.
+Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` for the launch batch. Before Safe
+execution, verify `setProtocolPoolMaintenanceConfig` carries `revenueTipBps: 100`
+and `setProtocolPolActivationFee` carries `25000000000000000`. The tip is 1% of
+the settled Treasury share.
 
 ```shell
 forge script \
@@ -909,10 +919,10 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
 | `WEEKLY_GAUGE_RELEASE_BPS` | Initial weekly release from the available protocol gauge reserve; defaults to 400 bps and cannot exceed 1,000 bps |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
-| `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
-| `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
+| `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; Phase 1 mainnet launch requires 0.001 ETH |
+| `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; Phase 1 mainnet launch requires 0.01 ETH; zero disables permissionless creation (owner-only) |
 | `STATICS_POL_OPERATOR` | Operational address permitted to manage explicit protocol-owned liquidity positions without withdrawal authority |
-| `STATICS_POL_ACTIVATION_FEE` | Exact native Treasury fee a general-pool creator pays to permanently enable future managed-POL funding |
+| `STATICS_POL_ACTIVATION_FEE` | Exact native Treasury fee a general-pool creator pays to permanently enable future managed-POL funding; Phase 1 mainnet launch requires 0.025 ETH |
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's onchain ERC-7572 collection metadata URI |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
 | `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native Genesis secured-credit origination fee |

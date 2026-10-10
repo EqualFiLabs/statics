@@ -123,7 +123,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-allocation.json"
 assert_gt "$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugePoolWeight(bytes32)(uint256,bytes32,bytes32,uint64,uint256,uint256,bool)' \
     "$POOL_ID" --rpc-url "$RPC_URL" | head -1 | awk '{print $1}')" 0 "native gauge STATICS allocation"
-cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" --value 100000000000000000 \
+cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" --value "$STATICS_POL_ACTIVATION_FEE" \
     --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-activate.json"
 
 WETH_SUPPLY=$(cast call "$WETH_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')

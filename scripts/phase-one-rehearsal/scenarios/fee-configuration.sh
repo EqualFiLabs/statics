@@ -65,7 +65,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointRewardAssets(address[])' "[$CURR
 wrap_weth "$TRADER_INDEX" 10000000000000000000 fee-policy-trader
 acquire_genesis_statics "$TRADER_INDEX" 2000000000000000000 fee-policy-trader >/dev/null
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/fee-policy-activate-pol.json"
 
 account_state() {

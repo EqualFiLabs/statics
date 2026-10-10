@@ -67,7 +67,10 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidV4Binding(address target, address expected, address actual);
     error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
     error HookAddressMismatch(address expected, address actual);
+    error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
 
+    uint256 private constant LAUNCH_POSITION_CREATION_FEE = 0.001 ether;
+    uint256 private constant LAUNCH_POOL_CREATION_FEE = 0.01 ether;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -90,6 +93,16 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps)
         });
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            if (config.positionCreationFeeAmount != LAUNCH_POSITION_CREATION_FEE) {
+                revert InvalidLaunchFee(
+                    "positionCreationFee", LAUNCH_POSITION_CREATION_FEE, config.positionCreationFeeAmount
+                );
+            }
+            if (config.poolCreationFeeAmount != LAUNCH_POOL_CREATION_FEE) {
+                revert InvalidLaunchFee("poolCreationFee", LAUNCH_POOL_CREATION_FEE, config.poolCreationFeeAmount);
+            }
+        }
         V4Config memory v4 = _loadRobinhoodV4Config();
 
         vm.startBroadcast(privateKey);

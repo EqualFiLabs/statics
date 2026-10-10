@@ -97,8 +97,16 @@ assert_eq \
     "POL operator"
 assert_eq \
     "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolActivationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
-    "100000000000000000" \
+    "25000000000000000" \
     "POL activation fee"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "10000000000000000" \
+    "public pool creation fee"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "1000000000000000" \
+    "PositionNFT creation fee"
 assert_eq \
     "$(cast call "$STATICS_TIMELOCK_ADDRESS" 'getMinDelay()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     "86400" \

@@ -88,6 +88,34 @@ contract PhaseOnePermissionedBindingMock {
 }
 
 contract DeployStaticsPhaseOneTest is Test {
+    function testRunRejectsUnexpectedMainnetCreationFees() public {
+        vm.chainId(4663);
+        vm.setEnv("PRIVATE_KEY", "1");
+        vm.setEnv("MULTISIG", vm.toString(makeAddr("multisig")));
+        vm.setEnv("GUARDIAN", vm.toString(makeAddr("guardian")));
+        vm.setEnv("TREASURY", vm.toString(makeAddr("treasury")));
+        vm.setEnv("STAKING_TOKEN", vm.toString(makeAddr("stakingToken")));
+        vm.setEnv("WETH_ADDRESS", vm.toString(makeAddr("weth")));
+        vm.setEnv("POSITION_CREATION_FEE_AMOUNT", vm.toString(uint256(0.001 ether)));
+        vm.setEnv("POOL_CREATION_FEE_AMOUNT", "0");
+        DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployStaticsPhaseOne.InvalidLaunchFee.selector, bytes32("poolCreationFee"), 0.01 ether, 0
+            )
+        );
+        deployer.run();
+
+        vm.setEnv("POOL_CREATION_FEE_AMOUNT", vm.toString(uint256(0.01 ether)));
+        vm.setEnv("POSITION_CREATION_FEE_AMOUNT", "0");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployStaticsPhaseOne.InvalidLaunchFee.selector, bytes32("positionCreationFee"), 0.001 ether, 0
+            )
+        );
+        deployer.run();
+    }
+
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 32;
     uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 226;
 

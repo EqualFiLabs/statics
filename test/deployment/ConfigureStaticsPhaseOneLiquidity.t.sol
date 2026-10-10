@@ -97,6 +97,35 @@ contract PhaseOneUnexpectedFacet {
 contract PhaseOneFakeTimelock {}
 
 contract ConfigureStaticsPhaseOneLiquidityTest is Test {
+    function testBootstrapRejectsUnexpectedMainnetPolActivationFee() public {
+        vm.chainId(4663);
+        vm.setEnv("STATICS_DIAMOND_ADDRESS", vm.toString(makeAddr("diamond")));
+        vm.setEnv("STATICS_TIMELOCK_ADDRESS", vm.toString(makeAddr("timelock")));
+        vm.setEnv("POSITION_CREATION_FEE_AMOUNT", vm.toString(uint256(0.001 ether)));
+        vm.setEnv("POOL_CREATION_FEE_AMOUNT", vm.toString(uint256(0.01 ether)));
+        vm.setEnv("STATICS_POL_ACTIVATION_FEE", vm.toString(uint256(0.1 ether)));
+        vm.setEnv("STATICS_REVENUE_MAINTENANCE_TIP_BPS", "100");
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidLaunchFee.selector,
+                bytes32("polActivationFee"),
+                0.025 ether,
+                0.1 ether
+            )
+        );
+        ceremony.runPrepareBootstrap();
+
+        vm.setEnv("STATICS_POL_ACTIVATION_FEE", vm.toString(uint256(0.025 ether)));
+        vm.setEnv("STATICS_REVENUE_MAINTENANCE_TIP_BPS", "500");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidLaunchFee.selector, bytes32("revenueTipBps"), 100, 500
+            )
+        );
+        ceremony.runPrepareBootstrap();
+    }
+
     function testBatchContainsOnlyPhaseOneLiquidityCalls() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         address diamond = makeAddr("diamond");
@@ -115,14 +144,14 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
             stakingToken: makeAddr("stakingToken"),
-            positionCreationFeeAmount: 0,
-            poolCreationFeeAmount: 0,
+            positionCreationFeeAmount: 0.001 ether,
+            poolCreationFeeAmount: 0.01 ether,
             weeklyGaugeReleaseBps: 400,
             inputFeeBps: 25,
             outputFeeBps: 25,
             revenueMaintenanceTipBps: 100,
             protocolPolOperator: makeAddr("protocolPolOperator"),
-            protocolPolActivationFee: 0.1 ether,
+            protocolPolActivationFee: 0.025 ether,
             diamondCodeHash: bytes32(0),
             poolManagerCodeHash: bytes32(0),
             positionManagerCodeHash: bytes32(0),
@@ -283,6 +312,19 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         PoolId laterPoolId = IStaticsProtocolPools(diamond).createPool{value: 0.01 ether}(laterParams, "");
         assertTrue(IStaticsProtocolPools(diamond).isProtocolPool(laterPoolId));
         assertEq(treasury.balance - treasuryBefore, 0.01 ether);
+
+        laterParams.tokenB = address(new MockERC20("Later C", "LC", 18));
+        laterParams.activateManagedPol = true;
+        laterParams.nonce = 3;
+        IStaticsProtocolPools.GeneralPoolQuote memory quote = IStaticsProtocolPools(diamond).quotePool(laterParams);
+        assertEq(quote.creationFee, 0.01 ether);
+        assertEq(quote.polActivationFee, 0.025 ether);
+        assertEq(quote.totalNativeFee, 0.035 ether);
+        treasuryBefore = treasury.balance;
+        vm.prank(publicCreator);
+        PoolId polPoolId = IStaticsProtocolPools(diamond).createPool{value: 0.035 ether}(laterParams, "");
+        assertTrue(IStaticsProtocolPools(diamond).protocolPool(polPoolId).polActivated);
+        assertEq(treasury.balance - treasuryBefore, 0.035 ether);
     }
 
     function testCeremonyRequiresExactHookCodeHash() public {
@@ -594,7 +636,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0,
+                positionCreationFeeAmount: 0.001 ether,
                 poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
@@ -652,7 +694,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             outputFeeBps: 25,
             revenueMaintenanceTipBps: 100,
             protocolPolOperator: protocolPolOperator,
-            protocolPolActivationFee: 0.1 ether,
+            protocolPolActivationFee: 0.025 ether,
             diamondCodeHash: deployment.diamond.codehash,
             poolManagerCodeHash: poolManager.codehash,
             positionManagerCodeHash: positionManagerAddress.codehash,
@@ -717,7 +759,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             IStaticsProtocolPools(deployment.diamond).protocolPoolMaintenanceConfig();
         assertEq(maintenance.revenueTipBps, 100);
         assertEq(IStaticsProtocolPools(deployment.diamond).protocolPolOperator(), polOperator);
-        assertEq(IStaticsProtocolPools(deployment.diamond).protocolPolActivationFee(), 0.1 ether);
+        assertEq(IStaticsProtocolPools(deployment.diamond).protocolPolActivationFee(), 0.025 ether);
     }
 
     function _selector(bytes memory payload) private pure returns (bytes4 selector) {

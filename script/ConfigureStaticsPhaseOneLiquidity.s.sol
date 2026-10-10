@@ -104,6 +104,10 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     uint256 private constant MAX_WEEKLY_GAUGE_RELEASE_BPS = 1_000;
     uint256 private constant MAX_REVENUE_MAINTENANCE_TIP_BPS = 2_000;
     uint256 private constant DEFAULT_POSITION_ROYALTY_BPS = 500;
+    uint256 private constant LAUNCH_POSITION_CREATION_FEE = 0.001 ether;
+    uint256 private constant LAUNCH_POOL_CREATION_FEE = 0.01 ether;
+    uint256 private constant LAUNCH_POL_ACTIVATION_FEE = 0.025 ether;
+    uint256 private constant LAUNCH_REVENUE_TIP_BPS = 100;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -127,6 +131,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     error UnsupportedInterface(bytes4 interfaceId);
     error ConfigurationValueOutOfRange(string field, uint256 value, uint256 maximum);
     error InvalidMaintenanceConfiguration();
+    error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
     error UnexpectedFacetCount(uint256 expected, uint256 actual);
     error UnexpectedSelectorCount(uint256 expected, uint256 actual);
     error UnexpectedSelector(bytes4 selector, bool expectedInstalled, bool installed);
@@ -629,6 +634,23 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
         uint256 weeklyGaugeReleaseBps = vm.envOr("WEEKLY_GAUGE_RELEASE_BPS", uint256(400));
         uint256 revenueTipBps = vm.envOr("STATICS_REVENUE_MAINTENANCE_TIP_BPS", uint256(100));
+        uint256 positionCreationFee = vm.envUint("POSITION_CREATION_FEE_AMOUNT");
+        uint256 poolCreationFee = vm.envUint("POOL_CREATION_FEE_AMOUNT");
+        uint256 polActivationFee = vm.envUint("STATICS_POL_ACTIVATION_FEE");
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            if (revenueTipBps != LAUNCH_REVENUE_TIP_BPS) {
+                revert InvalidLaunchFee("revenueTipBps", LAUNCH_REVENUE_TIP_BPS, revenueTipBps);
+            }
+            if (positionCreationFee != LAUNCH_POSITION_CREATION_FEE) {
+                revert InvalidLaunchFee("positionCreationFee", LAUNCH_POSITION_CREATION_FEE, positionCreationFee);
+            }
+            if (poolCreationFee != LAUNCH_POOL_CREATION_FEE) {
+                revert InvalidLaunchFee("poolCreationFee", LAUNCH_POOL_CREATION_FEE, poolCreationFee);
+            }
+            if (polActivationFee != LAUNCH_POL_ACTIVATION_FEE) {
+                revert InvalidLaunchFee("polActivationFee", LAUNCH_POL_ACTIVATION_FEE, polActivationFee);
+            }
+        }
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
         }
@@ -656,14 +678,14 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
-            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
-            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
+            positionCreationFeeAmount: positionCreationFee,
+            poolCreationFeeAmount: poolCreationFee,
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
             revenueMaintenanceTipBps: uint16(revenueTipBps),
             protocolPolOperator: vm.envAddress("STATICS_POL_OPERATOR"),
-            protocolPolActivationFee: vm.envUint("STATICS_POL_ACTIVATION_FEE"),
+            protocolPolActivationFee: polActivationFee,
             diamondCodeHash: vm.envBytes32("STATICS_DIAMOND_RUNTIME_CODE_HASH"),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),

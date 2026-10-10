@@ -108,7 +108,7 @@ expect_call_revert "outsider pause" \
 # PAUSE_LIQUIDITY blocks every tested exposure-increasing path while preserving
 # fee collection and partial withdrawal of already-owned liquidity.
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-pol-activate.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'pause(uint256)' 32 \
     --private-key "$GUARDIAN_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-pause-liquidity.json"
