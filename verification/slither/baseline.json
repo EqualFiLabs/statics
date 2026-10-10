@@ -3,14 +3,14 @@
   "counts": {
     "High": 52,
     "Medium": 419,
-    "Low": 234,
-    "Informational": 161
+    "Low": 237,
+    "Informational": 163
   },
   "raw_counts": {
     "High": 52,
     "Medium": 419,
-    "Low": 307,
-    "Informational": 161
+    "Low": 313,
+    "Informational": 163
   },
   "findings": [
     {
@@ -1881,10 +1881,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsSwapFeeHook.sol#361) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsSwapFeeHook.sol#362) is a local variable never initialized",
       "rationale": "A zero local means the specified swap leg charged no Statics fee. The value is assigned from exact fee allocation whenever the charged amount is nonzero.",
       "occurrences": 1,
-      "id": "2114a5099b546d828feca08d"
+      "id": "717bae98d7c74747a8e46e31"
     },
     {
       "impact": "Medium",
@@ -2153,10 +2153,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#582) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#583) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "76d913c356a73c639db052b9"
+      "id": "7619d12c6f81331018f47d8b"
     },
     {
       "impact": "Medium",
@@ -2201,10 +2201,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#583) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#584) is a local variable never initialized",
       "rationale": "The accumulator intentionally starts at zero and changes only when an ineligible basket-staker amount is redirected to Treasury.",
       "occurrences": 1,
-      "id": "7d015f3079717c2e12a6c156"
+      "id": "37ba5e7767b43c5d8d81d571"
     },
     {
       "impact": "Medium",
@@ -2300,7 +2300,7 @@
       "summary": "DeployStatics._deployLocalReference(DeployStatics.Config,address).local (script/DeployStatics.s.sol#116) is a local variable never initialized",
       "rationale": "Solidity zero-initializes this memory deployment result before its fields are populated and returned.",
       "occurrences": 1,
-      "id": "86f2cd7662b9e529fcaa97f4"
+      "id": "fac22153dd1a26a2b5e34084"
     },
     {
       "impact": "Medium",
@@ -2393,10 +2393,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsSwapFeeHook.sol#409) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsSwapFeeHook.sol#410) is a local variable never initialized",
       "rationale": "The zero-initialized memory context is populated field by field before each field is consumed; Solidity memory initialization is intentional here.",
       "occurrences": 1,
-      "id": "9c3463bb5369b7b2f8d06c37"
+      "id": "8f87cdf2389ebe7e7135859b"
     },
     {
       "impact": "Medium",
@@ -2905,10 +2905,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#93-130) ignores return value by hook.registerPool(quote.key,IStaticsSwapFeeHook.PoolKind.General,params.creator) (src/facets/ProtocolPoolCreationFacet.sol#109)",
+      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#91-128) ignores return value by hook.registerPool(quote.key,IStaticsSwapFeeHook.PoolKind.General,params.creator) (src/facets/ProtocolPoolCreationFacet.sol#107)",
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
-      "id": "0285a8a79b1e1c0dec4ddafe"
+      "id": "4bcdf82b72e0053ab1adfd5a"
     },
     {
       "impact": "Medium",
@@ -2969,10 +2969,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#216-225) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/ProtocolPoolAdminFacet.sol#221)",
+      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#217-226) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/ProtocolPoolAdminFacet.sol#222)",
       "rationale": "The caller consumes the required state transition or tuple fields; omitted diagnostic values do not alter authority, custody, or accounting and failures still revert atomically.",
       "occurrences": 1,
-      "id": "07e13f3f60b24da489ed0eed"
+      "id": "21e6e6209937e7d037a99036"
     },
     {
       "impact": "Medium",
@@ -3305,10 +3305,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#248-295) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#262)",
+      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#388-435) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#402)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "18021f044b62805896a51198"
+      "id": "3e27c25d0cc0e3b4223c73c5"
     },
     {
       "impact": "Medium",
@@ -3369,10 +3369,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#93-130) ignores return value by (None,tick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#114)",
+      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#91-128) ignores return value by (None,tick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#112)",
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "226f91918a42d0eac2c1e64a"
+      "id": "8eeee2e4e38ffb3aebff67af"
     },
     {
       "impact": "Medium",
@@ -3529,10 +3529,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#69-91) ignores return value by (initializedPrice,None,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#84)",
+      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#67-89) ignores return value by (initializedPrice,None,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#82)",
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
-      "id": "289c69b3f31994e57574d18d"
+      "id": "d99429251f537d43118443e3"
     },
     {
       "impact": "Medium",
@@ -3769,10 +3769,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook.settleStakerRewards(Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#277-288) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(currency,receiver,amount))) (src/liquidity/StaticsSwapFeeHook.sol#286)",
+      "summary": "StaticsSwapFeeHook.settleStakerRewards(Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#278-289) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(currency,receiver,amount))) (src/liquidity/StaticsSwapFeeHook.sol#287)",
       "rationale": "PoolManager unlock executes the staker-reward redemption callback and reverts on failure. Its return bytes are intentionally empty; the Diamond verifies the exact funded amount.",
       "occurrences": 1,
-      "id": "343048ac40013d84a00d0e5c"
+      "id": "5f97848532930cd4204ad376"
     },
     {
       "impact": "Medium",
@@ -3865,10 +3865,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#216-225) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolAdminFacet.sol#219)",
+      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#217-226) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolAdminFacet.sol#220)",
       "rationale": "The caller consumes the required state transition or tuple fields; omitted diagnostic values do not alter authority, custody, or accounting and failures still revert atomically.",
       "occurrences": 1,
-      "id": "3c637a9ba40d01e04a5894fb"
+      "id": "f125c991aa94ce2068c83e6a"
     },
     {
       "impact": "Medium",
@@ -4025,10 +4025,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#93-130) ignores return value by IPoolManager(ls.poolManager).initialize(quote.key,quote.sqrtPriceX96) (src/facets/ProtocolPoolCreationFacet.sol#113)",
+      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#91-128) ignores return value by IPoolManager(ls.poolManager).initialize(quote.key,quote.sqrtPriceX96) (src/facets/ProtocolPoolCreationFacet.sol#111)",
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "40a319d8495e68ea8a2f2ac3"
+      "id": "776c9db612c45272aecf9450"
     },
     {
       "impact": "Medium",
@@ -4665,10 +4665,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#216-225) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/ProtocolPoolAdminFacet.sol#223)",
+      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#217-226) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/ProtocolPoolAdminFacet.sol#224)",
       "rationale": "The caller consumes the required state transition or tuple fields; omitted diagnostic values do not alter authority, custody, or accounting and failures still revert atomically.",
       "occurrences": 1,
-      "id": "5ec5fa2493f2ccfd78a344bb"
+      "id": "ae90b24fc64c49c1d0a824a1"
     },
     {
       "impact": "Medium",
@@ -5068,7 +5068,7 @@
       "summary": "ProtocolPoolViewFacet.protocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolViewFacet.sol#105-119) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolViewFacet.sol#110)",
       "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
       "occurrences": 1,
-      "id": "70e8f99056fedf9c0caff7f2"
+      "id": "283b3705b9b44d9f5a3621bd"
     },
     {
       "impact": "Medium",
@@ -5161,10 +5161,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#206-221) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#220)",
+      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#231-246) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#245)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "735827e61b9cc3054ebe9cf9"
+      "id": "2702070db9734b4e16d68850"
     },
     {
       "impact": "Medium",
@@ -7001,10 +7001,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#290-312) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsSwapFeeHook.sol#305-310)",
+      "summary": "StaticsSwapFeeHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#291-313) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsSwapFeeHook.sol#306-311)",
       "rationale": "PoolManager unlock executes the POL redemption callback and reverts the transaction on callback failure. The callback return bytes are intentionally empty; exact delivery is checked by the Diamond caller.",
       "occurrences": 1,
-      "id": "d891ba5e396586e891d8b92b"
+      "id": "ebf9b337b6ba124a4c2506db"
     },
     {
       "impact": "Medium",
@@ -7561,10 +7561,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#269-301) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#296-299)",
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#294-326) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#321-324)",
       "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
       "occurrences": 1,
-      "id": "0134e00f244723c7a8146e32"
+      "id": "ecdfaab025f614b2daef6670"
     },
     {
       "impact": "Low",
@@ -8377,10 +8377,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint16,uint16,address).diamond (src/liquidity/StaticsSwapFeeHook.sol#118) lacks a zero-check on :",
+      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint16,uint16,address).diamond (src/liquidity/StaticsSwapFeeHook.sol#119) lacks a zero-check on :",
       "rationale": "Deployment creates the hook only with the newly deployed Diamond and then validates the immutable binding; a zero Diamond cannot be produced by the supported deployment path and would only make the hook unusable.",
       "occurrences": 1,
-      "id": "88defbeff5ec5c31e23fe3d1"
+      "id": "5079111525e55ba5450af50a"
     },
     {
       "impact": "Low",
@@ -8777,10 +8777,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#544-549):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#545-550):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "ac83ebb68cefe118c1fac056"
+      "id": "c46a0b141489e7735a482901"
     },
     {
       "impact": "Low",
@@ -8793,10 +8793,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#438-444):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#439-445):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "b805a315f0c47191e39efd70"
+      "id": "d78460ff6d4620080a973809"
     },
     {
       "impact": "Low",
@@ -9007,10 +9007,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#62-67):",
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#63-68):",
       "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "19099c53d7759bac8ec96c27"
+      "id": "caeb94f5fc11b711102df0ad"
     },
     {
       "impact": "Low",
@@ -9223,7 +9223,7 @@
       "summary": "Reentrancy in ProtocolPoolAdminFacet.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#49-53):",
       "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "3c15cd2f6e030ceec62ccf98"
+      "id": "c6f60ac07dea7e7570dc7220"
     },
     {
       "impact": "Low",
@@ -9302,10 +9302,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#290-312):",
+      "summary": "Reentrancy in StaticsSwapFeeHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsSwapFeeHook.sol#291-313):",
       "rationale": "The Diamond-only settlement invokes an atomic PoolManager callback and emits only after pending claims are redeemed successfully; any failure reverts both state and logs.",
       "occurrences": 1,
-      "id": "56bf80e3d393a89b58f8b0a3"
+      "id": "5b801c204c206433d3bed28f"
     },
     {
       "impact": "Low",
@@ -9318,10 +9318,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#55-60):",
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#55-61):",
       "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "5943a61e1d194076f664925c"
+      "id": "7c21d1b8d5ce47f2ca5d6975"
     },
     {
       "impact": "Low",
@@ -9350,10 +9350,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#69-86):",
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#70-87):",
       "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "62c57034392c5dca979cba03"
+      "id": "433bf0e5a97610fcda9141a9"
     },
     {
       "impact": "Low",
@@ -9433,7 +9433,7 @@
       "summary": "Reentrancy in ConfigureStaticsLiquidity.runSchedule() (script/ConfigureStaticsLiquidity.s.sol#66-75):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "6f21673e55898bb40076a3aa"
+      "id": "877b62630975d51b8aacfbb0"
     },
     {
       "impact": "Low",
@@ -9611,10 +9611,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#438-444):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#439-445):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "948a9ecefc0cea46f8b9f109"
+      "id": "b24a9b8df06cf18a02d17922"
     },
     {
       "impact": "Low",
@@ -9627,10 +9627,10 @@
       "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#88-101):",
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#89-102):",
       "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "9eacc4488603c804f28dd7ad"
+      "id": "123a97ea31b2a68ea80639b5"
     },
     {
       "impact": "Low",
@@ -9763,7 +9763,7 @@
       "summary": "Reentrancy in ConfigureStaticsLiquidity.schedule(address,StaticsLiquidityConfig,bytes32) (script/ConfigureStaticsLiquidity.s.sol#88-98):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "b3408a45ccb8b53653f00b6a"
+      "id": "b877cc0472e7635bc0706ac4"
     },
     {
       "impact": "Low",
@@ -10858,10 +10858,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#69-91) uses timestamp for comparisons",
+      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#67-89) uses timestamp for comparisons",
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "96b786a1dd9f51b14b2bfe19"
+      "id": "13b7b2755b19cffc09c4e6f3"
     },
     {
       "impact": "Low",
@@ -11402,10 +11402,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsSwapFeeHook.sol#381-403) uses assembly",
+      "summary": "StaticsSwapFeeHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsSwapFeeHook.sol#382-404) uses assembly",
       "rationale": "Memory-safe assembly encodes the fixed authenticated Diamond callback and forwards exact revert data without dynamic allocation in the public swap hot path.",
       "occurrences": 1,
-      "id": "131935f393937f59dc88cd1a"
+      "id": "173df53d4e06dc8f27433be0"
     },
     {
       "impact": "Informational",
@@ -11610,10 +11610,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsSwapFeeHook.sol#638-644) uses assembly",
+      "summary": "StaticsSwapFeeHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsSwapFeeHook.sol#639-645) uses assembly",
       "rationale": "Memory-safe transient-storage assembly loads and clears the per-PoolId specified-leg staker amount within the same swap transaction.",
       "occurrences": 1,
-      "id": "3c7c44d0c214689a673da72d"
+      "id": "a148f6ec15ec64c9dd845d0d"
     },
     {
       "impact": "Informational",
@@ -11786,10 +11786,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsSwapFeeHook.sol#631-636) uses assembly",
+      "summary": "StaticsSwapFeeHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsSwapFeeHook.sol#632-637) uses assembly",
       "rationale": "Memory-safe transient-storage assembly records the per-PoolId specified-leg staker amount for consumption and clearing in the same swap transaction.",
       "occurrences": 1,
-      "id": "8d0ccbcfd057172f3ce2aa17"
+      "id": "2fceb2c6911bc2bdb40ea2f2"
     },
     {
       "impact": "Informational",
@@ -12394,10 +12394,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "Low level call in ProtocolPoolCreationFacet._collectCreationFee(uint256) (src/facets/ProtocolPoolCreationFacet.sol#234-243):",
+      "summary": "Low level call in ProtocolPoolCreationFacet._collectCreationFee(uint256) (src/facets/ProtocolPoolCreationFacet.sol#232-241):",
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
-      "id": "84da6ff8d9258eef2e51a45d"
+      "id": "63277bc59758fabb47a079b6"
     },
     {
       "impact": "Informational",
@@ -12688,10 +12688,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#91) is not in mixedCase",
+      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#92) is not in mixedCase",
       "rationale": "WETH9 is an externally defined upstream compatibility selector, so preserving its established ABI name is intentional.",
       "occurrences": 1,
-      "id": "17ba2fee51f3641d20a0d778"
+      "id": "8d2a01a24435cfb1601b70a3"
     },
     {
       "impact": "Informational",
@@ -12951,10 +12951,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#148-194) uses literals with too many digits:",
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#173-219) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "2d01621961dc62e384c8090a"
+      "id": "69e42524ce8ddf212a1899bd"
     },
     {
       "impact": "Informational",
@@ -13194,7 +13194,7 @@
       "summary": "DeployStatics._deployLiquidityContracts(StaticsDollarStackDeployment,DeployStatics.V4Config,address) (script/DeployStatics.s.sol#180-213) uses literals with too many digits:",
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
-      "id": "75bdf9ae682a9d9d52a5e895"
+      "id": "12d65165ccc2cf5b46d8f84c"
     },
     {
       "impact": "Informational",
@@ -13543,10 +13543,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#148-194) uses literals with too many digits:",
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#173-219) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "b94d75e8bbd44d2da1925158"
+      "id": "ef15f94ded8a01dd39e3bbb1"
     },
     {
       "impact": "Informational",
@@ -13915,6 +13915,86 @@
       "rationale": "The event signature is an established Diamond or creator-token compatibility ABI and preserves its topic layout; full address data remains available in the event payload.",
       "occurrences": 1,
       "id": "c98696bce276f1c76da359ee"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "ConfigureStaticsPhaseOneLiquidity.prepareHandoff(address,address,StaticsPhaseOneLiquidityConfig,bytes32[],bytes32[]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#219-239) has external calls inside a loop: ! IStaticsPermissionedPools(diamond).isPermissionedPool(poolId_scope_1) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#234)",
+      "rationale": "This preparation function makes read-only permissioned pool registration checks over operator-supplied launch IDs. It is used offchain before governance handoff; an oversized input only reverts its own call.",
+      "occurrences": 2,
+      "id": "62b03cb122807569cb3dca62"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#198-217) has external calls inside a loop: (ok,result) = targets[i].call(payloads[i]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#207)",
+      "rationale": "The deployment-only loop has nine fixed Diamond configuration calls. Each failure bubbles its revert and reverts the entire transaction before ownership transfer.",
+      "occurrences": 2,
+      "id": "921b7dc9fba808a36753aeb7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "ConfigureStaticsPhaseOneLiquidity.prepareHandoff(address,address,StaticsPhaseOneLiquidityConfig,bytes32[],bytes32[]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#219-239) has external calls inside a loop: ! IStaticsProtocolPools(diamond).isProtocolPool(poolId) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#230)",
+      "rationale": "This preparation function makes read-only public pool registration checks over operator-supplied launch IDs. It is used offchain before governance handoff; an oversized input only reverts its own call.",
+      "occurrences": 2,
+      "id": "97cc72380eea64888602d85e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#198-217) uses assembly",
+      "rationale": "Memory-safe assembly only bubbles revert data from a failed Diamond configuration call during the deployment transaction.",
+      "occurrences": 1,
+      "id": "4c28066183739fe37318979e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "Low level call in ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#198-217):",
+      "rationale": "The deployment-only low-level call executes one of nine fixed Diamond configuration payloads; success is checked and failure reverts atomically before ownership transfer.",
+      "occurrences": 1,
+      "id": "765c720076bf2ff0e3f4eec0"
     }
   ]
 }

@@ -59,7 +59,7 @@ contract ProtocolPolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertEq(swapFeeHook.pendingProtocolPol(poolId, key.currency0), 0);
         assertEq(swapFeeHook.pendingProtocolPol(poolId, key.currency1), 0);
 
-        uint256 fee = 0.25 ether;
+        uint256 fee = 0.025 ether;
         pools.setProtocolPolActivationFee(fee);
         vm.deal(creator, fee * 2);
         vm.deal(trader, fee);

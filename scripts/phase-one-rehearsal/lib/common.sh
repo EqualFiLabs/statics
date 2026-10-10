@@ -162,6 +162,7 @@ timelock_call() {
     cast send "$STATICS_TIMELOCK_ADDRESS" \
         'execute(address,uint256,bytes,bytes32,bytes32)' \
         "$target" "$value" "$data" "$predecessor" "$salt" \
+        --value "$value" \
         --private-key "$executor_key" \
         --rpc-url "$RPC_URL" \
         --legacy \
@@ -255,13 +256,16 @@ create_public_pool() {
     local label=$5
     local lp_fee=${6:-3000}
     local tick_spacing=${7:-60}
-    local deadline params calldata currency0 currency1 encoded pool_id
+    local deadline params currency0 currency1 encoded pool_id
     deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
-    params="($token_a,$token_b,$lp_fee,$tick_spacing,79228162514264337593543950336,(5,5),$creator,false,$nonce,$deadline)"
-    calldata=$(cast calldata \
+    params="($token_a,$token_b,$lp_fee,$tick_spacing,79228162514264337593543950336,(500,500),$creator,false,$nonce,$deadline)"
+    local creation_fee
+    creation_fee=$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+    cast rpc --rpc-url "$RPC_URL" anvil_impersonateAccount "$creator" >/dev/null
+    cast send "$STATICS_DIAMOND_ADDRESS" \
         'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
-        "$params" 0x)
-    timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$calldata" "$label-create-public-pool"
+        "$params" 0x --value "$creation_fee" --from "$creator" --unlocked \
+        --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/$label-create-public-pool.json"
 
     if [[ "${token_a,,}" < "${token_b,,}" ]]; then
         currency0=$token_a

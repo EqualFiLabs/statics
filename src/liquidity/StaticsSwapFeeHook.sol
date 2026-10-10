@@ -34,6 +34,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     using SafeCast for uint256;
 
     uint256 private constant BPS = 10_000;
+    uint256 private constant PIPS = 1_000_000;
     uint256 private constant CREATOR_SHARE_BPS = LibProtocolPoolFee.CREATOR_SHARE_BPS;
     uint8 private constant UNLOCK_SETTLE = 1;
     uint8 private constant UNLOCK_STAKER = 2;
@@ -56,15 +57,15 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     }
 
     struct EffectiveRate {
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
     }
 
     struct UnspecifiedCharge {
         bool exactInput;
         bool specifiedCurrencyIs0;
-        uint16 specifiedFeeBps;
-        uint16 unspecifiedFeeBps;
+        uint16 specifiedFeePips;
+        uint16 unspecifiedFeePips;
         uint256 specifiedCharged;
         Currency currency;
         uint256 realized;
@@ -81,8 +82,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     address public immutable staticsDiamond;
     address public immutable weth;
 
-    uint16 private defaultInputFeeBps;
-    uint16 private defaultOutputFeeBps;
+    uint16 private defaultInputFeePips;
+    uint16 private defaultOutputFeePips;
     BasketFeeAllocation private basketAllocation;
     GeneralFeeAllocation private generalAllocation;
 
@@ -115,13 +116,13 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error SwapsQuarantined(PoolId poolId);
     error InvalidSettlementCurrency(Currency currency);
 
-    constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps, address weth_)
+    constructor(IPoolManager manager, address diamond, uint16 inputFeePips, uint16 outputFeePips, address weth_)
         BaseHook(manager)
     {
         if (weth_ == address(0)) revert InvalidWeth();
         weth = weth_;
         staticsDiamond = diamond;
-        _setDefaultFeeRate(inputFeeBps, outputFeeBps);
+        _setDefaultFeeRate(inputFeePips, outputFeePips);
         _setBasketFeeAllocation(
             BasketFeeAllocation({
                 polShareBps: 1_500, basketStakerShareBps: 3_000, staticsStakerShareBps: 3_000, treasuryShareBps: 2_000
@@ -158,35 +159,35 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     // --- Fee rate administration ---
 
-    function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps) {
-        return (defaultInputFeeBps, defaultOutputFeeBps);
+    function defaultFeeRate() external view returns (uint16 inputFeePips, uint16 outputFeePips) {
+        return (defaultInputFeePips, defaultOutputFeePips);
     }
 
-    function setDefaultFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) external {
+    function setDefaultFeeRate(uint16 inputFeePips, uint16 outputFeePips) external {
         _enforceDiamond();
-        _setDefaultFeeRate(inputFeeBps, outputFeeBps);
+        _setDefaultFeeRate(inputFeePips, outputFeePips);
     }
 
-    function setPoolFeeRate(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external {
+    function setPoolFeeRate(PoolId poolId, uint16 inputFeePips, uint16 outputFeePips) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
-        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) revert InvalidFeeRate();
-        poolRates[poolId] = PoolFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps, overridden: true});
-        emit PoolFeeRateSet(poolId, inputFeeBps, outputFeeBps, true);
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeePips, outputFeePips)) revert InvalidFeeRate();
+        poolRates[poolId] = PoolFeeRate({inputFeePips: inputFeePips, outputFeePips: outputFeePips, overridden: true});
+        emit PoolFeeRateSet(poolId, inputFeePips, outputFeePips, true);
     }
 
     function clearPoolFeeRate(PoolId poolId) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
         delete poolRates[poolId];
-        emit PoolFeeRateSet(poolId, defaultInputFeeBps, defaultOutputFeeBps, false);
+        emit PoolFeeRateSet(poolId, defaultInputFeePips, defaultOutputFeePips, false);
     }
 
     function poolFeeRate(PoolId poolId) external view returns (PoolFeeRate memory rate) {
         _enforceRegistered(poolId);
         PoolFeeRate storage stored = poolRates[poolId];
         if (stored.overridden) return stored;
-        return PoolFeeRate({inputFeeBps: defaultInputFeeBps, outputFeeBps: defaultOutputFeeBps, overridden: false});
+        return PoolFeeRate({inputFeePips: defaultInputFeePips, outputFeePips: defaultOutputFeePips, overridden: false});
     }
 
     // --- Allocation profile administration ---
@@ -354,9 +355,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     {
         bool exactInput = params.amountSpecified < 0;
         EffectiveRate memory rate = _effectiveRate(poolId);
-        uint16 feeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
+        uint16 feePips = exactInput ? rate.inputFeePips : rate.outputFeePips;
         uint256 realized = _absolute(params.amountSpecified);
-        charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
+        charged = exactInput ? _feeFromGross(realized, feePips) : _feeFromNet(realized, feePips);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
         uint256 stakerAmount;
         if (charged != 0) stakerAmount = _accrueSwapLegFee(poolId, specified, realized, charged, true);
@@ -410,11 +411,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         context.exactInput = params.amountSpecified < 0;
         context.specifiedCurrencyIs0 = context.exactInput == params.zeroForOne;
         EffectiveRate memory rate = _effectiveRate(poolId);
-        context.specifiedFeeBps = context.exactInput ? rate.inputFeeBps : rate.outputFeeBps;
-        context.unspecifiedFeeBps = context.exactInput ? rate.outputFeeBps : rate.inputFeeBps;
+        context.specifiedFeePips = context.exactInput ? rate.inputFeePips : rate.outputFeePips;
+        context.unspecifiedFeePips = context.exactInput ? rate.outputFeePips : rate.inputFeePips;
         context.specifiedCharged = context.exactInput
-            ? _feeFromGross(_absolute(params.amountSpecified), context.specifiedFeeBps)
-            : _feeFromNet(_absolute(params.amountSpecified), context.specifiedFeeBps);
+            ? _feeFromGross(_absolute(params.amountSpecified), context.specifiedFeePips)
+            : _feeFromNet(_absolute(params.amountSpecified), context.specifiedFeePips);
         _enforceCompleteSpecifiedFill(
             params.amountSpecified,
             context.specifiedCurrencyIs0 ? delta.amount0() : delta.amount1(),
@@ -423,8 +424,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         context.currency = context.specifiedCurrencyIs0 ? key.currency1 : key.currency0;
         context.realized = _absolute(int256(context.specifiedCurrencyIs0 ? delta.amount1() : delta.amount0()));
         charged = context.exactInput
-            ? _feeFromGross(context.realized, context.unspecifiedFeeBps)
-            : _feeFromNet(context.realized, context.unspecifiedFeeBps);
+            ? _feeFromGross(context.realized, context.unspecifiedFeePips)
+            : _feeFromNet(context.realized, context.unspecifiedFeePips);
         if (charged != 0) {
             uint256 stakerAmount = _accrueSwapLegFee(poolId, context.currency, context.realized, charged, false);
             packedStakerFees = context.specifiedCurrencyIs0 ? stakerAmount << 128 : stakerAmount;
@@ -524,9 +525,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function _effectiveRate(PoolId poolId) private view returns (EffectiveRate memory rate) {
         PoolFeeRate storage stored = poolRates[poolId];
         if (stored.overridden) {
-            return EffectiveRate({inputFeeBps: stored.inputFeeBps, outputFeeBps: stored.outputFeeBps});
+            return EffectiveRate({inputFeePips: stored.inputFeePips, outputFeePips: stored.outputFeePips});
         }
-        return EffectiveRate({inputFeeBps: defaultInputFeeBps, outputFeeBps: defaultOutputFeeBps});
+        return EffectiveRate({inputFeePips: defaultInputFeePips, outputFeePips: defaultOutputFeePips});
     }
 
     function _takeExact(Currency currency, address receiver, uint256 amount) private {
@@ -657,11 +658,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (available < required) revert ClaimLiabilityInsolvent(currency, required, available);
     }
 
-    function _setDefaultFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) private {
-        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) revert InvalidFeeRate();
-        defaultInputFeeBps = inputFeeBps;
-        defaultOutputFeeBps = outputFeeBps;
-        emit DefaultFeeRateSet(inputFeeBps, outputFeeBps);
+    function _setDefaultFeeRate(uint16 inputFeePips, uint16 outputFeePips) private {
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeePips, outputFeePips)) revert InvalidFeeRate();
+        defaultInputFeePips = inputFeePips;
+        defaultOutputFeePips = outputFeePips;
+        emit DefaultFeeRateSet(inputFeePips, outputFeePips);
     }
 
     function _setBasketFeeAllocation(BasketFeeAllocation memory allocation) private {
@@ -690,13 +691,13 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         );
     }
 
-    function _feeFromGross(uint256 amount, uint16 feeBps) private pure returns (uint256) {
-        return Math.mulDiv(amount, feeBps, BPS, Math.Rounding.Ceil);
+    function _feeFromGross(uint256 amount, uint16 feePips) private pure returns (uint256) {
+        return Math.mulDiv(amount, feePips, PIPS, Math.Rounding.Ceil);
     }
 
-    function _feeFromNet(uint256 amount, uint16 feeBps) private pure returns (uint256) {
-        if (feeBps == 0) return 0;
-        return Math.mulDiv(amount, feeBps, BPS - feeBps, Math.Rounding.Ceil);
+    function _feeFromNet(uint256 amount, uint16 feePips) private pure returns (uint256) {
+        if (feePips == 0) return 0;
+        return Math.mulDiv(amount, feePips, PIPS - feePips, Math.Rounding.Ceil);
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

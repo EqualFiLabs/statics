@@ -11,7 +11,7 @@ require_local_chain
 cd_repo
 
 EXPECTED_FACETS=32
-EXPECTED_SELECTORS=224
+EXPECTED_SELECTORS=226
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -97,8 +97,16 @@ assert_eq \
     "POL operator"
 assert_eq \
     "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolActivationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
-    "100000000000000000" \
+    "25000000000000000" \
     "POL activation fee"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "10000000000000000" \
+    "public pool creation fee"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "1000000000000000" \
+    "PositionNFT creation fee"
 assert_eq \
     "$(cast call "$STATICS_TIMELOCK_ADDRESS" 'getMinDelay()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     "86400" \
@@ -194,8 +202,8 @@ assert_runtime_matches_build_context \
 read -r input_fee output_fee <<<"$(
     cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" 'defaultFeeRate()(uint16,uint16)' --rpc-url "$RPC_URL" | tr '\n' ' '
 )"
-assert_eq "$input_fee" "5" "public input fee"
-assert_eq "$output_fee" "5" "public output fee"
+assert_eq "$input_fee" "500" "public input fee"
+assert_eq "$output_fee" "500" "public output fee"
 
 declare -a facets
 mapfile -t facets < <(

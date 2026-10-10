@@ -60,7 +60,7 @@ for label in primary foreign; do
         --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
         >"$RUN_DIR/pol-rebalance-$label-user-liquidity.json"
     cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$pool" \
-        --value 100000000000000000 --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
+        --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
         >"$RUN_DIR/pol-rebalance-$label-activation.json"
     for zero_for_one in true false; do
         v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" "$fee" "$spacing" \

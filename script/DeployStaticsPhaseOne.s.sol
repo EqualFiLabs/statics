@@ -35,8 +35,7 @@ interface IPhaseOnePositionManagerBindings {
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
-/// @dev The general-pool creation fee is deliberately fixed at zero. Under current semantics this
-/// keeps creation owner-curated until governance deliberately enables permissionless creation.
+/// @dev A nonzero general-pool creation fee enables public creation at launch.
 contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
@@ -45,6 +44,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address stakingToken;
         address weth;
         uint256 positionCreationFeeAmount;
+        uint256 poolCreationFeeAmount;
         uint16 weeklyGaugeReleaseBps;
     }
 
@@ -52,8 +52,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address poolManager;
         address positionManager;
         address permit2;
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
@@ -65,9 +65,12 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
-    error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
+    error InvalidHookFees(uint256 inputFeePips, uint256 outputFeePips);
     error HookAddressMismatch(address expected, address actual);
+    error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
 
+    uint256 private constant LAUNCH_POSITION_CREATION_FEE = 0.001 ether;
+    uint256 private constant LAUNCH_POOL_CREATION_FEE = 0.01 ether;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -87,12 +90,25 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             weth: vm.envAddress("WETH_ADDRESS"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
+            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps)
         });
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            if (config.positionCreationFeeAmount != LAUNCH_POSITION_CREATION_FEE) {
+                revert InvalidLaunchFee(
+                    "positionCreationFee", LAUNCH_POSITION_CREATION_FEE, config.positionCreationFeeAmount
+                );
+            }
+            if (config.poolCreationFeeAmount != LAUNCH_POOL_CREATION_FEE) {
+                revert InvalidLaunchFee("poolCreationFee", LAUNCH_POOL_CREATION_FEE, config.poolCreationFeeAmount);
+            }
+        }
         V4Config memory v4 = _loadRobinhoodV4Config();
 
         vm.startBroadcast(privateKey);
-        (deployment, timelock) = _deploy(config);
+        // The broadcaster completes the liquidity installation after the exact-0.8.26
+        // permissioned periphery is deployed, then transfers ownership to the Safe.
+        (deployment, timelock) = _deploy(config, vm.addr(privateKey));
         _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
         _logDeployment(deployment, timelock);
@@ -102,32 +118,41 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         public
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
-        return _deploy(config);
+        return _deploy(config, config.multisig);
     }
 
     function deployWithLiquidity(Config memory config, V4Config memory v4)
         public
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
-        (deployment, timelock) = _deploy(config);
+        (deployment, timelock) = _deploy(config, config.multisig);
         _deployLiquidityContracts(deployment, v4, address(this));
     }
 
-    function _deploy(Config memory config)
+    function deployWithLiquidityForBootstrap(Config memory config, V4Config memory v4, address bootstrapOwner)
+        public
+        returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
+    {
+        (deployment, timelock) = _deploy(config, bootstrapOwner);
+        _deployLiquidityContracts(deployment, v4, address(this));
+    }
+
+    function _deploy(Config memory config, address initialOwner)
         private
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
         _validateConfig(config);
+        if (initialOwner == address(0)) revert InvalidConfig();
         timelock = _deployTimelock(config.multisig, config.guardian);
         (deployment.diamond, deployment.positionNFT) = _deployPhaseOneStaticsProtocol(
             PhaseOneProtocolDeploymentConfig({
                 weth: config.weth,
-                finalOwner: address(timelock),
+                finalOwner: initialOwner,
                 guardian: config.guardian,
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
-                poolCreationFeeAmount: 0,
+                poolCreationFeeAmount: config.poolCreationFeeAmount,
                 weeklyGaugeReleaseBps: config.weeklyGaugeReleaseBps
             })
         );
@@ -156,8 +181,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         bytes memory constructorArgs = abi.encode(
             IPoolManager(config.poolManager),
             deployment.diamond,
-            config.inputFeeBps,
-            config.outputFeeBps,
+            config.inputFeePips,
+            config.outputFeePips,
             deployment.weth
         );
         (address expectedHook, bytes32 salt) =
@@ -165,8 +190,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
             IPoolManager(config.poolManager),
             deployment.diamond,
-            config.inputFeeBps,
-            config.outputFeeBps,
+            config.inputFeePips,
+            config.outputFeePips,
             deployment.weth
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
@@ -198,7 +223,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             config.multisig == address(0) || config.guardian == address(0) || config.treasury == address(0)
                 || config.stakingToken == address(0) || config.weth == address(0)
                 || config.stakingToken.code.length == 0 || config.weth.code.length == 0
-                || config.weeklyGaugeReleaseBps > 1_000
+                || config.weeklyGaugeReleaseBps > 1_000 || config.poolCreationFeeAmount == 0
         ) revert InvalidConfig();
         _validateMainnetGenesisBindings(config);
     }
@@ -222,9 +247,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     function _validateV4(V4Config memory config) private view {
         if (
-            config.inputFeeBps == 0 || config.outputFeeBps == 0
-                || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
-        ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
+            config.inputFeePips == 0 || config.outputFeePips == 0
+                || uint256(config.inputFeePips) + uint256(config.outputFeePips) > 20_000
+        ) revert InvalidHookFees(config.inputFeePips, config.outputFeePips);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -249,8 +274,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 expectedChainId = vm.parseJsonUint(manifest, ".chainId");
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
-        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
-        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeePips");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeePips");
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(inputFee, outputFee);
         }
@@ -258,8 +283,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
-            inputFeeBps: uint16(inputFee),
-            outputFeeBps: uint16(outputFee),
+            inputFeePips: uint16(inputFee),
+            outputFeePips: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")

@@ -67,11 +67,12 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$CREATO
     --value "$POSITION_FEE" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-paused-lp-position.json"
 CREATION_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 604800 ))
-PAUSED_POOL_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,(5,5),$CREATOR,false,404,$CREATION_DEADLINE)"
+PAUSED_POOL_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,(500,500),$CREATOR,false,404,$CREATION_DEADLINE)"
 PAUSED_POOL_QUOTE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
     "$PAUSED_POOL_PARAMS" --rpc-url "$RPC_URL" --json)
 PAUSED_POOL_ID=$(jq -r '.[0][1]' <<<"$PAUSED_POOL_QUOTE")
+PAUSED_POOL_FEE=$(jq -r '.[0][5]' <<<"$PAUSED_POOL_QUOTE")
 PAUSED_POOL_CALLDATA=$(cast calldata \
     'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
     "$PAUSED_POOL_PARAMS" 0x)
@@ -107,7 +108,7 @@ expect_call_revert "outsider pause" \
 # PAUSE_LIQUIDITY blocks every tested exposure-increasing path while preserving
 # fee collection and partial withdrawal of already-owned liquidity.
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
-    --value 100000000000000000 --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
+    --value "$STATICS_POL_ACTIVATION_FEE" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-pol-activate.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'pause(uint256)' 32 \
     --private-key "$GUARDIAN_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-pause-liquidity.json"
@@ -127,7 +128,7 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint2
     "$PAUSED_LP_POSITION" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
     "paused provide leaves PositionNFT unchanged"
 expect_call_revert "create pool while liquidity paused" \
-    cast call "$STATICS_DIAMOND_ADDRESS" --from "$STATICS_TIMELOCK_ADDRESS" --value 0 \
+    cast call "$STATICS_DIAMOND_ADDRESS" --from "$CREATOR" --value "$PAUSED_POOL_FEE" \
     --data "$PAUSED_POOL_CALLDATA" --rpc-url "$RPC_URL" >/dev/null
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
     "$PAUSED_POOL_ID" --rpc-url "$RPC_URL")" false "paused pool creation is atomic"
@@ -163,7 +164,10 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' \
     "$PAUSED_LP_POSITION" --rpc-url "$RPC_URL" | awk '{print $1}')" 1 \
     "same provide succeeds after unpause"
-timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$PAUSED_POOL_CALLDATA" governance-unpaused-create-pool
+cast send "$STATICS_DIAMOND_ADDRESS" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
+    --value "$PAUSED_POOL_FEE" \
+    --data "$PAUSED_POOL_CALLDATA" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/governance-unpaused-create-pool.json"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
     "$PAUSED_POOL_ID" --rpc-url "$RPC_URL")" true "same PoolKey succeeds after unpause"
 

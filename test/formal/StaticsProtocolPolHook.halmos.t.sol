@@ -99,14 +99,14 @@ contract StaticsProtocolPolHookHalmosTest is SymTest, Test {
         hook.setDefaultFeeRate(defaultInput, defaultOutput);
 
         IStaticsSwapFeeHook.PoolFeeRate memory overridden = hook.poolFeeRate(poolId);
-        assertEq(overridden.inputFeeBps, overrideInput);
-        assertEq(overridden.outputFeeBps, overrideOutput);
+        assertEq(overridden.inputFeePips, overrideInput);
+        assertEq(overridden.outputFeePips, overrideOutput);
         assertTrue(overridden.overridden);
 
         hook.clearPoolFeeRate(poolId);
         IStaticsSwapFeeHook.PoolFeeRate memory inherited = hook.poolFeeRate(poolId);
-        assertEq(inherited.inputFeeBps, defaultInput);
-        assertEq(inherited.outputFeeBps, defaultOutput);
+        assertEq(inherited.inputFeePips, defaultInput);
+        assertEq(inherited.outputFeePips, defaultOutput);
         assertFalse(inherited.overridden);
     }
 

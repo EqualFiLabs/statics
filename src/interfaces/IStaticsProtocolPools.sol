@@ -13,13 +13,13 @@ interface IStaticsProtocolPools {
     }
 
     struct PoolSwapFeeRate {
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
     }
 
     struct PoolFeeRateView {
-        uint16 inputFeeBps;
-        uint16 outputFeeBps;
+        uint16 inputFeePips;
+        uint16 outputFeePips;
         bool overridden;
     }
 
@@ -142,8 +142,8 @@ interface IStaticsProtocolPools {
     );
     event PoolCreationFeeSet(uint256 amount);
     event PoolCreationNonceInvalidated(address indexed creator, uint256 indexed nonce);
-    event DefaultProtocolPoolFeeRateSet(uint16 inputFeeBps, uint16 outputFeeBps);
-    event ProtocolPoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
+    event DefaultProtocolPoolFeeRateSet(uint16 inputFeePips, uint16 outputFeePips);
+    event ProtocolPoolFeeRateSet(PoolId indexed poolId, uint16 inputFeePips, uint16 outputFeePips);
     event ProtocolPoolFeeRateCleared(PoolId indexed poolId);
     event BasketFeeAllocationSet(
         uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps

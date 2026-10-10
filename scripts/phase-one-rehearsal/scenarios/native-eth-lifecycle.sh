@@ -123,7 +123,7 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-allocation.json"
 assert_gt "$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugePoolWeight(bytes32)(uint256,bytes32,bytes32,uint64,uint256,uint256,bool)' \
     "$POOL_ID" --rpc-url "$RPC_URL" | head -1 | awk '{print $1}')" 0 "native gauge STATICS allocation"
-cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" --value 100000000000000000 \
+cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" --value "$STATICS_POL_ACTIVATION_FEE" \
     --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-activate.json"
 
 WETH_SUPPLY=$(cast call "$WETH_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
@@ -280,7 +280,7 @@ preview=$(cast call "$STATICS_DIAMOND_ADDRESS" 'previewLpRewards(uint256,bytes32
 assert_gt "$(jq -r '.[0][2][0]' <<<"$preview")" 0 "native LP STATICS gauge accrual"
 assert_gt "$(jq -r '.[0][2][1]' <<<"$preview")" 0 "native LP direct WETH reward accrual"
 cast send "$STATICS_DIAMOND_ADDRESS" 'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
-    "$POSITION" "$POOL_ID" '[0,1]' '[0,0]' "$OWNER" --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-gauge-claim.json"
+    "$POSITION" "$POOL_ID" '[0,1]' '[0,0]' "$OWNER" --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/native-eth-gauge-claim.json"
 refresh_deadline
 for position in "$POSITION" "$ZERO_POSITION" "$ATTACHED_POSITION"; do
     pool=$POOL_ID
@@ -298,7 +298,7 @@ for position in "$POSITION" "$ZERO_POSITION" "$ATTACHED_POSITION"; do
         assert_gt "$(jq -r '.[0][2][0] + .[0][2][1]' <<<"$residual")" 0 "native exit retains final gauge reward"
         cast send "$STATICS_DIAMOND_ADDRESS" 'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
             "$position" "$pool" '[0,1]' '[0,0]' "$OWNER" --private-key "$OWNER_KEY" \
-            --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-exit-$position-residual-claim.json"
+            --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/native-eth-exit-$position-residual-claim.json"
     fi
     assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' "$position" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "native exit clears leg"
 done
