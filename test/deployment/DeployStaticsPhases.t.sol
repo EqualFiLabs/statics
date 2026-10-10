@@ -293,6 +293,7 @@ contract DeployStaticsPhasesTest is Test {
                 stakingToken: address(fixture.statics),
                 weth: address(fixture.weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
             DeployStaticsPhaseOne.V4Config({

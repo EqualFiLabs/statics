@@ -102,11 +102,11 @@ fees, weekly reserve-release rate, and complete Phase 1 ERC-165 interface set. D
 and immutable checks cover the canonical PositionManager and Permit2 bindings, the public manager's
 four immutable bindings, the permissioned claims companion, and the permissioned position manager's
 canonical WETH binding. The general-pool creation fee
-starts at zero, which under current semantics keeps
-public creation owner-curated rather than enabling free public creation. Permissioned creation is
+must be nonzero at launch, enabling public creation with exact native payment. Permissioned creation is
 always owner executed and requires exact creator EIP-712 or ERC-1271 authorization. The Safe creates
-and verifies initial pools before transferring Diamond ownership to the timelock. Later owner-only
-actions, including pool creation while the fee remains zero, use the timelock.
+and verifies initial pools before transferring Diamond ownership to the timelock. Later public
+pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,
+use the timelock.
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
@@ -200,7 +200,7 @@ Preparing all phases now prevents tooling drift; it does not collapse the four a
 launch decision.
 
 The launch does not add TVL, per-pool volume, position-notional, or pool-count caps. Accepted
-controls are curated initial creation, timelocked changes, guardian stops, exact runtime manifests,
+controls are a nonzero public creation fee, timelocked changes, guardian stops, exact runtime manifests,
 public monitoring, and phase-specific audits.
 
 Public range-gauge synchronization has boundary-linear gas cost. A wide swap across a densely

@@ -121,6 +121,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0.001 ether,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             })
         );
@@ -132,7 +133,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertEq(IERC173(diamond).owner(), multisig);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
-        assertEq(IStaticsProtocolPools(diamond).poolCreationFee(), 0);
+        assertEq(IStaticsProtocolPools(diamond).poolCreationFee(), 0.01 ether);
         assertEq(IStaticsPositionFees(diamond).positionCreationFee(), 0.001 ether);
         assertEq(IStaticsGlobalRewards(diamond).stakingToken(), address(statics));
         assertEq(IStaticsGlobalRewards(diamond).maxRewardAssetsPerPosition(), 12);
@@ -253,6 +254,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
             v4
@@ -303,6 +305,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
             _v4Config(address(poolManager), address(weth))
@@ -378,6 +381,7 @@ contract DeployStaticsPhaseOneTest is Test {
             stakingToken: address(statics),
             weth: address(0),
             positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0.01 ether,
             weeklyGaugeReleaseBps: 400
         });
 
@@ -391,6 +395,25 @@ contract DeployStaticsPhaseOneTest is Test {
 
         config.guardian = makeAddr("guardian");
         config.weeklyGaugeReleaseBps = 1_001;
+        vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
+        deployer.deploy(config);
+    }
+
+    function testPhaseOneRejectsZeroPoolCreationFee() public {
+        DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
+        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        DeployStaticsPhaseOne.Config memory config = DeployStaticsPhaseOne.Config({
+            multisig: makeAddr("multisig"),
+            guardian: makeAddr("guardian"),
+            treasury: makeAddr("treasury"),
+            stakingToken: address(statics),
+            weth: address(weth),
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0,
+            weeklyGaugeReleaseBps: 400
+        });
+
         vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
         deployer.deploy(config);
     }
@@ -410,6 +433,7 @@ contract DeployStaticsPhaseOneTest is Test {
             stakingToken: address(statics),
             weth: address(weth),
             positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0.01 ether,
             weeklyGaugeReleaseBps: 400
         });
         DeployStaticsPhaseOne.V4Config memory v4 = DeployStaticsPhaseOne.V4Config({
@@ -470,6 +494,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             })
         );
@@ -490,6 +515,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             })
         );
@@ -570,7 +596,7 @@ contract DeployStaticsPhaseOneTest is Test {
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         fixture.assetA = new MockERC20("Asset A", "A", 18);
         fixture.assetB = new MockERC20("Asset B", "B", 18);
-        fixture.creator = makeAddr("creator");
+        fixture.creator = makeAddr("multisig");
         (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) = deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: makeAddr("multisig"),
@@ -579,6 +605,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 stakingToken: address(fixture.statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
             _v4Config(address(fixture.poolManager), address(weth))
@@ -614,6 +641,7 @@ contract DeployStaticsPhaseOneTest is Test {
         private
         returns (IStaticsProtocolPools.ProtocolPoolView memory pool)
     {
+        vm.deal(makeAddr("multisig"), 1 ether);
         vm.startPrank(makeAddr("multisig"));
         IStaticsBasketLiquidity(fixture.diamond)
             .installCanonicalPoolIntegration(address(fixture.poolManager), address(fixture.hook));
@@ -631,7 +659,7 @@ contract DeployStaticsPhaseOneTest is Test {
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
-        PoolId poolId = fixture.pools.createPool(params, "");
+        PoolId poolId = fixture.pools.createPool{value: 0.01 ether}(params, "");
         vm.stopPrank();
         pool = fixture.pools.protocolPool(poolId);
     }

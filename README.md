@@ -327,8 +327,8 @@ release evidence for an already completed launch.
 The staged production entry point is
 `script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
 `StaticsTimelock`, the 32-facet and 226-selector `StaticsDiamond`, separate public and
-permissioned swap hooks, and a default venue-controller factory. It hard-codes the general-pool
-creation fee to zero, retaining owner-only curated public creation, while
+permissioned swap hooks, and a default venue-controller factory. It requires a nonzero general-pool
+creation fee at deployment, enabling fee-paid public creation, while
 accepting the PositionNFT fee as a deployment input. The exact-0.8.26
 permissioned router, non-transferable position manager, and owner-claims
 companion are deployed separately before both hooks and all trusted periphery
@@ -578,7 +578,8 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-After explicit authorization, the Phase 1 protocol deployment command is:
+After explicit authorization, set `POOL_CREATION_FEE_AMOUNT` to the chosen
+nonzero native fee in wei. The Phase 1 launcher rejects zero. The deployment command is:
 
 ```shell
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
@@ -617,7 +618,8 @@ forge script \
 ```
 
 Execute the nine calls in order from the configured governance Safe. Then use
-that Safe to create and verify every initial public and permissioned pool, and
+that Safe to create and verify every initial public and permissioned pool, paying
+the configured fee for each public pool, and
 complete any other owner-only launch setup before handing over ownership. Do
 not transfer ownership while a launch action remains outstanding: later
 owner-only calls require the production timelock delay.

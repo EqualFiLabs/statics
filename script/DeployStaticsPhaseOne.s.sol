@@ -35,8 +35,7 @@ interface IPhaseOnePositionManagerBindings {
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
-/// @dev The general-pool creation fee is deliberately fixed at zero. Under current semantics this
-/// keeps creation owner-curated until governance deliberately enables permissionless creation.
+/// @dev A nonzero general-pool creation fee enables public creation at launch.
 contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
@@ -45,6 +44,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address stakingToken;
         address weth;
         uint256 positionCreationFeeAmount;
+        uint256 poolCreationFeeAmount;
         uint16 weeklyGaugeReleaseBps;
     }
 
@@ -87,6 +87,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             weth: vm.envAddress("WETH_ADDRESS"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
+            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps)
         });
         V4Config memory v4 = _loadRobinhoodV4Config();
@@ -129,7 +130,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
-                poolCreationFeeAmount: 0,
+                poolCreationFeeAmount: config.poolCreationFeeAmount,
                 weeklyGaugeReleaseBps: config.weeklyGaugeReleaseBps
             })
         );
@@ -200,7 +201,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             config.multisig == address(0) || config.guardian == address(0) || config.treasury == address(0)
                 || config.stakingToken == address(0) || config.weth == address(0)
                 || config.stakingToken.code.length == 0 || config.weth.code.length == 0
-                || config.weeklyGaugeReleaseBps > 1_000
+                || config.weeklyGaugeReleaseBps > 1_000 || config.poolCreationFeeAmount == 0
         ) revert InvalidConfig();
         _validateMainnetGenesisBindings(config);
     }

@@ -60,6 +60,7 @@ TREASURY="$TREASURY" \
 STAKING_TOKEN="$STATICS_TOKEN" \
 WETH_ADDRESS="$WETH" \
 POSITION_CREATION_FEE_AMOUNT=1000000000000000 \
+POOL_CREATION_FEE_AMOUNT=10000000000000000 \
 WEEKLY_GAUGE_RELEASE_BPS=400 \
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
     --sig 'run()' \
@@ -144,6 +145,7 @@ export PRIVATE_KEY="$DEPLOYER_KEY"
 export MULTISIG="$GOVERNANCE"
 export GUARDIAN TREASURY STAKING_TOKEN WETH_ADDRESS
 export POSITION_CREATION_FEE_AMOUNT=1000000000000000
+export POOL_CREATION_FEE_AMOUNT=10000000000000000
 export WEEKLY_GAUGE_RELEASE_BPS=400
 export STATICS_REVENUE_MAINTENANCE_TIP_BPS=500
 export STATICS_POL_OPERATOR="$POL_OPERATOR"
@@ -188,7 +190,8 @@ STATICS_LAUNCH_PUBLIC_POOL_IDS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
 export STATICS_LAUNCH_PUBLIC_POOL_IDS
 cast send "$STATICS_DIAMOND_ADDRESS" \
     'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
-    "$LAUNCH_PARAMS" 0x --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
+    "$LAUNCH_PARAMS" 0x --value "$POOL_CREATION_FEE_AMOUNT" \
+    --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/safe-phase-one-launch-pool.json"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
     "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL")" true "initial public pool"

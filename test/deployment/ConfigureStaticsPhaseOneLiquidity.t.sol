@@ -236,8 +236,10 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
                 nonce: 1,
                 deadline: block.timestamp + 1 days
             });
+            vm.deal(safe, 1 ether);
             vm.prank(safe);
-            publicIds[0] = PoolId.unwrap(IStaticsProtocolPools(deployment.diamond).createPool(params, ""));
+            publicIds[0] =
+                PoolId.unwrap(IStaticsProtocolPools(deployment.diamond).createPool{value: 0.01 ether}(params, ""));
         }
         assertTrue(IStaticsProtocolPools(deployment.diamond).isProtocolPool(PoolId.wrap(publicIds[0])));
         (address target, uint256 value, bytes memory data) =
@@ -249,12 +251,38 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         assertTrue(handedOff);
         assertEq(IERC173(deployment.diamond).owner(), address(timelock));
 
+        _assertPublicCanCreateAfterHandoff(deployment.diamond, config.treasury);
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 ConfigureStaticsPhaseOneLiquidity.InvalidLaunchOwner.selector, safe, address(timelock)
             )
         );
         ceremony.prepareBootstrap(deployment.diamond, address(timelock), config);
+    }
+
+    function _assertPublicCanCreateAfterHandoff(address diamond, address treasury) private {
+        MockERC20 laterTokenA = new MockERC20("Later A", "LA", 18);
+        MockERC20 laterTokenB = new MockERC20("Later B", "LB", 18);
+        address publicCreator = makeAddr("laterPublicCreator");
+        IStaticsProtocolPools.CreatePoolParams memory laterParams = IStaticsProtocolPools.CreatePoolParams({
+            tokenA: address(laterTokenA),
+            tokenB: address(laterTokenB),
+            lpFee: 3_000,
+            tickSpacing: 10,
+            sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
+            creator: publicCreator,
+            activateManagedPol: false,
+            nonce: 2,
+            deadline: block.timestamp + 1 days
+        });
+        uint256 treasuryBefore = treasury.balance;
+        vm.deal(publicCreator, 1 ether);
+        vm.prank(publicCreator);
+        PoolId laterPoolId = IStaticsProtocolPools(diamond).createPool{value: 0.01 ether}(laterParams, "");
+        assertTrue(IStaticsProtocolPools(diamond).isProtocolPool(laterPoolId));
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether);
     }
 
     function testCeremonyRequiresExactHookCodeHash() public {
@@ -567,6 +595,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
                 stakingToken: address(statics),
                 weth: address(weth),
                 positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0.01 ether,
                 weeklyGaugeReleaseBps: 400
             }),
             DeployStaticsPhaseOne.V4Config({

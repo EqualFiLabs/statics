@@ -4,7 +4,7 @@ This runner uses the deployed Genesis launch and deploys only the Phase 1 Static
 stack against a pinned Robinhood Mainnet fork. The production Phase 1 launcher
 validates the live STATICS, WETH, and treasury bindings from the Genesis manifest.
 The runner impersonates the deployed governance Safe for immediate launch
-configuration and initial pool creation, then hands Diamond ownership to the
+configuration and fee-paid initial public pool creation, then hands Diamond ownership to the
 timelock. Later governance scenarios schedule through the timelock.
 Forge deployment scripts create the new Phase 1 contracts. Cast performs the
 stateful lifecycle transactions, reads, time warps, revert checks, and gas

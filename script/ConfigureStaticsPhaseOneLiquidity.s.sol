@@ -657,7 +657,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
-            poolCreationFeeAmount: 0,
+            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
             weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),

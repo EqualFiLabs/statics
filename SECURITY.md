@@ -212,14 +212,14 @@ the pool eligibility generation in which they accrued. An unresolved allocator
 claim or fractional remainder keeps its PositionNFT leg active until the owner
 claims it or explicitly forfeits it to Treasury.
 
-The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
-protocol's existing creation semantics, zero retains owner-only curation; it
-does not open free permissionless creation. The launch does not add TVL,
-position-notional, volume, or pool-count caps. Curated creation, timelocked
-administration, guardian stops, monitoring, and asset disclosure are the
-accepted initial controls. The Safe performs curated initial creation before
-timelock handoff; later curated creation is delayed. These controls reduce exposure but do not create a
-protocol-level endorsement of curated assets.
+Phase 1 requires a nonzero general-pool creation fee, enabling public creation
+with exact native payment from every caller, including the governance Safe. The
+launch does not add TVL, position-notional, volume, or pool-count caps. The Safe
+completes configuration and initial pool creation before the timelock handoff.
+Later public pool creation remains direct and fee-paid; owner-only permissioned
+pool creation and administration use the timelock. Guardian stops, monitoring,
+and asset disclosure are additional initial controls. These controls do not
+create a protocol-level endorsement of pool assets.
 
 The reward-restriction map is a technical delivery policy, not an asset
 allowlist or legal classification. The guardian may add a restriction
