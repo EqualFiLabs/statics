@@ -356,7 +356,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         address usdg = makeAddr("usdg");
         address nvda = makeAddr("nvda");
         uint24[4] memory expectedLp = [uint24(50), 200, 10_000, 50];
-        uint16[4] memory expectedHook = [uint16(25), 50, 2_500, 25];
+        uint16[4] memory expectedHook = [uint16(25), 1_400, 2_500, 25];
         address[4] memory expectedA = [address(0), statics, statics, nvda];
         address[4] memory expectedB = [usdg, usdg, nvda, usdg];
         for (uint256 i; i < 4; ++i) {

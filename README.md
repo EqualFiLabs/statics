@@ -655,7 +655,7 @@ tick spacings and raw-token opening square-root prices for these four pairs:
 | Pool | LP fee | Hook in | Hook out |
 | --- | ---: | ---: | ---: |
 | Native ETH/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
-| STATICS/USDG | 200 pips (0.02%) | 50 pips (0.005%) | 50 pips (0.005%) |
+| STATICS/USDG | 200 pips (0.02%) | 1,400 pips (0.14%) | 1,400 pips (0.14%) |
 | STATICS/NVDA | 10,000 pips (1%) | 2,500 pips (0.25%) | 2,500 pips (0.25%) |
 | NVDA/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
 

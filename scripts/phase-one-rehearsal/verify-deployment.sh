@@ -113,7 +113,7 @@ launch_token_b=(0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 \
     0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC \
     0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168)
 launch_lp_fees=(50 200 10000 50)
-launch_hook_fees=(25 50 2500 25)
+launch_hook_fees=(25 1400 2500 25)
 for i in "${!launch_pool_ids[@]}"; do
     pool_id=${launch_pool_ids[i]}
     assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \

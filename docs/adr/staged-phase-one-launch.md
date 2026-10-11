@@ -106,8 +106,12 @@ while the deployment signer creates and verifies the four approved Native ETH/US
 STATICS/USDG, STATICS/NVDA, and NVDA/USDG pools with explicit
 opening prices and tick spacings. Each pool has a pinned hook-fee override so
 later changes to the global default cannot change its launch fee. The signer
-then enables the 0.01 ETH public creation fee and transfers Diamond ownership to the
-governance Safe. Permissioned creation is always owner executed and requires exact creator
+sets STATICS/USDG to 200 LP pips plus 1,400 input and 1,400 output hook pips,
+giving a nominal 0.30% combined fee while leaving most of the fee adjustable
+through owner-controlled hook rates after launch. The LP fee is fixed by its
+PoolKey; changing it creates a different pool. The signer then enables the
+0.01 ETH public creation fee and transfers Diamond ownership to the governance
+Safe. Permissioned creation is always owner executed and requires exact creator
 EIP-712 or ERC-1271 authorization. Any initial permissioned pool is created by the Safe.
 The Safe transfers Diamond ownership to the timelock only afterward. Later public
 pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,

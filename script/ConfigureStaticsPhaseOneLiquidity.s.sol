@@ -319,7 +319,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         returns (address tokenA, address tokenB, uint24 lpFee, uint16 hookPips, string memory pair)
     {
         if (index == 0) return (address(0), MAINNET_USDG, 50, 25, "ETH_USDG");
-        if (index == 1) return (MAINNET_STATICS, MAINNET_USDG, 200, 50, "STATICS_USDG");
+        if (index == 1) return (MAINNET_STATICS, MAINNET_USDG, 200, 1_400, "STATICS_USDG");
         if (index == 2) return (MAINNET_STATICS, MAINNET_NVDA, 10_000, 2_500, "STATICS_NVDA");
         if (index == 3) return (MAINNET_NVDA, MAINNET_USDG, 50, 25, "NVDA_USDG");
         revert InvalidLaunchPoolCount(index + 1);

@@ -209,7 +209,7 @@ contract LaunchStaticsPhaseOnePools is Script {
         spec.tickSpacing = tickSpacing;
         spec.sqrtPriceBPerAX96 = sqrtPriceBPerAX96;
         if (index == 0) spec = LaunchSpec(address(0), usdg, 50, 25, tickSpacing, sqrtPriceBPerAX96);
-        if (index == 1) spec = LaunchSpec(statics, usdg, 200, 50, tickSpacing, sqrtPriceBPerAX96);
+        if (index == 1) spec = LaunchSpec(statics, usdg, 200, 1_400, tickSpacing, sqrtPriceBPerAX96);
         if (index == 2) spec = LaunchSpec(statics, nvda, 10_000, 2_500, tickSpacing, sqrtPriceBPerAX96);
         if (index == 3) spec = LaunchSpec(nvda, usdg, 50, 25, tickSpacing, sqrtPriceBPerAX96);
     }
