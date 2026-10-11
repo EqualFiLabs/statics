@@ -14007,10 +14007,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#217-240) ignores return value by (actualPrice,None,None,None) = manager.getSlot0(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#236)",
+      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#236-259) ignores return value by (actualPrice,None,None,None) = manager.getSlot0(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#255)",
       "rationale": "The launch check uses PoolManager slot 0 only to compare the initialized sqrt price with the approved quote. Pool identity and configured LP and hook fees are checked through the recorded PoolKey and protocol fee view; tick and protocol-fee tuple fields do not affect this assertion.",
       "occurrences": 1,
-      "id": "1e68efd43fadedc541ef8cd9"
+      "id": "5755e286cf873fc80959346d"
     },
     {
       "impact": "Medium",
@@ -14071,10 +14071,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: pools.poolCreationFee() != 0 (script/LaunchStaticsPhaseOnePools.s.sol#185)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: pools.poolCreationFee() != 0 (script/LaunchStaticsPhaseOnePools.s.sol#204)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "d7be4ed17f33c930ae8989f9"
+      "id": "82d9eb783b2db81538298d46"
     },
     {
       "impact": "Low",
@@ -14103,10 +14103,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: ! pools.protocolPoolFeeRate(poolId).overridden (script/LaunchStaticsPhaseOnePools.s.sol#191)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: ! pools.protocolPoolFeeRate(poolId).overridden (script/LaunchStaticsPhaseOnePools.s.sol#210)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "e19404b8b0c492c18dfa9c00"
+      "id": "687522ce819ac8c13ee123c8"
     },
     {
       "impact": "Low",
@@ -14135,10 +14135,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools.run() (script/LaunchStaticsPhaseOnePools.s.sol#60-113) has external calls inside a loop: allIds = string.concat(allIds,,,vm.toString(poolIds[i_scope_0])) (script/LaunchStaticsPhaseOnePools.s.sol#110)",
+      "summary": "LaunchStaticsPhaseOnePools.run() (script/LaunchStaticsPhaseOnePools.s.sol#61-114) has external calls inside a loop: allIds = string.concat(allIds,,,vm.toString(poolIds[i_scope_0])) (script/LaunchStaticsPhaseOnePools.s.sol#111)",
       "rationale": "The script formats exactly four created PoolIds for the deployment record after broadcasting. The loop has a fixed bound and cannot change onchain state.",
       "occurrences": 1,
-      "id": "97627b4a347e0e049d810e5d"
+      "id": "192da91ea82726f8b1c683f3"
     },
     {
       "impact": "Low",
@@ -14151,10 +14151,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: quote = pools.quotePool(params) (script/LaunchStaticsPhaseOnePools.s.sol#181)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: quote = pools.quotePool(params) (script/LaunchStaticsPhaseOnePools.s.sol#200)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "0e60ce20691156fb3f4202c8"
+      "id": "b71f90146ca01c4b623ae9d7"
     },
     {
       "impact": "Low",
@@ -14167,10 +14167,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: ! pools.isProtocolPool(poolId) (script/LaunchStaticsPhaseOnePools.s.sol#183)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: ! pools.isProtocolPool(poolId) (script/LaunchStaticsPhaseOnePools.s.sol#202)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "610f4cb484f0a70a4f2b1ede"
+      "id": "8ed5920d6d5fb0e60adc8660"
     },
     {
       "impact": "Low",
@@ -14183,10 +14183,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: IERC173(config.diamond).owner() != config.bootstrapOwner (script/LaunchStaticsPhaseOnePools.s.sol#184)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: IERC173(config.diamond).owner() != config.bootstrapOwner (script/LaunchStaticsPhaseOnePools.s.sol#203)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "64a84747db5d945ecea12e0b"
+      "id": "fac83fb84ea349f4ce7c1e4a"
     },
     {
       "impact": "Low",
@@ -14199,10 +14199,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#217-240) has external calls inside a loop: rate = pools.protocolPoolFeeRate(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#232)",
+      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#236-259) has external calls inside a loop: rate = pools.protocolPoolFeeRate(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#251)",
       "rationale": "The launch script reads and verifies exactly four approved pools before enabling the public creation fee. The fixed-size validation loop is outside the protocol swap path.",
       "occurrences": 2,
-      "id": "ed9fcfbc90b9cda43f67d640"
+      "id": "c76430f80843e51331f04381"
     },
     {
       "impact": "Low",
@@ -14215,10 +14215,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: IERC173(config.diamond).owner() != config.bootstrapOwner (script/LaunchStaticsPhaseOnePools.s.sol#192)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: IERC173(config.diamond).owner() != config.bootstrapOwner (script/LaunchStaticsPhaseOnePools.s.sol#211)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "c75ada6e5cc2a07c62e1fb64"
+      "id": "88366775584fef8c8b0e3f7a"
     },
     {
       "impact": "Low",
@@ -14247,10 +14247,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: createdPoolId = pools.createPool(params,) (script/LaunchStaticsPhaseOnePools.s.sol#186)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: createdPoolId = pools.createPool(params,) (script/LaunchStaticsPhaseOnePools.s.sol#205)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "add45d661ebd030e6160b102"
+      "id": "4b98c24861cfcaeb8721a9a8"
     },
     {
       "impact": "Low",
@@ -14279,10 +14279,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: revert InvalidCreationFee(uint256,uint256)(pools.poolCreationFee(),0) (script/LaunchStaticsPhaseOnePools.s.sol#185)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: revert InvalidCreationFee(uint256,uint256)(pools.poolCreationFee(),0) (script/LaunchStaticsPhaseOnePools.s.sol#204)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "09c4601e62ffa6f5744e8d1f"
+      "id": "cef739c5c06740066a20f3a9"
     },
     {
       "impact": "Low",
@@ -14295,10 +14295,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#217-240) has external calls inside a loop: pool = pools.protocolPool(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#224)",
+      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#236-259) has external calls inside a loop: pool = pools.protocolPool(quote.poolId) (script/LaunchStaticsPhaseOnePools.s.sol#243)",
       "rationale": "The launch script reads and verifies exactly four approved pools before enabling the public creation fee. The fixed-size validation loop is outside the protocol swap path.",
       "occurrences": 2,
-      "id": "b6c20b8031abe232a8e350bc"
+      "id": "e8f828b33a4f44849b1aa399"
     },
     {
       "impact": "Low",
@@ -14311,10 +14311,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) has external calls inside a loop: pools.setProtocolPoolFeeRate(poolId,params.initialFeeRate) (script/LaunchStaticsPhaseOnePools.s.sol#193)",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: pools.setProtocolPoolFeeRate(poolId,params.initialFeeRate) (script/LaunchStaticsPhaseOnePools.s.sol#212)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
-      "id": "aafe21896105ef62dbb800e1"
+      "id": "2fbef160a074795550a71d47"
     },
     {
       "impact": "Low",
@@ -14343,10 +14343,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#217-240) uses timestamp for comparisons",
+      "summary": "LaunchStaticsPhaseOnePools._verifyPool(IStaticsProtocolPools,IPoolManager,IStaticsProtocolPools.GeneralPoolQuote,LaunchStaticsPhaseOnePools.LaunchSpec,address) (script/LaunchStaticsPhaseOnePools.s.sol#236-259) uses timestamp for comparisons",
       "rationale": "The quote or creation uses block time for a one-day deployment deadline. It does not derive pool identity, fees, or pricing from the timestamp, and no randomness or entitlement depends on it.",
       "occurrences": 1,
-      "id": "a1796bdbd2cfebaf9213f6e1"
+      "id": "daa5f7514b43c608f5633006"
     },
     {
       "impact": "Low",
@@ -14359,10 +14359,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#162-196) uses timestamp for comparisons",
+      "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) uses timestamp for comparisons",
       "rationale": "The quote or creation uses block time for a one-day deployment deadline. It does not derive pool identity, fees, or pricing from the timestamp, and no randomness or entitlement depends on it.",
       "occurrences": 1,
-      "id": "bee83789edef193f182d7cbd"
+      "id": "fc4ab4eead50451da58061b4"
     },
     {
       "impact": "Informational",
@@ -14375,10 +14375,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools.run() (script/LaunchStaticsPhaseOnePools.s.sol#60-113) has a high cyclomatic complexity (13).",
+      "summary": "LaunchStaticsPhaseOnePools.run() (script/LaunchStaticsPhaseOnePools.s.sol#61-114) has a high cyclomatic complexity (13).",
       "rationale": "The launch function validates fixed mainnet bindings or a fixed four-pool manifest and checks each transition before the fee and ownership handoff. Its branches encode explicit deployment preconditions rather than unbounded protocol behavior.",
       "occurrences": 1,
-      "id": "b0737c4d46190c8b7742f8b6"
+      "id": "56ae28a7d2a96f4ce724ead0"
     },
     {
       "impact": "Informational",
@@ -14391,10 +14391,10 @@
       "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
-      "summary": "LaunchStaticsPhaseOnePools.launch(LaunchStaticsPhaseOnePools.LaunchConfig,int24[4],uint160[4]) (script/LaunchStaticsPhaseOnePools.s.sol#116-160) has a high cyclomatic complexity (12).",
-      "rationale": "The launch function validates fixed mainnet bindings or a fixed four-pool manifest and checks each transition before the fee and ownership handoff. Its branches encode explicit deployment preconditions rather than unbounded protocol behavior.",
+      "summary": "LaunchStaticsPhaseOnePools.launch(LaunchStaticsPhaseOnePools.LaunchConfig,int24[4],uint160[4]) (script/LaunchStaticsPhaseOnePools.s.sol#117-162) has a high cyclomatic complexity (13).",
+      "rationale": "The launch function validates fixed mainnet bindings or a fixed four-pool manifest and checks each transition before the fee and ownership handoff. Its branches encode explicit deployment preconditions rather than unbounded protocol behavior. The added branch rejects launch tick spacings that differ from the approved mainnet values.",
       "occurrences": 1,
-      "id": "9fb00a055abe647d6887b757"
+      "id": "c46e3ad5e3e5f98055afe27b"
     }
   ]
 }
