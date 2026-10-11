@@ -82,9 +82,9 @@ Three private helpers that Slither proved unreachable were removed rather than
 accepted as legacy dead code. No scope exclusion, detector-family suppression,
 or unchecked finding was added.
 
-## Five launch pools extension
+## Four launch pools extension
 
-The five-pool deployment script expands the current scope to 255 production
+The launch-pool deployment script expands the current scope to 255 production
 files. The reviewed artifact contains 896 normalized findings: 52 high, 421
 medium, 258 low, and 165 informational. All 896 have individual decisions
 (702 intentional, 194 false positive). Eleven prior fingerprints moved with
@@ -92,6 +92,10 @@ source lines; 25 findings are new to the launch-pool script and handoff checks.
 The launch verifies the returned pool ID and installed hook directly. The
 remaining new medium findings are partial PoolManager slot reads: only the
 initialized price is needed, while pool identity and configured fees are
-checked separately. The new loop reports concern five fixed launch pools or
+checked separately. The new loop reports concern four fixed launch pools or
 read-only handoff checks, and the timestamp reports concern the one-day
 creation deadline.
+
+The four-pool fee revision relocates 18 reviewed fingerprints through source
+mapping changes. Each is matched to its prior detector, subject, and rationale;
+the current artifact adds no new finding and resolves none.
