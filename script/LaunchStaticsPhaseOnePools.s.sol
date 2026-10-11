@@ -135,8 +135,11 @@ contract LaunchStaticsPhaseOnePools is Script {
         if (config.statics.code.length == 0 || config.usdg.code.length == 0 || config.nvda.code.length == 0) {
             revert InvalidLaunchInput(type(uint256).max);
         }
-        (address poolManager,, bool installed) = IStaticsBasketLiquidity(config.diamond).liquidityIntegration();
-        if (!installed || poolManager.code.length == 0) revert InvalidLaunchInput(type(uint256).max);
+        (address poolManager, address hook, bool installed) =
+            IStaticsBasketLiquidity(config.diamond).liquidityIntegration();
+        if (!installed || poolManager.code.length == 0 || hook.code.length == 0) {
+            revert InvalidLaunchInput(type(uint256).max);
+        }
 
         for (uint256 i; i < 5; ++i) {
             LaunchSpec memory spec = launchSpec(i, config.statics, config.usdg, config.nvda, tickSpacings[i], prices[i]);
@@ -182,7 +185,8 @@ contract LaunchStaticsPhaseOnePools is Script {
         if (!pools.isProtocolPool(poolId)) {
             if (IERC173(config.diamond).owner() != config.bootstrapOwner) revert InvalidLaunchPool(poolId);
             if (pools.poolCreationFee() != 0) revert InvalidCreationFee(pools.poolCreationFee(), 0);
-            pools.createPool(params, "");
+            PoolId createdPoolId = pools.createPool(params, "");
+            if (PoolId.unwrap(createdPoolId) != PoolId.unwrap(poolId)) revert InvalidLaunchPool(createdPoolId);
         }
         // Pin even the pools whose initial rate equals today's default. Their
         // launch rate must not drift when the global default changes later.

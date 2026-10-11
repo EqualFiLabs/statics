@@ -275,8 +275,10 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         if (rate.inputFeePips != hookPips || rate.outputFeePips != hookPips || !rate.overridden) {
             revert IncorrectLaunchPoolRate(poolId);
         }
-        (address manager,, bool installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
-        if (!installed) revert IncorrectLaunchPool(poolId, quote.poolId);
+        (address manager, address hook, bool installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
+        if (!installed || manager.code.length == 0 || hook != address(quote.key.hooks)) {
+            revert IncorrectLaunchPool(poolId, quote.poolId);
+        }
         (uint160 currentPrice,,,) = IPoolManager(manager).getSlot0(poolId);
         if (currentPrice != quote.sqrtPriceX96) {
             revert IncorrectLaunchPoolPrice(poolId, currentPrice, quote.sqrtPriceX96);

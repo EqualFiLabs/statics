@@ -1,14 +1,15 @@
 # Slither triage
 
-The reviewed repository-wide CI artifact covers 252 production Solidity files
+The reviewed native ETH Phase One CI artifact covered 252 production Solidity files
 and explicitly excludes 17 test, formal-fixture, and vendor files as finding
 subjects. It normalizes to 863 stable findings: 51 high, 420 medium, 235 low,
 and 157 informational. Every stable fingerprint has an explicit classification
 and rationale in `baseline.json`; detector families are summarized below but
 are not blanket suppressions for future findings.
 
-All 863 current findings are reviewed as intentional behavior or false
-positives.
+All 863 findings in that snapshot were reviewed as intentional behavior or false
+positives. The detector-family tables below describe that snapshot; the exact
+current decisions are in `baseline.json`.
 
 The reviewed native ETH Phase One artifact produced the current source scope
 and fingerprint baseline. It records 193 false positives and 670 intentional
@@ -80,3 +81,17 @@ lazy WETH materialization, and canonical `WETH9()` interface spelling.
 Three private helpers that Slither proved unreachable were removed rather than
 accepted as legacy dead code. No scope exclusion, detector-family suppression,
 or unchecked finding was added.
+
+## Five launch pools extension
+
+The five-pool deployment script expands the current scope to 255 production
+files. The reviewed artifact contains 896 normalized findings: 52 high, 421
+medium, 258 low, and 165 informational. All 896 have individual decisions
+(702 intentional, 194 false positive). Eleven prior fingerprints moved with
+source lines; 25 findings are new to the launch-pool script and handoff checks.
+The launch verifies the returned pool ID and installed hook directly. The
+remaining new medium findings are partial PoolManager slot reads: only the
+initialized price is needed, while pool identity and configured fees are
+checked separately. The new loop reports concern five fixed launch pools or
+read-only handoff checks, and the timestamp reports concern the one-day
+creation deadline.
