@@ -179,7 +179,7 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     0 "owner-only pool creation fee"
 
-note "creating all five launch pools at zero creation fee, then enabling 0.01 ETH and transferring to the Safe"
+note "creating all four launch pools at zero creation fee, then enabling 0.01 ETH and transferring to the Safe"
 LAUNCH_LOG="$RUN_DIR/launch-phase-one-pools.log"
 forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools \
     --sig 'run()' --rpc-url "$RPC_URL" --broadcast --legacy --slow -vv \
@@ -187,7 +187,7 @@ forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools 
 STATICS_LAUNCH_PUBLIC_POOL_IDS=$(require_label STATICS_LAUNCH_PUBLIC_POOL_IDS "$LAUNCH_LOG")
 export STATICS_LAUNCH_PUBLIC_POOL_IDS
 append_state STATICS_LAUNCH_PUBLIC_POOL_IDS "$STATICS_LAUNCH_PUBLIC_POOL_IDS"
-assert_eq "$(tr ',' '\n' <<<"$STATICS_LAUNCH_PUBLIC_POOL_IDS" | wc -l)" 5 "five launch pool IDs"
+assert_eq "$(tr ',' '\n' <<<"$STATICS_LAUNCH_PUBLIC_POOL_IDS" | wc -l)" 4 "four launch pool IDs"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     10000000000000000 "public creation fee enabled after launch pools"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \

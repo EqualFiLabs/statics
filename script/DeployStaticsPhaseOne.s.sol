@@ -35,7 +35,7 @@ interface IPhaseOnePositionManagerBindings {
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
-/// @dev Mainnet starts with owner-only pool creation and enables the public fee after five launch pools.
+/// @dev Mainnet starts with owner-only pool creation and enables the public fee after four launch pools.
 contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;

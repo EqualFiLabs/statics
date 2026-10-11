@@ -22,10 +22,10 @@ scripts/phase-one-rehearsal/run-all.sh
 ```
 
 Export reviewed `STATICS_LAUNCH_<PAIR>_TICK_SPACING` and
-`STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96` for each of `ETH_USDG`, `ETH_STATICS`,
-`STATICS_USDG`, `STATICS_NVDA`, and `NVDA_USDG` before running. Prices are raw
+`STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96` for each of `ETH_USDG`, `STATICS_USDG`,
+`STATICS_NVDA`, and `NVDA_USDG` before running. Prices are raw
 tokenB/tokenA square-root prices scaled by 2^96; USDG has 6 decimals. The
-runner checks all ten inputs before stopping an existing fork.
+runner checks all eight inputs before stopping an existing fork.
 
 The summary records the exact tested commit and the immutable published Phase 1
 foundation commit from PR #96; no retired local branch is needed to finalize it.

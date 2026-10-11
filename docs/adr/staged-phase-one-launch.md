@@ -102,8 +102,8 @@ fees, weekly reserve-release rate, and complete Phase 1 ERC-165 interface set. D
 and immutable checks cover the canonical PositionManager and Permit2 bindings, the public manager's
 four immutable bindings, the permissioned claims companion, and the permissioned position manager's
 canonical WETH binding. The general-pool creation fee starts at zero, keeping creation owner-only
-while the deployment signer creates and verifies the five approved Native ETH/USDG,
-Native ETH/STATICS, STATICS/USDG, STATICS/NVDA, and NVDA/USDG pools with explicit
+while the deployment signer creates and verifies the four approved Native ETH/USDG,
+STATICS/USDG, STATICS/NVDA, and NVDA/USDG pools with explicit
 opening prices and tick spacings. Each pool has a pinned hook-fee override so
 later changes to the global default cannot change its launch fee. The signer
 then enables the 0.01 ETH public creation fee and transfers Diamond ownership to the

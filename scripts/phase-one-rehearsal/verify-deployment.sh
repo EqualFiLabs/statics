@@ -105,15 +105,15 @@ assert_eq \
     "public pool creation fee"
 
 IFS=',' read -r -a launch_pool_ids <<<"$STATICS_LAUNCH_PUBLIC_POOL_IDS"
-assert_eq "${#launch_pool_ids[@]}" 5 "launch pool count"
-launch_token_a=(0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 \
+assert_eq "${#launch_pool_ids[@]}" 4 "launch pool count"
+launch_token_a=(0x0000000000000000000000000000000000000000 \
     "$STAKING_TOKEN" "$STAKING_TOKEN" 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC)
-launch_token_b=(0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 "$STAKING_TOKEN" \
+launch_token_b=(0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 \
     0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 \
     0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC \
     0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168)
-launch_lp_fees=(50 50 200 10000 50)
-launch_hook_fees=(25 25 50 2500 25)
+launch_lp_fees=(50 200 10000 50)
+launch_hook_fees=(25 50 2500 25)
 for i in "${!launch_pool_ids[@]}"; do
     pool_id=${launch_pool_ids[i]}
     assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \

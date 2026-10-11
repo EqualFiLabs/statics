@@ -13,7 +13,7 @@ import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 
-/// @notice Creates the five approved pools while creation is owner-only, then enables the public fee.
+/// @notice Creates the four approved pools while creation is owner-only, then enables the public fee.
 contract LaunchStaticsPhaseOnePools is Script {
     using StateLibrary for IPoolManager;
 
@@ -55,9 +55,9 @@ contract LaunchStaticsPhaseOnePools is Script {
     error InvalidLaunchPrice(PoolId poolId, uint160 actual, uint160 expected);
     error InvalidLaunchInput(uint256 index);
 
-    /// @dev Price is tokenB per tokenA in raw token units. All five prices and tick
+    /// @dev Price is tokenB per tokenA in raw token units. All four prices and tick
     /// spacings are mandatory inputs; production opening prices are never guessed.
-    function run() external returns (bytes32[5] memory poolIds) {
+    function run() external returns (bytes32[4] memory poolIds) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
         address safe = vm.envAddress("MULTISIG");
@@ -86,18 +86,16 @@ contract LaunchStaticsPhaseOnePools is Script {
             ) revert InvalidLaunchAssetMetadata(nvda);
         }
 
-        int24[5] memory tickSpacings;
-        uint160[5] memory prices;
+        int24[4] memory tickSpacings;
+        uint160[4] memory prices;
         tickSpacings[0] = _tickSpacing("STATICS_LAUNCH_ETH_USDG_TICK_SPACING", 0);
-        tickSpacings[1] = _tickSpacing("STATICS_LAUNCH_ETH_STATICS_TICK_SPACING", 1);
-        tickSpacings[2] = _tickSpacing("STATICS_LAUNCH_STATICS_USDG_TICK_SPACING", 2);
-        tickSpacings[3] = _tickSpacing("STATICS_LAUNCH_STATICS_NVDA_TICK_SPACING", 3);
-        tickSpacings[4] = _tickSpacing("STATICS_LAUNCH_NVDA_USDG_TICK_SPACING", 4);
+        tickSpacings[1] = _tickSpacing("STATICS_LAUNCH_STATICS_USDG_TICK_SPACING", 1);
+        tickSpacings[2] = _tickSpacing("STATICS_LAUNCH_STATICS_NVDA_TICK_SPACING", 2);
+        tickSpacings[3] = _tickSpacing("STATICS_LAUNCH_NVDA_USDG_TICK_SPACING", 3);
         prices[0] = _price("STATICS_LAUNCH_ETH_USDG_SQRT_PRICE_X96", 0);
-        prices[1] = _price("STATICS_LAUNCH_ETH_STATICS_SQRT_PRICE_X96", 1);
-        prices[2] = _price("STATICS_LAUNCH_STATICS_USDG_SQRT_PRICE_X96", 2);
-        prices[3] = _price("STATICS_LAUNCH_STATICS_NVDA_SQRT_PRICE_X96", 3);
-        prices[4] = _price("STATICS_LAUNCH_NVDA_USDG_SQRT_PRICE_X96", 4);
+        prices[1] = _price("STATICS_LAUNCH_STATICS_USDG_SQRT_PRICE_X96", 1);
+        prices[2] = _price("STATICS_LAUNCH_STATICS_NVDA_SQRT_PRICE_X96", 2);
+        prices[3] = _price("STATICS_LAUNCH_NVDA_USDG_SQRT_PRICE_X96", 3);
 
         vm.startBroadcast(privateKey);
         poolIds = launch(LaunchConfig(diamond, safe, statics, usdg, nvda, vm.addr(privateKey)), tickSpacings, prices);
@@ -115,9 +113,9 @@ contract LaunchStaticsPhaseOnePools is Script {
     }
 
     /// @notice Resume-safe after a partial broadcast; existing pools must match every approved field.
-    function launch(LaunchConfig memory config, int24[5] memory tickSpacings, uint160[5] memory prices)
+    function launch(LaunchConfig memory config, int24[4] memory tickSpacings, uint160[4] memory prices)
         public
-        returns (bytes32[5] memory poolIds)
+        returns (bytes32[4] memory poolIds)
     {
         IStaticsProtocolPools pools = IStaticsProtocolPools(config.diamond);
         address owner = IERC173(config.diamond).owner();
@@ -141,7 +139,7 @@ contract LaunchStaticsPhaseOnePools is Script {
             revert InvalidLaunchInput(type(uint256).max);
         }
 
-        for (uint256 i; i < 5; ++i) {
+        for (uint256 i; i < 4; ++i) {
             LaunchSpec memory spec = launchSpec(i, config.statics, config.usdg, config.nvda, tickSpacings[i], prices[i]);
             poolIds[i] = PoolId.unwrap(_createOrVerify(config, spec, i, IPoolManager(poolManager)));
         }
@@ -205,16 +203,15 @@ contract LaunchStaticsPhaseOnePools is Script {
         int24 tickSpacing,
         uint160 sqrtPriceBPerAX96
     ) public pure returns (LaunchSpec memory spec) {
-        if (index > 4 || tickSpacing <= 0 || sqrtPriceBPerAX96 == 0) {
+        if (index > 3 || tickSpacing <= 0 || sqrtPriceBPerAX96 == 0) {
             revert InvalidLaunchInput(index);
         }
         spec.tickSpacing = tickSpacing;
         spec.sqrtPriceBPerAX96 = sqrtPriceBPerAX96;
         if (index == 0) spec = LaunchSpec(address(0), usdg, 50, 25, tickSpacing, sqrtPriceBPerAX96);
-        if (index == 1) spec = LaunchSpec(address(0), statics, 50, 25, tickSpacing, sqrtPriceBPerAX96);
-        if (index == 2) spec = LaunchSpec(statics, usdg, 200, 50, tickSpacing, sqrtPriceBPerAX96);
-        if (index == 3) spec = LaunchSpec(statics, nvda, 10_000, 2_500, tickSpacing, sqrtPriceBPerAX96);
-        if (index == 4) spec = LaunchSpec(nvda, usdg, 50, 25, tickSpacing, sqrtPriceBPerAX96);
+        if (index == 1) spec = LaunchSpec(statics, usdg, 200, 50, tickSpacing, sqrtPriceBPerAX96);
+        if (index == 2) spec = LaunchSpec(statics, nvda, 10_000, 2_500, tickSpacing, sqrtPriceBPerAX96);
+        if (index == 3) spec = LaunchSpec(nvda, usdg, 50, 25, tickSpacing, sqrtPriceBPerAX96);
     }
 
     function _verifyPool(

@@ -581,8 +581,8 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
 
 The approved Phase 1 public fees are 0.01 ETH per pool, 0.001 ETH per new
 PositionNFT, and 0.025 ETH for managed-POL activation. Deploy with a **zero**
-pool creation fee so only the deployment owner can create the five launch pools.
-The launch script enables the 0.01 ETH public fee after all five are verified:
+pool creation fee so only the deployment owner can create the four launch pools.
+The launch script enables the 0.01 ETH public fee after all four are verified:
 
 ```shell
 export POOL_CREATION_FEE_AMOUNT=0
@@ -650,12 +650,11 @@ forge script \
 
 Verify the Diamond owner is still the deployment signer, the pool creation fee
 is zero, and the nine deployment settings are installed. Supply reviewed
-tick spacings and raw-token opening square-root prices for these five pairs:
+tick spacings and raw-token opening square-root prices for these four pairs:
 
 | Pool | LP fee | Hook in | Hook out |
 | --- | ---: | ---: | ---: |
 | Native ETH/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
-| Native ETH/STATICS | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
 | STATICS/USDG | 200 pips (0.02%) | 50 pips (0.005%) | 50 pips (0.005%) |
 | STATICS/NVDA | 10,000 pips (1%) | 2,500 pips (0.25%) | 2,500 pips (0.25%) |
 | NVDA/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
@@ -668,7 +667,7 @@ through the configured private Robinhood Mainnet RPC at block 85395888; it is
 an on-chain binding check, not an issuer attestation.
 For each pool, set `STATICS_LAUNCH_<PAIR>_TICK_SPACING` and
 `STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96`, where `<PAIR>` is `ETH_USDG`,
-`ETH_STATICS`, `STATICS_USDG`, `STATICS_NVDA`, or `NVDA_USDG`. The price is
+`STATICS_USDG`, `STATICS_NVDA`, or `NVDA_USDG`. The price is
 sqrt(tokenB raw units / tokenA raw units) times 2^96; USDG uses 6 decimals.
 The script requires every input and validates the fee schedule and pool state.
 Simulate it first, then broadcast using the same deployment signer:
@@ -684,7 +683,7 @@ forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools 
 
 Pool creation occurs at zero fee while the deployer remains owner. The script
 then sets the public fee to 0.01 ETH and transfers ownership to the governance
-Safe. Record its five PoolIds. These transactions initialize pools but do not
+Safe. Record its four PoolIds. These transactions initialize pools but do not
 provide liquidity. Complete any other owner-only launch setup from the Safe
 before the final timelock handoff.
 

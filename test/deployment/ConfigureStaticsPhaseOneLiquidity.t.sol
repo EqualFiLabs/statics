@@ -257,7 +257,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         _assertInstalled(deployment, address(poolManager), config.protocolPolOperator);
         _assertOwnerOnlyPoolCreation(deployment.diamond, safe);
 
-        bytes32[5] memory launched = _launchFivePools(deployment.diamond, safe, config.stakingToken, ceremony);
+        bytes32[4] memory launched = _launchFourPools(deployment.diamond, safe, config.stakingToken, ceremony);
         assertEq(IERC173(deployment.diamond).owner(), safe);
         assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0.01 ether);
         config.poolCreationFeeAmount = 0.01 ether;
@@ -266,7 +266,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.expectRevert(ConfigureStaticsPhaseOneLiquidity.MissingLaunchPools.selector);
         ceremony.prepareHandoff(deployment.diamond, address(timelock), config, noPools, noPools);
 
-        bytes32[] memory publicIds = new bytes32[](5);
+        bytes32[] memory publicIds = new bytes32[](4);
         publicIds[0] = keccak256("missing launch pool");
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -275,7 +275,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         );
         ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
 
-        for (uint256 i; i < 5; ++i) {
+        for (uint256 i; i < 4; ++i) {
             publicIds[i] = launched[i];
             assertTrue(IStaticsProtocolPools(deployment.diamond).isProtocolPool(PoolId.wrap(publicIds[i])));
         }
@@ -298,20 +298,19 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ceremony.prepareBootstrap(deployment.diamond, address(timelock), config);
     }
 
-    function _launchFivePools(
+    function _launchFourPools(
         address diamond,
         address safe,
         address statics,
         ConfigureStaticsPhaseOneLiquidity ceremony
-    ) private returns (bytes32[5] memory launched) {
+    ) private returns (bytes32[4] memory launched) {
         LaunchStaticsPhaseOnePools launcher = new LaunchStaticsPhaseOnePools();
         vm.prank(address(ceremony));
         IERC173(diamond).transferOwnership(address(launcher));
         MockERC20 usdg = new MockERC20("USDG", "USDG", 6);
         MockERC20 nvda = new MockERC20("NVDA", "NVDA", 18);
-        int24[5] memory spacings = [int24(10), int24(10), int24(10), int24(10), int24(10)];
-        uint160[5] memory prices =
-            [uint160(1 << 96), uint160(1 << 96), uint160(1 << 96), uint160(1 << 96), uint160(1 << 96)];
+        int24[4] memory spacings = [int24(1), int24(10), int24(200), int24(1)];
+        uint160[4] memory prices = [uint160(1 << 96), uint160(1 << 96), uint160(1 << 96), uint160(1 << 96)];
         launched = launcher.launch(
             LaunchStaticsPhaseOnePools.LaunchConfig(
                 diamond, safe, statics, address(usdg), address(nvda), address(launcher)
@@ -319,14 +318,14 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             spacings,
             prices
         );
-        bytes32[5] memory resumed = launcher.launch(
+        bytes32[4] memory resumed = launcher.launch(
             LaunchStaticsPhaseOnePools.LaunchConfig(
                 diamond, safe, statics, address(usdg), address(nvda), address(launcher)
             ),
             spacings,
             prices
         );
-        for (uint256 i; i < 5; ++i) {
+        for (uint256 i; i < 4; ++i) {
             assertEq(resumed[i], launched[i]);
         }
     }
@@ -356,11 +355,11 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         address statics = makeAddr("statics");
         address usdg = makeAddr("usdg");
         address nvda = makeAddr("nvda");
-        uint24[5] memory expectedLp = [uint24(50), 50, 200, 10_000, 50];
-        uint16[5] memory expectedHook = [uint16(25), 25, 50, 2_500, 25];
-        address[5] memory expectedA = [address(0), address(0), statics, statics, nvda];
-        address[5] memory expectedB = [usdg, statics, usdg, nvda, usdg];
-        for (uint256 i; i < 5; ++i) {
+        uint24[4] memory expectedLp = [uint24(50), 200, 10_000, 50];
+        uint16[4] memory expectedHook = [uint16(25), 50, 2_500, 25];
+        address[4] memory expectedA = [address(0), statics, statics, nvda];
+        address[4] memory expectedB = [usdg, usdg, nvda, usdg];
+        for (uint256 i; i < 4; ++i) {
             LaunchStaticsPhaseOnePools.LaunchSpec memory spec =
                 launcher.launchSpec(i, statics, usdg, nvda, 10, uint160(1 << 96));
             assertEq(spec.tokenA, expectedA[i]);
@@ -370,6 +369,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         }
         vm.expectRevert(abi.encodeWithSelector(LaunchStaticsPhaseOnePools.InvalidLaunchInput.selector, 0));
         launcher.launchSpec(0, statics, usdg, nvda, 10, 0);
+        vm.expectRevert(abi.encodeWithSelector(LaunchStaticsPhaseOnePools.InvalidLaunchInput.selector, 4));
+        launcher.launchSpec(4, statics, usdg, nvda, 10, uint160(1 << 96));
     }
 
     function _assertPublicCanCreateAfterHandoff(address diamond, address treasury) private {
