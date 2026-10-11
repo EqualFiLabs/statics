@@ -373,6 +373,35 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         launcher.launchSpec(4, statics, usdg, nvda, 10, uint160(1 << 96));
     }
 
+    function testMainnetLaunchRejectsUnapprovedTickSpacings() public {
+        LaunchStaticsPhaseOnePools launcher = new LaunchStaticsPhaseOnePools();
+        int24[4] memory spacings = [int24(1), int24(10), int24(200), int24(1)];
+        uint160[4] memory prices;
+        launcher.validateLaunchTickSpacings(spacings);
+
+        uint256 originalChainId = block.chainid;
+        vm.chainId(4663);
+        for (uint256 i; i < 4; ++i) {
+            int24 expected = spacings[i];
+            int24 actual = expected + 1;
+            spacings[i] = actual;
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    LaunchStaticsPhaseOnePools.InvalidLaunchTickSpacing.selector, i, actual, expected
+                )
+            );
+            launcher.launch(
+                LaunchStaticsPhaseOnePools.LaunchConfig(
+                    address(0), address(0), address(0), address(0), address(0), address(0)
+                ),
+                spacings,
+                prices
+            );
+            spacings[i] = expected;
+        }
+        vm.chainId(originalChainId);
+    }
+
     function _assertPublicCanCreateAfterHandoff(address diamond, address treasury) private {
         MockERC20 laterTokenA = new MockERC20("Later A", "LA", 18);
         MockERC20 laterTokenB = new MockERC20("Later B", "LB", 18);
