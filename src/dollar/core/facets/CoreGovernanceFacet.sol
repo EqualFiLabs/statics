@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity ^0.8.28;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";

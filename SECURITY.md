@@ -116,10 +116,12 @@ arbitrary tokens or settlement histories.
 
 ## Authority
 
-- Phase 1 deploys one `StaticsTimelock`, while the governance Safe initially owns
-  `StaticsDiamond` to install launch integrations and create the initial pools
-  without a governance delay. The Safe transfers Diamond ownership to the
-  timelock only after verifying the launch state. Later phases retain that
+- Phase 1 deploys one `StaticsTimelock`. The deployment signer initially owns
+  `StaticsDiamond`, installs launch integrations, and creates four initial pools
+  while the zero pool creation fee keeps creation owner-only. It enables the
+  0.01 ETH public fee before transferring ownership to the governance Safe.
+  The Safe transfers Diamond ownership to the timelock only after verifying
+  the launch state. Later phases retain that
   Diamond and add only their reviewed selector and initializer delta. The
   fresh full-stack reference directly assigns the timelock as owner of both
   `StaticsDiamond` and `StaticsDollarCoreDiamond`. The delay

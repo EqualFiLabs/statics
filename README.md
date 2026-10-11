@@ -579,12 +579,13 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-The approved Phase 1 mainnet launch fees are 0.01 ETH per public pool, 0.001
-ETH per new PositionNFT, and 0.025 ETH for managed-POL activation. Set the exact
-wei values before deployment and deployment finalization:
+The approved Phase 1 public fees are 0.01 ETH per pool, 0.001 ETH per new
+PositionNFT, and 0.025 ETH for managed-POL activation. Deploy with a **zero**
+pool creation fee so only the deployment owner can create the four launch pools.
+The launch script enables the 0.01 ETH public fee after all four are verified:
 
 ```shell
-export POOL_CREATION_FEE_AMOUNT=10000000000000000
+export POOL_CREATION_FEE_AMOUNT=0
 export POSITION_CREATION_FEE_AMOUNT=1000000000000000
 export STATICS_POL_ACTIVATION_FEE=25000000000000000
 ```
@@ -620,8 +621,7 @@ The Phase 1 deployment temporarily gives Diamond ownership to the deployment
 signer. After the exact-0.8.26 permissioned periphery is deployed, set
 `STATICS_TIMELOCK_ADDRESS` to the address emitted by the Phase 1 deployment.
 The same deployment signer executes the nine installation/configuration calls
-and transfers Diamond ownership to the governance Safe. The Safe and timelock
-do not delay this deployment setup:
+and retains Diamond ownership for launch pool creation:
 
 Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` and
 `STATICS_POL_ACTIVATION_FEE=25000000000000000` for deployment finalization.
@@ -648,12 +648,44 @@ forge script \
   -vv
 ```
 
-Verify the Diamond owner is now the governance Safe and the nine deployment
-settings are installed. Create and verify every initial public and permissioned
-pool before the final handoff. Public pool creation is direct and fee-paid by any
-caller; permissioned pool creation is owner-only and therefore uses the Safe at
-this stage. Complete any other owner-only launch setup before transferring
-ownership: later owner-only calls require the production timelock delay.
+Verify the Diamond owner is still the deployment signer, the pool creation fee
+is zero, and the nine deployment settings are installed. Supply reviewed
+tick spacings and raw-token opening square-root prices for these four pairs:
+
+| Pool | LP fee | Hook in | Hook out |
+| --- | ---: | ---: | ---: |
+| Native ETH/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
+| STATICS/USDG | 200 pips (0.02%) | 1,400 pips (0.14%) | 1,400 pips (0.14%) |
+| STATICS/NVDA | 10,000 pips (1%) | 2,500 pips (0.25%) | 2,500 pips (0.25%) |
+| NVDA/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
+
+Set `STATICS_LAUNCH_USDG_ADDRESS=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`
+and `STATICS_LAUNCH_NVDA_ADDRESS=0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC`.
+The entry point pins the Genesis governance Safe and checks USDG/NVDA runtime
+hashes, symbols, and decimals before broadcasting. The NVDA pin was observed
+through the configured private Robinhood Mainnet RPC at block 85395888; it is
+an on-chain binding check, not an issuer attestation.
+For each pool, set `STATICS_LAUNCH_<PAIR>_TICK_SPACING` and
+`STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96`, where `<PAIR>` is `ETH_USDG`,
+`STATICS_USDG`, `STATICS_NVDA`, or `NVDA_USDG`. The price is
+sqrt(tokenB raw units / tokenA raw units) times 2^96; USDG uses 6 decimals.
+The script requires every input and validates the fee schedule and pool state.
+Simulate it first, then broadcast using the same deployment signer:
+
+```shell
+forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools \
+  --sig "run()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+
+forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools \
+  --sig "run()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 \
+  --broadcast --legacy --slow -vv
+```
+
+Pool creation occurs at zero fee while the deployer remains owner. The script
+then sets the public fee to 0.01 ETH and transfers ownership to the governance
+Safe. Record its four PoolIds. These transactions initialize pools but do not
+provide liquidity. Complete any other owner-only launch setup from the Safe
+before the final timelock handoff.
 
 Set `STATICS_LAUNCH_PUBLIC_POOL_IDS` to a comma-separated list of the public
 PoolIds actually created. If initial permissioned pools exist, set
@@ -667,7 +699,7 @@ forge script \
   -vv
 ```
 
-The handoff preparation verifies the installed configuration, timelock roles,
+The handoff preparation verifies the installed configuration, final pool fee, timelock roles,
 delay, and every listed launch pool before returning the Safe's
 `transferOwnership(timelock)` call. Execute it from the Safe and verify the
 Diamond owner is the timelock. Preparation refuses a mismatched Diamond runtime, selector manifest,
@@ -938,7 +970,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `WEEKLY_GAUGE_RELEASE_BPS` | Initial weekly release from the available protocol gauge reserve; defaults to 400 bps and cannot exceed 1,000 bps |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; Phase 1 mainnet launch requires 0.001 ETH |
-| `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; Phase 1 mainnet launch requires 0.01 ETH; zero disables permissionless creation (owner-only) |
+| `POOL_CREATION_FEE_AMOUNT` | Initial general-pool creation fee; Phase 1 deploys at zero for owner-only launch creation, then enables 0.01 ETH before Safe ownership |
 | `STATICS_POL_OPERATOR` | Operational address permitted to manage explicit protocol-owned liquidity positions without withdrawal authority |
 | `STATICS_POL_ACTIVATION_FEE` | Exact native Treasury fee a general-pool creator pays to permanently enable future managed-POL funding; Phase 1 mainnet launch requires 0.025 ETH |
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's onchain ERC-7572 collection metadata URI |

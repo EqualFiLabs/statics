@@ -18,6 +18,10 @@ TREASURY=$(jq -er '.roles.treasury' "$GENESIS_MANIFEST")
 POL_OPERATOR=$(anvil_address 3)
 WETH=$(jq -er '.externalDependencies.weth.address' "$GENESIS_MANIFEST")
 STATICS_TOKEN=$(jq -er '.contracts.staticsToken.address' "$GENESIS_MANIFEST")
+STATICS_LAUNCH_USDG_ADDRESS=$(jq -er '.contracts.usdg.address' "$REPO_ROOT/deployments/robinhood-chain-4663.json")
+STATICS_LAUNCH_NVDA_ADDRESS=0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC
+require_launch_pool_inputs
+export STATICS_LAUNCH_USDG_ADDRESS STATICS_LAUNCH_NVDA_ADDRESS
 STATICS_DOPPLER_POOL_INITIALIZER_ADDRESS=$(jq -er '.canonicalPool.poolKey.hooks' "$GENESIS_MANIFEST")
 STATICS_DOPPLER_POOL_ID=$(jq -er '.canonicalPool.poolId' "$GENESIS_MANIFEST")
 STATICS_DOPPLER_POOL_FEE=$(jq -er '.canonicalPool.poolKey.fee' "$GENESIS_MANIFEST")
@@ -60,7 +64,7 @@ TREASURY="$TREASURY" \
 STAKING_TOKEN="$STATICS_TOKEN" \
 WETH_ADDRESS="$WETH" \
 POSITION_CREATION_FEE_AMOUNT=1000000000000000 \
-POOL_CREATION_FEE_AMOUNT=10000000000000000 \
+POOL_CREATION_FEE_AMOUNT=0 \
 WEEKLY_GAUGE_RELEASE_BPS=400 \
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
     --sig 'run()' \
@@ -147,7 +151,7 @@ export PRIVATE_KEY="$DEPLOYER_KEY"
 export MULTISIG="$GOVERNANCE"
 export GUARDIAN TREASURY STAKING_TOKEN WETH_ADDRESS
 export POSITION_CREATION_FEE_AMOUNT=1000000000000000
-export POOL_CREATION_FEE_AMOUNT=10000000000000000
+export POOL_CREATION_FEE_AMOUNT=0
 export WEEKLY_GAUGE_RELEASE_BPS=400
 export STATICS_REVENUE_MAINTENANCE_TIP_BPS=100
 export STATICS_POL_OPERATOR="$POL_OPERATOR"
@@ -163,7 +167,7 @@ export STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH
 export STATICS_TIMELOCK_ADDRESS
 
 PREPARE_LOG="$RUN_DIR/finalize-phase-one-deployment.log"
-note "configuring Phase 1 from the deployment signer and handing ownership to the Safe"
+note "configuring Phase 1 while the deployment signer retains ownership"
 forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
     --sig 'runFinalizeDeployment()' \
     --rpc-url "$RPC_URL" \
@@ -171,31 +175,23 @@ forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhas
     -vv \
     2>&1 | tee "$PREPARE_LOG"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \
-    "$GOVERNANCE" "configured Diamond owner"
+    "$(cast wallet address --private-key "$DEPLOYER_KEY")" "configured Diamond owner"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    0 "owner-only pool creation fee"
 
-note "creating the initial public pool before timelock ownership"
-LAUNCH_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
-LAUNCH_PARAMS="($STATICS_TOKEN,$WETH,50,37,79228162514264337593543950336,(25,25),$GOVERNANCE,false,1,$LAUNCH_DEADLINE)"
-STATICS_LAUNCH_PUBLIC_POOL_IDS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
-    'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
-    "$LAUNCH_PARAMS" --rpc-url "$RPC_URL" --json | jq -er '.[0][1]')
+note "creating all four launch pools at zero creation fee, then enabling 0.01 ETH and transferring to the Safe"
+LAUNCH_LOG="$RUN_DIR/launch-phase-one-pools.log"
+forge script script/LaunchStaticsPhaseOnePools.s.sol:LaunchStaticsPhaseOnePools \
+    --sig 'run()' --rpc-url "$RPC_URL" --broadcast --legacy --slow -vv \
+    2>&1 | tee "$LAUNCH_LOG"
+STATICS_LAUNCH_PUBLIC_POOL_IDS=$(require_label STATICS_LAUNCH_PUBLIC_POOL_IDS "$LAUNCH_LOG")
 export STATICS_LAUNCH_PUBLIC_POOL_IDS
-cast send "$STATICS_DIAMOND_ADDRESS" \
-    'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
-    "$LAUNCH_PARAMS" 0x --value "$POOL_CREATION_FEE_AMOUNT" \
-    --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
-    >"$RUN_DIR/safe-phase-one-launch-pool.json"
-assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
-    "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL")" true "initial public pool"
-LAUNCH_POOL_VIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
-    'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))' \
-    "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL" --json)
-assert_eq "$(jq -r '.[0][1][2]' <<<"$LAUNCH_POOL_VIEW")" 50 "launch pool LP fee in pips"
-LAUNCH_POOL_RATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
-    'protocolPoolFeeRate(bytes32)((uint16,uint16,bool))' "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL" --json)
-assert_eq "$(jq -r '.[0][0]' <<<"$LAUNCH_POOL_RATE")" 25 "launch pool input hook fee in pips"
-assert_eq "$(jq -r '.[0][1]' <<<"$LAUNCH_POOL_RATE")" 25 "launch pool output hook fee in pips"
-assert_eq "$(jq -r '.[0][2]' <<<"$LAUNCH_POOL_RATE")" true "launch pool fee override marker"
+append_state STATICS_LAUNCH_PUBLIC_POOL_IDS "$STATICS_LAUNCH_PUBLIC_POOL_IDS"
+assert_eq "$(tr ',' '\n' <<<"$STATICS_LAUNCH_PUBLIC_POOL_IDS" | wc -l)" 4 "four launch pool IDs"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    10000000000000000 "public creation fee enabled after launch pools"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \
+    "$GOVERNANCE" "post-launch Diamond owner"
 
 HANDOFF_LOG="$RUN_DIR/prepare-phase-one-handoff.log"
 note "preparing the Safe handoff after initial pool verification"

@@ -95,18 +95,25 @@ contracts.
 The deployment signer temporarily owns the Diamond while its nine-call Phase 1 configuration sequence binds both PoolManager/hook paths,
 installs the public liquidity manager, trusts the exact-input permissioned router,
 non-transferable position manager, and quoter, sets the bounded public-pool revenue maintenance tip,
-and configures the managed-POL operator and creator activation fee. The deployment
-signer then transfers Diamond ownership to the governance Safe. Every
+and configures the managed-POL operator and creator activation fee. Every
 Phase 1 selector route and compiled facet runtime is verified before configuration. The ceremony also
 binds the Diamond runtime hash, active phase, initialized guardian, treasury, staking token, creation
 fees, weekly reserve-release rate, and complete Phase 1 ERC-165 interface set. Dependency runtime
 and immutable checks cover the canonical PositionManager and Permit2 bindings, the public manager's
 four immutable bindings, the permissioned claims companion, and the permissioned position manager's
-canonical WETH binding. The general-pool creation fee
-must be nonzero at launch, enabling public creation with exact native payment. Permissioned creation is
-always owner executed and requires exact creator EIP-712 or ERC-1271 authorization. The launch
-operators create and verify at least one initial public pool, while any initial permissioned pool
-is created by the Safe. The Safe transfers Diamond ownership to the timelock only afterward. Later public
+canonical WETH binding. The general-pool creation fee starts at zero, keeping creation owner-only
+while the deployment signer creates and verifies the four approved Native ETH/USDG,
+STATICS/USDG, STATICS/NVDA, and NVDA/USDG pools with explicit
+opening prices and tick spacings. Each pool has a pinned hook-fee override so
+later changes to the global default cannot change its launch fee. The signer
+sets STATICS/USDG to 200 LP pips plus 1,400 input and 1,400 output hook pips,
+giving a nominal 0.30% combined fee while leaving most of the fee adjustable
+through owner-controlled hook rates after launch. The LP fee is fixed by its
+PoolKey; changing it creates a different pool. The signer then enables the
+0.01 ETH public creation fee and transfers Diamond ownership to the governance
+Safe. Permissioned creation is always owner executed and requires exact creator
+EIP-712 or ERC-1271 authorization. Any initial permissioned pool is created by the Safe.
+The Safe transfers Diamond ownership to the timelock only afterward. Later public
 pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,
 use the timelock.
 

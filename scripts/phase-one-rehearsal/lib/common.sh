@@ -32,6 +32,19 @@ require_commands() {
     done
 }
 
+require_launch_pool_inputs() {
+    local launch_input
+    for launch_input in \
+        STATICS_LAUNCH_ETH_USDG_TICK_SPACING \
+        STATICS_LAUNCH_STATICS_USDG_TICK_SPACING STATICS_LAUNCH_STATICS_NVDA_TICK_SPACING \
+        STATICS_LAUNCH_NVDA_USDG_TICK_SPACING \
+        STATICS_LAUNCH_ETH_USDG_SQRT_PRICE_X96 \
+        STATICS_LAUNCH_STATICS_USDG_SQRT_PRICE_X96 STATICS_LAUNCH_STATICS_NVDA_SQRT_PRICE_X96 \
+        STATICS_LAUNCH_NVDA_USDG_SQRT_PRICE_X96; do
+        [[ -n "${!launch_input:-}" ]] || fail "missing reviewed launch input: $launch_input"
+    done
+}
+
 anvil_private_key() {
     cast wallet private-key "$ANVIL_MNEMONIC" "$1"
 }

@@ -35,7 +35,7 @@ interface IPhaseOnePositionManagerBindings {
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
-/// @dev A nonzero general-pool creation fee enables public creation at launch.
+/// @dev Mainnet starts with owner-only pool creation and enables the public fee after four launch pools.
 contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
@@ -70,7 +70,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidLaunchFee(bytes32 fee, uint256 expected, uint256 actual);
 
     uint256 private constant LAUNCH_POSITION_CREATION_FEE = 0.001 ether;
-    uint256 private constant LAUNCH_POOL_CREATION_FEE = 0.01 ether;
+    uint256 private constant INITIAL_POOL_CREATION_FEE = 0;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -99,15 +99,16 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                     "positionCreationFee", LAUNCH_POSITION_CREATION_FEE, config.positionCreationFeeAmount
                 );
             }
-            if (config.poolCreationFeeAmount != LAUNCH_POOL_CREATION_FEE) {
-                revert InvalidLaunchFee("poolCreationFee", LAUNCH_POOL_CREATION_FEE, config.poolCreationFeeAmount);
+            if (config.poolCreationFeeAmount != INITIAL_POOL_CREATION_FEE) {
+                revert InvalidLaunchFee("poolCreationFee", INITIAL_POOL_CREATION_FEE, config.poolCreationFeeAmount);
             }
         }
         V4Config memory v4 = _loadRobinhoodV4Config();
 
         vm.startBroadcast(privateKey);
-        // The broadcaster completes the liquidity installation after the exact-0.8.26
-        // permissioned periphery is deployed, then transfers ownership to the Safe.
+        // The broadcaster installs liquidity and creates launch pools while the
+        // zero creation fee keeps pool creation owner-only. The fee is enabled
+        // before ownership moves to the Safe.
         (deployment, timelock) = _deploy(config, vm.addr(privateKey));
         _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
@@ -223,7 +224,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             config.multisig == address(0) || config.guardian == address(0) || config.treasury == address(0)
                 || config.stakingToken == address(0) || config.weth == address(0)
                 || config.stakingToken.code.length == 0 || config.weth.code.length == 0
-                || config.weeklyGaugeReleaseBps > 1_000 || config.poolCreationFeeAmount == 0
+                || config.weeklyGaugeReleaseBps > 1_000
         ) revert InvalidConfig();
         _validateMainnetGenesisBindings(config);
     }
