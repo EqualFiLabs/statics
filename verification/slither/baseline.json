@@ -5161,10 +5161,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#232-247) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#246)",
+      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#233-251) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#250)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "21dbd8ee5516e0949b31a661"
+      "id": "321f3eb237af2475d7084492"
     },
     {
       "impact": "Medium",
@@ -7561,10 +7561,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#295-327) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#322-325)",
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#299-331) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#326-329)",
       "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
       "occurrences": 1,
-      "id": "3efe700580626cca495d47a0"
+      "id": "602ad2c51683322a42fb1eed"
     },
     {
       "impact": "Low",
@@ -12951,10 +12951,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#174-220) uses literals with too many digits:",
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#175-221) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "4128a7024d77bcf19b8c27e0"
+      "id": "5ceb59689d759f637892d0c3"
     },
     {
       "impact": "Informational",
@@ -13543,10 +13543,10 @@
       "paths": [
         "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#174-220) uses literals with too many digits:",
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#175-221) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "f3b7e010bf004b5faffe1dbd"
+      "id": "f80725e426dbf25fa3c5c245"
     },
     {
       "impact": "Informational",
