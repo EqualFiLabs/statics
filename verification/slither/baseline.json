@@ -3305,10 +3305,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#475-522) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#489)",
+      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#373-420) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#387)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "b398c792813946f059208c89"
+      "id": "6fb9a1a725a377534ad07424"
     },
     {
       "impact": "Medium",
@@ -12688,10 +12688,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#94) is not in mixedCase",
+      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#91) is not in mixedCase",
       "rationale": "WETH9 is an externally defined upstream compatibility selector, so preserving its established ABI name is intentional.",
       "occurrences": 1,
-      "id": "a56e16bd63b697e0c280ccef"
+      "id": "10e7b3f0b55e6df81c3f0c33"
     },
     {
       "impact": "Informational",
@@ -13927,42 +13927,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity.prepareHandoff(address,address,StaticsPhaseOneLiquidityConfig,bytes32[],bytes32[]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#233-262) has external calls inside a loop: ! IStaticsPermissionedPools(diamond).isPermissionedPool(poolId_scope_1) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#257)",
-      "rationale": "This preparation function makes read-only permissioned pool registration checks over operator-supplied launch IDs. It is used offchain before governance handoff; an oversized input only reverts its own call.",
-      "occurrences": 2,
-      "id": "017b52c0252f193b6c4b0fcd"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#213-231) has external calls inside a loop: (ok,result) = targets[i].call(payloads[i]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#222)",
+      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#195-213) has external calls inside a loop: (ok,result) = targets[i].call(payloads[i]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#204)",
       "rationale": "The deployment-only loop has nine fixed Diamond configuration calls. Each failure bubbles its revert and reverts the entire transaction before ownership transfer.",
       "occurrences": 2,
-      "id": "f0c1c70a09d5ddf4aed499e0"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity.prepareHandoff(address,address,StaticsPhaseOneLiquidityConfig,bytes32[],bytes32[]) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#233-262) has external calls inside a loop: ! IStaticsProtocolPools(diamond).isProtocolPool(poolId) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#250)",
-      "rationale": "This preparation function makes read-only public pool registration checks over operator-supplied launch IDs. It is used offchain before governance handoff; an oversized input only reverts its own call.",
-      "occurrences": 2,
-      "id": "eb0880e56563f45face6c530"
+      "id": "200f1623efd1b95009fc19ab"
     },
     {
       "impact": "Informational",
@@ -13975,10 +13943,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#213-231) uses assembly",
+      "summary": "ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#195-213) uses assembly",
       "rationale": "Memory-safe assembly only bubbles revert data from a failed Diamond configuration call during the deployment transaction.",
       "occurrences": 1,
-      "id": "ab46b550a23baa015594e18c"
+      "id": "a308ebe46277ea28632c71ad"
     },
     {
       "impact": "Informational",
@@ -13991,10 +13959,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "Low level call in ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#213-231):",
+      "summary": "Low level call in ConfigureStaticsPhaseOneLiquidity.configureDeployment(address,address,StaticsPhaseOneLiquidityConfig,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#195-213):",
       "rationale": "The deployment-only low-level call executes one of nine fixed Diamond configuration payloads; success is checked and failure reverts atomically before ownership transfer.",
       "occurrences": 1,
-      "id": "e19c689313683e6ac03cdcfa"
+      "id": "970f88c84df79f9c1ead702d"
     },
     {
       "impact": "Medium",
@@ -14011,54 +13979,6 @@
       "rationale": "The launch check uses PoolManager slot 0 only to compare the initialized sqrt price with the approved quote. Pool identity and configured LP and hook fees are checked through the recorded PoolKey and protocol fee view; tick and protocol-fee tuple fields do not affect this assertion.",
       "occurrences": 1,
       "id": "5755e286cf873fc80959346d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._verifyMainnetLaunchPool(address,PoolId,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#264-286) ignores return value by (currentPrice,None,None,None) = IPoolManager(manager).getSlot0(poolId) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#282)",
-      "rationale": "The launch check uses PoolManager slot 0 only to compare the initialized sqrt price with the approved quote. Pool identity and configured LP and hook fees are checked through the recorded PoolKey and protocol fee view; tick and protocol-fee tuple fields do not affect this assertion.",
-      "occurrences": 1,
-      "id": "b1121143ff73a3492bb27d5b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._verifyMainnetLaunchPool(address,PoolId,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#264-286) has external calls inside a loop: rate = pools.protocolPoolFeeRate(poolId) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#274)",
-      "rationale": "The Safe handoff preparation reads and verifies exactly four fixed mainnet launch pools. It is a read-only deployment check outside the protocol swap path.",
-      "occurrences": 2,
-      "id": "16820fed83ec7026539b9967"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._verifyMainnetLaunchPool(address,PoolId,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#264-286) has external calls inside a loop: (manager,hook,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#278)",
-      "rationale": "The Safe handoff preparation reads and verifies exactly four fixed mainnet launch pools. It is a read-only deployment check outside the protocol swap path.",
-      "occurrences": 2,
-      "id": "41a8194b2efe115d903155b3"
     },
     {
       "impact": "Low",
@@ -14085,44 +14005,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._expectedMainnetLaunchQuote(address,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#288-314) has external calls inside a loop: quote = IStaticsProtocolPools(diamond).quotePool(params) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#312)",
-      "rationale": "The Safe handoff preparation loads approved opening inputs and quotes exactly four fixed mainnet launch pools. This read-only deployment validation has a fixed bound.",
-      "occurrences": 2,
-      "id": "5f747d63c467f17964d7d4ef"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
       "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: ! pools.protocolPoolFeeRate(poolId).overridden (script/LaunchStaticsPhaseOnePools.s.sol#210)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
       "id": "687522ce819ac8c13ee123c8"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._expectedMainnetLaunchQuote(address,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#288-314) has external calls inside a loop: rawSpacing = vm.envInt(string.concat(prefix,TICK_SPACING)) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#295)",
-      "rationale": "The Safe handoff preparation loads approved opening inputs and quotes exactly four fixed mainnet launch pools. This read-only deployment validation has a fixed bound.",
-      "occurrences": 2,
-      "id": "75f0aed2dad816ce7df29086"
     },
     {
       "impact": "Low",
@@ -14229,44 +14117,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._expectedMainnetLaunchQuote(address,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#288-314) has external calls inside a loop: rawPrice = vm.envUint(string.concat(prefix,SQRT_PRICE_X96)) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#296)",
-      "rationale": "The Safe handoff preparation loads approved opening inputs and quotes exactly four fixed mainnet launch pools. This read-only deployment validation has a fixed bound.",
-      "occurrences": 2,
-      "id": "d3859ee4295e7a56063738a6"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/LaunchStaticsPhaseOnePools.s.sol"
       ],
       "summary": "LaunchStaticsPhaseOnePools._createOrVerify(LaunchStaticsPhaseOnePools.LaunchConfig,LaunchStaticsPhaseOnePools.LaunchSpec,uint256,IPoolManager) (script/LaunchStaticsPhaseOnePools.s.sol#181-215) has external calls inside a loop: createdPoolId = pools.createPool(params,) (script/LaunchStaticsPhaseOnePools.s.sol#205)",
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
       "id": "4b98c24861cfcaeb8721a9a8"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._verifyMainnetLaunchPool(address,PoolId,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#264-286) has external calls inside a loop: pool = pools.protocolPool(poolId) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#269)",
-      "rationale": "The Safe handoff preparation reads and verifies exactly four fixed mainnet launch pools. It is a read-only deployment check outside the protocol swap path.",
-      "occurrences": 2,
-      "id": "dc195daae0e4eef086b7b09a"
     },
     {
       "impact": "Low",
@@ -14315,22 +14171,6 @@
       "rationale": "The launch script iterates exactly four approved pool specifications. Each Diamond call checks or performs one creation or fee pin before the public fee is enabled; any failure reverts the broadcast transaction and prevents the ownership handoff.",
       "occurrences": 2,
       "id": "2fbef160a074795550a71d47"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
-      ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._verifyMainnetLaunchPool(address,PoolId,uint256,address) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#264-286) uses timestamp for comparisons",
-      "rationale": "The quote or creation uses block time for a one-day deployment deadline. It does not derive pool identity, fees, or pricing from the timestamp, and no randomness or entitlement depends on it.",
-      "occurrences": 1,
-      "id": "6609b5cfec3c387013ec6922"
     },
     {
       "impact": "Low",
