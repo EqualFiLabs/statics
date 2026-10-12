@@ -242,7 +242,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         _assertInstalled(deployment, address(poolManager), polOperator);
     }
 
-    function testDeployerBootstrapHandsOffAfterPublicLaunchPool() public {
+    function testDeployerBootstrapHandsOffWithoutPoolIdInputs() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
@@ -257,30 +257,13 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         _assertInstalled(deployment, address(poolManager), config.protocolPolOperator);
         _assertOwnerOnlyPoolCreation(deployment.diamond, safe);
 
-        bytes32[4] memory launched = _launchFourPools(deployment.diamond, safe, config.stakingToken, ceremony);
+        _launchFourPools(deployment.diamond, safe, config.stakingToken, ceremony);
         assertEq(IERC173(deployment.diamond).owner(), safe);
         assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0.01 ether);
         config.poolCreationFeeAmount = 0.01 ether;
 
-        bytes32[] memory noPools = new bytes32[](0);
-        vm.expectRevert(ConfigureStaticsPhaseOneLiquidity.MissingLaunchPools.selector);
-        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, noPools, noPools);
-
-        bytes32[] memory publicIds = new bytes32[](4);
-        publicIds[0] = keccak256("missing launch pool");
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ConfigureStaticsPhaseOneLiquidity.LaunchPoolMissing.selector, PoolId.wrap(publicIds[0])
-            )
-        );
-        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
-
-        for (uint256 i; i < 4; ++i) {
-            publicIds[i] = launched[i];
-            assertTrue(IStaticsProtocolPools(deployment.diamond).isProtocolPool(PoolId.wrap(publicIds[i])));
-        }
         (address target, uint256 value, bytes memory data) =
-            ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
+            ceremony.prepareHandoff(deployment.diamond, address(timelock), config);
         assertEq(target, deployment.diamond);
         assertEq(value, 0);
         vm.prank(safe);

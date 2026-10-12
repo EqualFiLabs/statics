@@ -7,9 +7,6 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -102,12 +99,7 @@ interface IPermissionedPositionClaimsBindings {
 
 /// @notice Validates Phase 1 liquidity installation and governance handoff.
 contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig {
-    using StateLibrary for IPoolManager;
-
     uint256 private constant LOCAL_CHAIN_ID = 31_337;
-    address private constant MAINNET_STATICS = 0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd;
-    address private constant MAINNET_USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
-    address private constant MAINNET_NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
     uint256 private constant MAX_WEEKLY_GAUGE_RELEASE_BPS = 1_000;
     uint256 private constant MAX_REVENUE_MAINTENANCE_TIP_BPS = 2_000;
     uint256 private constant DEFAULT_POSITION_ROYALTY_BPS = 500;
@@ -146,14 +138,6 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     error LiquidityAlreadyInstalled();
     error LiquidityInstallationFailed();
     error InvalidLaunchOwner(address expected, address actual);
-    error MissingLaunchPools();
-    error LaunchPoolMissing(PoolId poolId);
-    error InvalidLaunchPoolCount(uint256 actual);
-    error DuplicateLaunchPool(PoolId poolId);
-    error IncorrectLaunchPool(PoolId actual, PoolId expected);
-    error IncorrectLaunchPoolRate(PoolId poolId);
-    error IncorrectLaunchPoolPrice(PoolId poolId, uint160 actual, uint160 expected);
-    error InvalidLaunchPoolInput(uint256 index);
 
     /// @notice Installs Phase 1 liquidity while the deployment signer retains ownership.
     /// @dev Run after the exact-0.8.26 permissioned periphery has been deployed.
@@ -192,9 +176,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
         StaticsPhaseOneLiquidityConfig memory config = _loadRobinhoodConfig();
         config.poolCreationFeeAmount = LAUNCH_POOL_CREATION_FEE;
-        bytes32[] memory publicIds = vm.envBytes32("STATICS_LAUNCH_PUBLIC_POOL_IDS", ",");
-        bytes32[] memory permissionedIds = vm.envOr("STATICS_LAUNCH_PERMISSIONED_POOL_IDS", ",", new bytes32[](0));
-        (target, value, data) = prepareHandoff(diamond, timelock, config, publicIds, permissionedIds);
+        (target, value, data) = prepareHandoff(diamond, timelock, config);
         console2.log("SAFE_HANDOFF_TARGET", target);
         console2.log("SAFE_HANDOFF_VALUE", value);
         console2.log("SAFE_HANDOFF_CALLDATA");
@@ -230,99 +212,15 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _validateBootstrapOwner(diamond, timelock, config, true, bootstrapOwner);
     }
 
-    function prepareHandoff(
-        address diamond,
-        address timelock,
-        StaticsPhaseOneLiquidityConfig memory config,
-        bytes32[] memory publicPoolIds,
-        bytes32[] memory permissionedPoolIds
-    ) public view returns (address target, uint256 value, bytes memory data) {
+    function prepareHandoff(address diamond, address timelock, StaticsPhaseOneLiquidityConfig memory config)
+        public
+        view
+        returns (address target, uint256 value, bytes memory data)
+    {
         _validateBootstrap(diamond, timelock, config, true);
-        if (publicPoolIds.length == 0) revert MissingLaunchPools();
-        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID && publicPoolIds.length != 4) {
-            revert InvalidLaunchPoolCount(publicPoolIds.length);
-        }
-        for (uint256 i; i < publicPoolIds.length; ++i) {
-            PoolId poolId = PoolId.wrap(publicPoolIds[i]);
-            for (uint256 j; j < i; ++j) {
-                if (publicPoolIds[j] == publicPoolIds[i]) revert DuplicateLaunchPool(poolId);
-            }
-            if (!IStaticsProtocolPools(diamond).isProtocolPool(poolId)) revert LaunchPoolMissing(poolId);
-            if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
-                _verifyMainnetLaunchPool(diamond, poolId, i, config.governanceSafe);
-            }
-        }
-        for (uint256 i; i < permissionedPoolIds.length; ++i) {
-            PoolId poolId = PoolId.wrap(permissionedPoolIds[i]);
-            if (!IStaticsPermissionedPools(diamond).isPermissionedPool(poolId)) revert LaunchPoolMissing(poolId);
-        }
         target = diamond;
         value = 0;
         data = abi.encodeCall(IERC173.transferOwnership, (timelock));
-    }
-
-    function _verifyMainnetLaunchPool(address diamond, PoolId poolId, uint256 index, address safe) private view {
-        (IStaticsProtocolPools.GeneralPoolQuote memory quote, uint16 hookPips) =
-            _expectedMainnetLaunchQuote(diamond, index, safe);
-        if (PoolId.unwrap(poolId) != PoolId.unwrap(quote.poolId)) revert IncorrectLaunchPool(poolId, quote.poolId);
-        IStaticsProtocolPools pools = IStaticsProtocolPools(diamond);
-        IStaticsProtocolPools.ProtocolPoolView memory pool = pools.protocolPool(poolId);
-        if (
-            pool.kind != IStaticsProtocolPools.ProtocolPoolKind.General || pool.decommissioned || pool.creator != safe
-                || pool.polActivated
-        ) revert IncorrectLaunchPool(poolId, quote.poolId);
-        IStaticsProtocolPools.PoolFeeRateView memory rate = pools.protocolPoolFeeRate(poolId);
-        if (rate.inputFeePips != hookPips || rate.outputFeePips != hookPips || !rate.overridden) {
-            revert IncorrectLaunchPoolRate(poolId);
-        }
-        (address manager, address hook, bool installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
-        if (!installed || manager.code.length == 0 || hook != address(quote.key.hooks)) {
-            revert IncorrectLaunchPool(poolId, quote.poolId);
-        }
-        (uint160 currentPrice,,,) = IPoolManager(manager).getSlot0(poolId);
-        if (currentPrice != quote.sqrtPriceX96) {
-            revert IncorrectLaunchPoolPrice(poolId, currentPrice, quote.sqrtPriceX96);
-        }
-    }
-
-    function _expectedMainnetLaunchQuote(address diamond, uint256 index, address safe)
-        private
-        view
-        returns (IStaticsProtocolPools.GeneralPoolQuote memory quote, uint16 feePips)
-    {
-        (address tokenA, address tokenB, uint24 lpFee, uint16 hookPips, string memory pair) = _mainnetLaunchSpec(index);
-        string memory prefix = string.concat("STATICS_LAUNCH_", pair, "_");
-        int256 rawSpacing = vm.envInt(string.concat(prefix, "TICK_SPACING"));
-        uint256 rawPrice = vm.envUint(string.concat(prefix, "SQRT_PRICE_X96"));
-        if (rawSpacing <= 0 || rawSpacing > type(int24).max || rawPrice == 0 || rawPrice > type(uint160).max) {
-            revert InvalidLaunchPoolInput(index);
-        }
-        IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
-            tokenA: tokenA,
-            tokenB: tokenB,
-            lpFee: lpFee,
-            tickSpacing: int24(rawSpacing),
-            sqrtPriceBPerAX96: uint160(rawPrice),
-            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: hookPips, outputFeePips: hookPips}),
-            creator: safe,
-            activateManagedPol: false,
-            nonce: index + 1,
-            deadline: block.timestamp + 1 days
-        });
-        quote = IStaticsProtocolPools(diamond).quotePool(params);
-        feePips = hookPips;
-    }
-
-    function _mainnetLaunchSpec(uint256 index)
-        private
-        pure
-        returns (address tokenA, address tokenB, uint24 lpFee, uint16 hookPips, string memory pair)
-    {
-        if (index == 0) return (address(0), MAINNET_USDG, 50, 25, "ETH_USDG");
-        if (index == 1) return (MAINNET_STATICS, MAINNET_USDG, 200, 1_400, "STATICS_USDG");
-        if (index == 2) return (MAINNET_STATICS, MAINNET_NVDA, 10_000, 2_500, "STATICS_NVDA");
-        if (index == 3) return (MAINNET_NVDA, MAINNET_USDG, 50, 25, "NVDA_USDG");
-        revert InvalidLaunchPoolCount(index + 1);
     }
 
     /// @notice Builds the single timelock scheduling call for submission by the governance Safe.

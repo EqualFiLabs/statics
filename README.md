@@ -688,9 +688,7 @@ Safe. Record its four PoolIds. These transactions initialize pools but do not
 provide liquidity. Complete any other owner-only launch setup from the Safe
 before the final timelock handoff.
 
-Set `STATICS_LAUNCH_PUBLIC_POOL_IDS` to a comma-separated list of the public
-PoolIds actually created. If initial permissioned pools exist, set
-`STATICS_LAUNCH_PERMISSIONED_POOL_IDS` likewise. Prepare the final Safe call:
+Prepare the final Safe call:
 
 ```shell
 forge script \
@@ -701,7 +699,7 @@ forge script \
 ```
 
 The handoff preparation verifies the installed configuration, final pool fee, timelock roles,
-delay, and every listed launch pool before returning the Safe's
+and delay before returning the Safe's
 `transferOwnership(timelock)` call. Execute it from the Safe and verify the
 Diamond owner is the timelock. Preparation refuses a mismatched Diamond runtime, selector manifest,
 selector-to-facet route, compiled facet runtime, active deployment phase,
