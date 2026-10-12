@@ -590,9 +590,14 @@ export POSITION_CREATION_FEE_AMOUNT=1000000000000000
 export STATICS_POL_ACTIVATION_FEE=25000000000000000
 ```
 
-The Phase 1 mainnet scripts reject different values. The deployment command is:
+The Phase 1 mainnet scripts reject different values. The Genesis governance Safe
+is both the timelock proposer and the Phase 1 emergency guardian, so there is
+no separate guardian veto signer. The deployment command is:
 
 ```shell
+export MULTISIG=0x603A8A2f22ac1d61E9c932A4F6Fa23170CEcb9Ff
+export GUARDIAN="$MULTISIG"
+
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
   --rpc-url "$ROBINHOOD_MAINNET" \
   --chain-id 4663 \

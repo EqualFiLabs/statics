@@ -62,6 +62,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidConfig();
     error InvalidChain(uint256 expected, uint256 actual);
     error InvalidGenesisBinding(address expected, address actual);
+    error InvalidMainnetGuardian(address actual, address expected);
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
@@ -234,6 +235,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         string memory manifest = vm.readFile("deployments/robinhood-mainnet-genesis.json");
         uint256 expectedChainId = vm.parseJsonUint(manifest, ".network.chainId");
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
+
+        address expectedGuardian = vm.parseJsonAddress(manifest, ".roles.governance");
+        if (config.guardian != expectedGuardian) revert InvalidMainnetGuardian(config.guardian, expectedGuardian);
 
         address expectedStatics = vm.parseJsonAddress(manifest, ".contracts.staticsToken.address");
         address expectedWeth = vm.parseJsonAddress(manifest, ".externalDependencies.weth.address");
