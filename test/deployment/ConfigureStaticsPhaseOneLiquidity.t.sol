@@ -242,7 +242,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         _assertInstalled(deployment, address(poolManager), polOperator);
     }
 
-    function testDeployerBootstrapHandsOffAfterPublicLaunchPool() public {
+    function testDeployerBootstrapHandsOffWithoutPoolIdInputs() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
@@ -257,30 +257,13 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         _assertInstalled(deployment, address(poolManager), config.protocolPolOperator);
         _assertOwnerOnlyPoolCreation(deployment.diamond, safe);
 
-        bytes32[4] memory launched = _launchFourPools(deployment.diamond, safe, config.stakingToken, ceremony);
+        _launchFourPools(deployment.diamond, safe, config.stakingToken, ceremony);
         assertEq(IERC173(deployment.diamond).owner(), safe);
         assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0.01 ether);
         config.poolCreationFeeAmount = 0.01 ether;
 
-        bytes32[] memory noPools = new bytes32[](0);
-        vm.expectRevert(ConfigureStaticsPhaseOneLiquidity.MissingLaunchPools.selector);
-        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, noPools, noPools);
-
-        bytes32[] memory publicIds = new bytes32[](4);
-        publicIds[0] = keccak256("missing launch pool");
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ConfigureStaticsPhaseOneLiquidity.LaunchPoolMissing.selector, PoolId.wrap(publicIds[0])
-            )
-        );
-        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
-
-        for (uint256 i; i < 4; ++i) {
-            publicIds[i] = launched[i];
-            assertTrue(IStaticsProtocolPools(deployment.diamond).isProtocolPool(PoolId.wrap(publicIds[i])));
-        }
         (address target, uint256 value, bytes memory data) =
-            ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
+            ceremony.prepareHandoff(deployment.diamond, address(timelock), config);
         assertEq(target, deployment.diamond);
         assertEq(value, 0);
         vm.prank(safe);
@@ -371,6 +354,35 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         launcher.launchSpec(0, statics, usdg, nvda, 10, 0);
         vm.expectRevert(abi.encodeWithSelector(LaunchStaticsPhaseOnePools.InvalidLaunchInput.selector, 4));
         launcher.launchSpec(4, statics, usdg, nvda, 10, uint160(1 << 96));
+    }
+
+    function testMainnetLaunchRejectsUnapprovedTickSpacings() public {
+        LaunchStaticsPhaseOnePools launcher = new LaunchStaticsPhaseOnePools();
+        int24[4] memory spacings = [int24(1), int24(10), int24(200), int24(1)];
+        uint160[4] memory prices;
+        launcher.validateLaunchTickSpacings(spacings);
+
+        uint256 originalChainId = block.chainid;
+        vm.chainId(4663);
+        for (uint256 i; i < 4; ++i) {
+            int24 expected = spacings[i];
+            int24 actual = expected + 1;
+            spacings[i] = actual;
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    LaunchStaticsPhaseOnePools.InvalidLaunchTickSpacing.selector, i, actual, expected
+                )
+            );
+            launcher.launch(
+                LaunchStaticsPhaseOnePools.LaunchConfig(
+                    address(0), address(0), address(0), address(0), address(0), address(0)
+                ),
+                spacings,
+                prices
+            );
+            spacings[i] = expected;
+        }
+        vm.chainId(originalChainId);
     }
 
     function _assertPublicCanCreateAfterHandoff(address diamond, address treasury) private {

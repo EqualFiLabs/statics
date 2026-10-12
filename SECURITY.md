@@ -139,7 +139,8 @@ arbitrary tokens or settlement histories.
   paths become reachable only when their later-phase selectors are installed.
 - The governance Safe and guardian may be the same address, but doing so removes
   independence between the proposal and emergency-veto roles. A compromise or
-  availability failure then affects both authorities.
+  availability failure then affects both authorities. The planned Phase 1 mainnet
+  configuration assigns both roles to the Genesis governance Safe.
 - Timelocked governance can upgrade either Diamond, manage basket-level global
   settings and pauses, restore swaps, release quarantine, and mark baskets
   `ExitOnly`.

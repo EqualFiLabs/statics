@@ -99,3 +99,14 @@ creation deadline.
 The four-pool fee revision relocates 18 reviewed fingerprints through source
 mapping changes. Each is matched to its prior detector, subject, and rationale;
 the current artifact adds no new finding and resolves none.
+
+Removing the PoolId gate from handoff preparation removes ten findings tied to
+that verification path. Five unchanged findings in the same script receive new
+source-span fingerprints; their prior classifications and rationales still
+apply. The resulting CI artifact has 886 normalized findings and no unreviewed
+finding.
+
+Pinning the Phase 1 mainnet guardian to the Genesis governance Safe moves four
+reviewed deployment-script fingerprints because their source spans shift. The
+detectors, subjects, classifications, rationales, and 886-finding total are
+unchanged.

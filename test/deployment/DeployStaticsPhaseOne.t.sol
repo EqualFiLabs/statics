@@ -88,6 +88,31 @@ contract PhaseOnePermissionedBindingMock {
 }
 
 contract DeployStaticsPhaseOneTest is Test {
+    function testMainnetGuardianMustBeGovernanceSafe() public {
+        vm.chainId(4663);
+        address governanceSafe = 0x603A8A2f22ac1d61E9c932A4F6Fa23170CEcb9Ff;
+        address wrongGuardian = makeAddr("wrongGuardian");
+        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(DeployStaticsPhaseOne.InvalidMainnetGuardian.selector, wrongGuardian, governanceSafe)
+        );
+        deployer.deploy(
+            DeployStaticsPhaseOne.Config({
+                multisig: governanceSafe,
+                guardian: wrongGuardian,
+                treasury: makeAddr("treasury"),
+                stakingToken: address(statics),
+                weth: address(weth),
+                positionCreationFeeAmount: 0.001 ether,
+                poolCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
+            })
+        );
+    }
+
     function testRunRejectsUnexpectedMainnetCreationFees() public {
         vm.chainId(4663);
         vm.setEnv("PRIVATE_KEY", "1");
@@ -508,6 +533,7 @@ contract DeployStaticsPhaseOneTest is Test {
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         string memory manifest = vm.readFile("deployments/robinhood-mainnet-genesis.json");
         address expectedStatics = vm.parseJsonAddress(manifest, ".contracts.staticsToken.address");
+        address governanceSafe = vm.parseJsonAddress(manifest, ".roles.governance");
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -516,8 +542,8 @@ contract DeployStaticsPhaseOneTest is Test {
         );
         deployer.deploy(
             DeployStaticsPhaseOne.Config({
-                multisig: makeAddr("multisig"),
-                guardian: makeAddr("guardian"),
+                multisig: governanceSafe,
+                guardian: governanceSafe,
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),

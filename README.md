@@ -590,9 +590,14 @@ export POSITION_CREATION_FEE_AMOUNT=1000000000000000
 export STATICS_POL_ACTIVATION_FEE=25000000000000000
 ```
 
-The Phase 1 mainnet scripts reject different values. The deployment command is:
+The Phase 1 mainnet scripts reject different values. The Genesis governance Safe
+is both the timelock proposer and the Phase 1 emergency guardian, so there is
+no separate guardian veto signer. The deployment command is:
 
 ```shell
+export MULTISIG=0x603A8A2f22ac1d61E9c932A4F6Fa23170CEcb9Ff
+export GUARDIAN="$MULTISIG"
+
 forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
   --rpc-url "$ROBINHOOD_MAINNET" \
   --chain-id 4663 \
@@ -649,15 +654,15 @@ forge script \
 ```
 
 Verify the Diamond owner is still the deployment signer, the pool creation fee
-is zero, and the nine deployment settings are installed. Supply reviewed
-tick spacings and raw-token opening square-root prices for these four pairs:
+is zero, and the nine deployment settings are installed. Use the pinned mainnet
+tick spacings and supply reviewed raw-token opening square-root prices:
 
-| Pool | LP fee | Hook in | Hook out |
-| --- | ---: | ---: | ---: |
-| Native ETH/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
-| STATICS/USDG | 200 pips (0.02%) | 1,400 pips (0.14%) | 1,400 pips (0.14%) |
-| STATICS/NVDA | 10,000 pips (1%) | 2,500 pips (0.25%) | 2,500 pips (0.25%) |
-| NVDA/USDG | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
+| Pool | Tick spacing | LP fee | Hook in | Hook out |
+| --- | ---: | ---: | ---: | ---: |
+| Native ETH/USDG | 1 | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
+| STATICS/USDG | 10 | 200 pips (0.02%) | 1,400 pips (0.14%) | 1,400 pips (0.14%) |
+| STATICS/NVDA | 200 | 10,000 pips (1%) | 2,500 pips (0.25%) | 2,500 pips (0.25%) |
+| NVDA/USDG | 1 | 50 pips (0.005%) | 25 pips (0.0025%) | 25 pips (0.0025%) |
 
 Set `STATICS_LAUNCH_USDG_ADDRESS=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`
 and `STATICS_LAUNCH_NVDA_ADDRESS=0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC`.
@@ -665,11 +670,12 @@ The entry point pins the Genesis governance Safe and checks USDG/NVDA runtime
 hashes, symbols, and decimals before broadcasting. The NVDA pin was observed
 through the configured private Robinhood Mainnet RPC at block 85395888; it is
 an on-chain binding check, not an issuer attestation.
-For each pool, set `STATICS_LAUNCH_<PAIR>_TICK_SPACING` and
-`STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96`, where `<PAIR>` is `ETH_USDG`,
+The script defaults each `STATICS_LAUNCH_<PAIR>_TICK_SPACING` to the table value
+and rejects a different value on mainnet. Supply
+`STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96` for each `<PAIR>`: `ETH_USDG`,
 `STATICS_USDG`, `STATICS_NVDA`, or `NVDA_USDG`. The price is
 sqrt(tokenB raw units / tokenA raw units) times 2^96; USDG uses 6 decimals.
-The script requires every input and validates the fee schedule and pool state.
+The script requires all four prices and validates the fee schedule and pool state.
 Simulate it first, then broadcast using the same deployment signer:
 
 ```shell
@@ -687,9 +693,7 @@ Safe. Record its four PoolIds. These transactions initialize pools but do not
 provide liquidity. Complete any other owner-only launch setup from the Safe
 before the final timelock handoff.
 
-Set `STATICS_LAUNCH_PUBLIC_POOL_IDS` to a comma-separated list of the public
-PoolIds actually created. If initial permissioned pools exist, set
-`STATICS_LAUNCH_PERMISSIONED_POOL_IDS` likewise. Prepare the final Safe call:
+Prepare the final Safe call:
 
 ```shell
 forge script \
@@ -700,7 +704,7 @@ forge script \
 ```
 
 The handoff preparation verifies the installed configuration, final pool fee, timelock roles,
-delay, and every listed launch pool before returning the Safe's
+and delay before returning the Safe's
 `transferOwnership(timelock)` call. Execute it from the Safe and verify the
 Diamond owner is the timelock. Preparation refuses a mismatched Diamond runtime, selector manifest,
 selector-to-facet route, compiled facet runtime, active deployment phase,

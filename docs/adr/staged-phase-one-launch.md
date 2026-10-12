@@ -104,7 +104,8 @@ four immutable bindings, the permissioned claims companion, and the permissioned
 canonical WETH binding. The general-pool creation fee starts at zero, keeping creation owner-only
 while the deployment signer creates and verifies the four approved Native ETH/USDG,
 STATICS/USDG, STATICS/NVDA, and NVDA/USDG pools with explicit
-opening prices and tick spacings. Each pool has a pinned hook-fee override so
+opening prices and mainnet tick spacings of 1, 10, 200, and 1, respectively.
+Each pool has a pinned hook-fee override so
 later changes to the global default cannot change its launch fee. The signer
 sets STATICS/USDG to 200 LP pips plus 1,400 input and 1,400 output hook pips,
 giving a nominal 0.30% combined fee while leaving most of the fee adjustable

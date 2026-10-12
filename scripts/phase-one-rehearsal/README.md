@@ -3,7 +3,7 @@
 This runner uses the deployed Genesis launch and deploys only the Phase 1 Statics
 stack against a pinned Robinhood Mainnet fork. The production Phase 1 launcher
 validates the live STATICS, WETH, and treasury bindings from the Genesis manifest.
-The deployment signer configures liquidity and creates five initial public pools
+The deployment signer configures liquidity and creates four initial public pools
 while the creation fee is zero and creation is owner-only. It then enables the
 0.01 ETH fee and transfers Diamond ownership to the governance Safe. The runner
 uses the Safe for the later handoff to the timelock. Later governance scenarios
@@ -25,7 +25,8 @@ Export reviewed `STATICS_LAUNCH_<PAIR>_TICK_SPACING` and
 `STATICS_LAUNCH_<PAIR>_SQRT_PRICE_X96` for each of `ETH_USDG`, `STATICS_USDG`,
 `STATICS_NVDA`, and `NVDA_USDG` before running. Prices are raw
 tokenB/tokenA square-root prices scaled by 2^96; USDG has 6 decimals. The
-runner checks all eight inputs before stopping an existing fork.
+tick spacings are 1, 10, 200, and 1 in that order. The runner checks all eight
+inputs before stopping an existing fork.
 
 The summary records the exact tested commit and the immutable published Phase 1
 foundation commit from PR #96; no retired local branch is needed to finalize it.

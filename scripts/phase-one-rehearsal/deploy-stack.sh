@@ -194,7 +194,7 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "
     "$GOVERNANCE" "post-launch Diamond owner"
 
 HANDOFF_LOG="$RUN_DIR/prepare-phase-one-handoff.log"
-note "preparing the Safe handoff after initial pool verification"
+note "preparing the Safe handoff after launch pool creation"
 forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
     --sig 'runPrepareHandoff()' --rpc-url "$RPC_URL" -vv 2>&1 | tee "$HANDOFF_LOG"
 HANDOFF_TARGET=$(require_label SAFE_HANDOFF_TARGET "$HANDOFF_LOG")

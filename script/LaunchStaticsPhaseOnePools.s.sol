@@ -54,9 +54,10 @@ contract LaunchStaticsPhaseOnePools is Script {
     error InvalidLaunchRate(PoolId poolId);
     error InvalidLaunchPrice(PoolId poolId, uint160 actual, uint160 expected);
     error InvalidLaunchInput(uint256 index);
+    error InvalidLaunchTickSpacing(uint256 index, int24 actual, int24 expected);
 
-    /// @dev Price is tokenB per tokenA in raw token units. All four prices and tick
-    /// spacings are mandatory inputs; production opening prices are never guessed.
+    /// @dev Price is tokenB per tokenA in raw token units. All four prices are
+    /// mandatory; tick spacings default to the approved mainnet configuration.
     function run() external returns (bytes32[4] memory poolIds) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
@@ -117,6 +118,7 @@ contract LaunchStaticsPhaseOnePools is Script {
         public
         returns (bytes32[4] memory poolIds)
     {
+        if (block.chainid == MAINNET_CHAIN_ID) validateLaunchTickSpacings(tickSpacings);
         IStaticsProtocolPools pools = IStaticsProtocolPools(config.diamond);
         address owner = IERC173(config.diamond).owner();
         uint256 fee = pools.poolCreationFee();
@@ -157,6 +159,23 @@ contract LaunchStaticsPhaseOnePools is Script {
         if (pools.poolCreationFee() != PUBLIC_CREATION_FEE) {
             revert InvalidCreationFee(pools.poolCreationFee(), PUBLIC_CREATION_FEE);
         }
+    }
+
+    /// @notice Rejects any mainnet launch spacing outside the approved four-pool configuration.
+    function validateLaunchTickSpacings(int24[4] memory tickSpacings) public pure {
+        for (uint256 i; i < 4; ++i) {
+            int24 expected = approvedLaunchTickSpacing(i);
+            if (tickSpacings[i] != expected) {
+                revert InvalidLaunchTickSpacing(i, tickSpacings[i], expected);
+            }
+        }
+    }
+
+    function approvedLaunchTickSpacing(uint256 index) public pure returns (int24) {
+        if (index == 0 || index == 3) return 1;
+        if (index == 1) return 10;
+        if (index == 2) return 200;
+        revert InvalidLaunchInput(index);
     }
 
     function _createOrVerify(LaunchConfig memory config, LaunchSpec memory spec, uint256 index, IPoolManager manager)
@@ -240,7 +259,7 @@ contract LaunchStaticsPhaseOnePools is Script {
     }
 
     function _tickSpacing(string memory name, uint256 index) private view returns (int24 spacing) {
-        int256 value = vm.envInt(name);
+        int256 value = vm.envOr(name, int256(approvedLaunchTickSpacing(index)));
         if (value <= 0 || value > type(int24).max) revert InvalidLaunchInput(index);
         spacing = int24(value);
     }
