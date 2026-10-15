@@ -170,7 +170,7 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
         vm.assume(caller != address(protocol));
         vm.prank(caller);
         (bool grant,) =
-            address(token).call(abi.encodeCall(token.authorizeProtocolTransfer, (ALICE, address(this), uint256(1))));
+            address(token).call(abi.encodeCall(token.authorizeProtocolTransfer, (ALICE, address(protocol), uint256(1))));
         assertFalse(grant);
         vm.prank(caller);
         (bool poolGrant,) = address(token).call(abi.encodeCall(token.authorizePoolSettlement, (uint256(1), uint256(1))));
