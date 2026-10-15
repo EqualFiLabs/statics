@@ -13,17 +13,50 @@ contract RestrictedFormalPoolManager {
     }
 }
 
+/// @dev Explicit external registry/authorization model. Registry state lives outside
+/// the test runner so symbolic callbacks read the same committed model storage.
+contract RestrictedFormalProtocol {
+    mapping(address => bool) public isBasketDistributor;
+    StaticsRestrictedBasketToken public token;
+
+    constructor(IPoolManager manager) {
+        token = new StaticsRestrictedBasketToken("Restricted", "R", address(this), 7, manager);
+    }
+
+    function setDistributor(address account, bool allowed) external {
+        isBasketDistributor[account] = allowed;
+    }
+
+    function mint(address account, uint256 amount) external {
+        token.mint(account, amount);
+    }
+
+    function authorizeProtocolTransfer(address from, address to, uint256 amount) external {
+        token.authorizeProtocolTransfer(from, to, amount);
+    }
+
+    function authorizePoolSettlement(uint256 inbound, uint256 outbound) external {
+        token.authorizePoolSettlement(inbound, outbound);
+    }
+
+    function authorizePoolClaim(address receiver, uint256 amount) external {
+        token.authorizePoolClaim(receiver, amount);
+    }
+}
+
 contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
     StaticsRestrictedBasketToken private token;
     address private manager;
+    RestrictedFormalProtocol private protocol;
     address private constant ALICE = address(0xA11CE);
     address private constant BOB = address(0xB0B);
 
     function setUp() public {
         manager = address(new RestrictedFormalPoolManager());
-        token = new StaticsRestrictedBasketToken("Restricted", "R", address(this), 7, IPoolManager(manager));
-        token.mint(ALICE, 1 ether);
-        token.mint(manager, 1 ether);
+        protocol = new RestrictedFormalProtocol(IPoolManager(manager));
+        token = protocol.token();
+        protocol.mint(ALICE, 1 ether);
+        protocol.mint(manager, 1 ether);
     }
 
     function testRepresentativeExactTicket() public {
@@ -44,22 +77,25 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
 
     function check_exactTicketIsSingleUse(uint96 amount) public {
         vm.assume(amount > 0 && amount <= 0.5 ether);
-        token.authorizeProtocolTransfer(ALICE, address(this), amount);
+        protocol.authorizeProtocolTransfer(ALICE, address(protocol), amount);
         vm.prank(ALICE);
-        (bool mismatch,) = address(token).call(abi.encodeCall(token.transfer, (address(this), uint256(amount) + 1)));
+        (bool mismatch,) = address(token).call(abi.encodeCall(token.transfer, (address(protocol), uint256(amount) + 1)));
         assertFalse(mismatch);
         vm.prank(ALICE);
-        assertTrue(token.transfer(address(this), amount));
+        assertTrue(token.transfer(address(protocol), amount));
         vm.prank(ALICE);
-        (bool replay,) = address(token).call(abi.encodeCall(token.transfer, (address(this), uint256(amount))));
+        (bool replay,) = address(token).call(abi.encodeCall(token.transfer, (address(protocol), uint256(amount))));
         assertFalse(replay);
-        assertEq(token.balanceOf(address(this)), amount);
+        assertEq(token.balanceOf(address(protocol)), amount);
         assertEq(token.balanceOf(ALICE), 1 ether - amount);
     }
 
     function check_poolBudgetsAreDirectionalAndConsumable(uint64 inbound, uint64 outbound) public {
         vm.assume(inbound > 0 && inbound <= 0.5 ether && outbound > 0 && outbound <= 0.5 ether);
-        token.authorizePoolSettlement(inbound, outbound);
+        protocol.setDistributor(manager, true);
+        protocol.setDistributor(ALICE, true);
+        protocol.setDistributor(BOB, true);
+        protocol.authorizePoolSettlement(inbound, outbound);
         vm.prank(ALICE);
         assertTrue(token.transfer(manager, inbound));
         vm.prank(ALICE);
@@ -77,7 +113,10 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
 
     function check_claimTicketBindsReceiverAndAmount(uint96 amount) public {
         vm.assume(amount > 0 && amount <= 0.5 ether);
-        token.authorizePoolClaim(BOB, amount);
+        protocol.setDistributor(manager, true);
+        protocol.setDistributor(ALICE, true);
+        protocol.setDistributor(BOB, true);
+        protocol.authorizePoolClaim(BOB, amount);
         vm.prank(manager);
         (bool wrongReceiver,) = address(token).call(abi.encodeCall(token.transfer, (ALICE, uint256(amount))));
         assertFalse(wrongReceiver);
@@ -94,8 +133,41 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
         assertEq(inbound + outbound, 0);
     }
 
+    function testRepresentativeDistributor() public {
+        this.check_distributorEndpointsAndAllowances(31);
+        this.check_ticketConsumedBeforeDistributor(37);
+    }
+
+    function check_distributorEndpointsAndAllowances(uint96 amount) public {
+        vm.assume(amount > 0 && amount <= 0.25 ether);
+        protocol.setDistributor(BOB, true);
+        vm.prank(ALICE);
+        assertTrue(token.transfer(BOB, amount));
+        vm.prank(BOB);
+        assertTrue(token.transfer(ALICE, amount));
+        (bool noAllowance,) = address(token).call(abi.encodeCall(token.transferFrom, (ALICE, BOB, uint256(amount))));
+        assertFalse(noAllowance);
+        vm.prank(ALICE);
+        token.approve(address(this), amount);
+        assertTrue(token.transferFrom(ALICE, BOB, amount));
+        assertEq(token.balanceOf(BOB), amount);
+        assertEq(token.allowance(ALICE, address(this)), 0);
+    }
+
+    function check_ticketConsumedBeforeDistributor(uint96 amount) public {
+        vm.assume(amount > 0 && amount <= 0.25 ether);
+        protocol.setDistributor(ALICE, true);
+        protocol.authorizeProtocolTransfer(ALICE, address(protocol), amount);
+        vm.prank(ALICE);
+        assertTrue(token.transfer(address(protocol), amount));
+        protocol.setDistributor(ALICE, false);
+        vm.prank(ALICE);
+        (bool replay,) = address(token).call(abi.encodeCall(token.transfer, (address(protocol), uint256(amount))));
+        assertFalse(replay);
+    }
+
     function check_onlyProtocolCanGrant(address caller) public {
-        vm.assume(caller != address(this));
+        vm.assume(caller != address(protocol));
         vm.prank(caller);
         (bool grant,) =
             address(token).call(abi.encodeCall(token.authorizeProtocolTransfer, (ALICE, address(this), uint256(1))));

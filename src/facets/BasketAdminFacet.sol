@@ -2,11 +2,24 @@
 pragma solidity 0.8.33;
 
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 
 contract BasketAdminFacet is IStaticsBasketAdmin {
     error InvalidTreasury(address treasury);
+    error InvalidDistributor(address account);
+
+    function setBasketDistributor(address account, bool allowed) external {
+        LibDiamond.enforceIsContractOwner();
+        if (account == address(0)) revert InvalidDistributor(account);
+        LibRestrictedBasket.restrictedStorage().distributors[account] = allowed;
+        emit BasketDistributorSet(account, allowed);
+    }
+
+    function isBasketDistributor(address account) external view returns (bool) {
+        return LibRestrictedBasket.restrictedStorage().distributors[account];
+    }
 
     function setCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();

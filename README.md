@@ -56,6 +56,19 @@ for the canonical machine-readable integration-beta state.
 
 ### Restricted basket creation
 
+Restricted BasketTokens share one Diamond-managed distributor registry. Governance
+uses `setBasketDistributor(account, allowed)`; ordinary transfers are allowed when
+either endpoint is approved. Ownership alone is not a transfer exemption, and
+ERC-20 allowances remain required. PoolManager settlement checks always take
+precedence over distributor approvals. Exact protocol tickets are consumed before
+consulting the registry. Registry checks never traverse basket constituents.
+
+Morpho is approved through the same registry during configuration. Direct deposits
+to Morpho are permitted but do not add tracked Statics collateral or staking yield.
+Withdrawals and permissionless liquidations use the registry without a special
+token-level Morpho permission or a Statics liquidation-helper call.
+
+
 New baskets use a Diamond-controlled `StaticsBasketFactory` wrapping pinned
 CreateX v1.0.0 CREATE3. Install its governance payload separately using
 `PrepareStaticsBasketFactory`; this does not alter existing tokens or pools.

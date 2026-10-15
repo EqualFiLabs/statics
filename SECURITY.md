@@ -343,3 +343,32 @@ independently maintained release manifest remains necessary for exact
 expected-set review.
 Recorded runtime hashes remain offchain release metadata rather than live
 dispatch controls.
+
+## Restricted basket distributors
+
+All new restricted BasketTokens consult the shared Diamond distributor registry.
+The current Diamond owner can call `setBasketDistributor(address,bool)`; read
+approval with `isBasketDistributor(address)` and discover changes through
+`BasketDistributorSet`. Nonzero EOAs and contracts may be approved. Ownership,
+spender approval, and holding a PositionNFT do not themselves exempt transfers.
+An approved sender or recipient permits an ordinary transfer, while normal
+balances and ERC-20 allowances still apply. These are trusted custody endpoints;
+approval grants neither protocol withdrawal authority nor a hook-fee exemption.
+PoolManager movements always require the existing directional settlement budgets
+or exact claim authorization, even when an endpoint is a distributor. Exact
+protocol movement tickets are consumed before the distributor exemption.
+
+Morpho is an ordinary approved distributor. The configuration batch explicitly
+approves it; tokens carry no Morpho address or dedicated ingress ticket. The
+Diamond retains approved-market checks, position authority, collateral allocation,
+exact temporary allowances, custody accounting, recall, recovery, and loss sync.
+Direct Morpho deposits are permitted and remain untracked surplus for Statics:
+they do not increase deposited or reward-eligible Statics stake. Direct liquidation
+needs no Statics liquidation helper, but token delivery now reads the shared
+Diamond registry. Morpho is intended to remain approved; no special revocation
+mechanism is introduced.
+
+This policy supersedes issue #108's prohibition on distributor exemptions,
+requirement to reject untracked Morpho deposits, and Diamond-independent token
+exception for Morpho outbound transfers. Existing deployed token bytecode is not
+converted. Transfers inspect only their endpoints; recursive redemption is deferred.

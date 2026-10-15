@@ -9,6 +9,7 @@ library LibRestrictedBasket {
 
     struct RestrictedStorage {
         mapping(address token => uint256 basketIdPlusOne) basketIds;
+        mapping(address account => bool allowed) distributors;
     }
 
     error RestrictedTokenAlreadyRegistered(address token);

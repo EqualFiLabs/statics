@@ -39,12 +39,10 @@ contract RestrictedSettlementProtocol {
         token.authorizePoolClaim(receiver, amount);
     }
 
-    function configureMorpho(StaticsRestrictedBasketToken token, address morpho) external {
-        token.configureMorpho(morpho);
-    }
+    mapping(address => bool) public isBasketDistributor;
 
-    function morphoIngress(StaticsRestrictedBasketToken token, uint256 amount) external {
-        token.authorizeMorphoIngress(amount);
+    function setDistributor(address account, bool allowed) external {
+        isBasketDistributor[account] = allowed;
     }
 
     function approve(IERC20 token, address spender, uint256 amount) external {
@@ -192,6 +190,8 @@ contract RestrictedBasketSettlementTest is Test, IUnlockCallback {
     }
 
     function testRealPoolManagerClaimsConsumeDirectionalBudgets() public {
+        protocol.setDistributor(alice, true);
+        protocol.setDistributor(address(manager), true);
         vm.prank(alice);
         token.approve(address(this), 100 ether);
         manager.unlock(abi.encode(uint256(10 ether)));
@@ -234,23 +234,12 @@ contract RestrictedBasketSettlementTest is Test, IUnlockCallback {
         protocol.budgets(token, 1, 1);
     }
 
-    function testMorphoIngressExactAndLiquidationIndependentOfDiamond() public {
-        this.checkMorphoIngressAndLiquidation();
-    }
-
-    function checkMorphoIngressAndLiquidation() external {
+    function testDistributorSupportsMorphoDepositsAndLiquidation() public {
         RestrictedMorphoBoundary morpho = new RestrictedMorphoBoundary();
-        protocol.configureMorpho(token, address(morpho));
-        protocol.mint(token, address(protocol), 10 ether);
-        protocol.approve(token, address(morpho), 10 ether);
-        vm.expectRevert();
-        morpho.pull(token, address(protocol), 10 ether);
-        protocol.morphoIngress(token, 10 ether);
-        vm.expectRevert();
-        morpho.pull(token, address(protocol), 9 ether);
-        morpho.pull(token, address(protocol), 10 ether);
-        // Removing Diamond code cannot prevent direct liquidator delivery.
-        vm.etch(address(protocol), hex"fd");
+        protocol.setDistributor(address(morpho), true);
+        vm.prank(alice);
+        token.approve(address(morpho), 10 ether);
+        morpho.pull(token, alice, 10 ether);
         morpho.liquidate(token, bob, 10 ether);
         assertEq(token.balanceOf(bob), 10 ether);
         vm.prank(bob);
@@ -258,19 +247,49 @@ contract RestrictedBasketSettlementTest is Test, IUnlockCallback {
         token.transfer(alice, 1 ether);
     }
 
-    function testDirectMorphoDepositAndAccountBypassBlocked() public {
-        RestrictedMorphoBoundary morpho = new RestrictedMorphoBoundary();
-        protocol.configureMorpho(token, address(morpho));
+    function testExactTicketIsConsumedBeforeDistributorExemption() public {
+        this.checkTicketBeforeDistributor();
+    }
+
+    function checkTicketBeforeDistributor() external {
+        protocol.setDistributor(alice, true);
+        protocol.authorize(token, alice, address(protocol), 1 ether);
         vm.prank(alice);
-        token.approve(address(morpho), 100 ether);
-        vm.expectRevert();
-        morpho.pull(token, alice, 1 ether);
+        token.transfer(address(protocol), 1 ether);
+        protocol.setDistributor(alice, false);
         vm.prank(alice);
         vm.expectRevert();
-        token.transfer(address(morpho), 1 ether);
-        RestrictedMorphoBoundary otherMorpho = new RestrictedMorphoBoundary();
+        token.transfer(address(protocol), 1 ether);
+    }
+
+    function testSpenderApprovalDoesNotExemptEndpoints() public {
+        protocol.setDistributor(address(this), true);
+        vm.prank(alice);
+        token.approve(address(this), 1 ether);
         vm.expectRevert();
-        protocol.configureMorpho(token, address(otherMorpho));
+        token.transferFrom(alice, bob, 1 ether);
+    }
+
+    function testSharedApprovalAppliesToExistingAndFutureTokens() public {
+        protocol.setDistributor(bob, true);
+        StaticsRestrictedBasketToken other = protocol.deploy(manager);
+        protocol.mint(other, alice, 3 ether);
+        vm.startPrank(alice);
+        token.transfer(bob, 2 ether);
+        other.transfer(bob, 3 ether);
+        vm.stopPrank();
+        vm.prank(bob);
+        token.transfer(alice, 2 ether);
+        assertEq(token.balanceOf(alice), 100 ether);
+        assertEq(other.balanceOf(bob), 3 ether);
+    }
+
+    function testDistributorsCannotBypassLockedPoolManager() public {
+        protocol.setDistributor(alice, true);
+        protocol.setDistributor(address(manager), true);
+        vm.prank(alice);
+        vm.expectRevert(StaticsRestrictedBasketToken.PoolManagerLocked.selector);
+        token.transfer(address(manager), 1 ether);
     }
 
     function testUnusedAuthorizationExpiresAtTransactionBoundary() public {

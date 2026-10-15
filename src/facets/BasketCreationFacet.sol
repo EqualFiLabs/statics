@@ -8,8 +8,6 @@ import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {LibBasketDeployment} from "../libraries/LibBasketDeployment.sol";
 import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
-import {LibMorpho} from "../libraries/LibMorpho.sol";
-import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
@@ -118,8 +116,6 @@ contract BasketCreationFacet is ReentrancyGuard {
         token = LibBasketDeployment.factory().deployBasketToken(prepared, params.name, params.symbol, basketId);
         LibRestrictedBasket.register(token, basketId);
         LibBasketDeployment.deploymentStorage().launching[basketId] = prepared;
-        address morpho = LibMorpho.morphoStorage().morpho;
-        if (morpho != address(0)) IStaticsRestrictedBasketToken(token).configureMorpho(morpho);
     }
 
     function _emitBasketCreated(uint256 basketId, address token, IStaticsBasket.CreateBasketParams calldata params)
