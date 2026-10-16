@@ -329,13 +329,11 @@ contract SelectorManifestTest is Test {
         expected[4] = IStaticsBasketStaging.cancelBasketLaunch.selector;
         expected[5] = IStaticsBasketStaging.basketLaunchProgress.selector;
         _assertExact(StaticsSelectors.basketCreation(), expected);
-        expected = new bytes4[](6);
-        expected[0] = IStaticsBasketPreparation.basketFactory.selector;
-        expected[1] = IStaticsBasketPreparation.basketTokenFactory.selector;
-        expected[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
-        expected[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
-        expected[4] = IStaticsBasketPreparation.deployPreparedBasketContracts.selector;
-        expected[5] = IStaticsBasketPreparation.preparedBasketContracts.selector;
+        expected = new bytes4[](4);
+        expected[0] = IStaticsBasketPreparation.basketTokenFactory.selector;
+        expected[1] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
+        expected[2] = IStaticsBasketPreparation.prepareBasketToken.selector;
+        expected[3] = IStaticsBasketPreparation.preparedBasketContracts.selector;
         _assertExact(StaticsSelectors.basketPreparation(), expected);
         expected = new bytes4[](9);
         expected[0] = IStaticsBasketSettlement.validateBasketPool.selector;

@@ -195,7 +195,7 @@ class PreDeploymentGateTest(unittest.TestCase):
                   patch.dict(os.environ, {"ROBINHOOD_MAINNET": "configured"}),
                   patch.object(r, "run_logged", side_effect=run) as execution,
                   patch.object(r, "check_test_results") as tests,
-                  patch.object(r, "check_dry_run", return_value={"facetCount": 51, "selectorCount": 354}) as checks):
+                  patch.object(r, "check_dry_run", return_value={"facetCount": 51, "selectorCount": 352}) as checks):
                 result = r.simulate(destination, {}, "candidate")
                 execution.assert_called_once()
                 tests.assert_called_once_with({})

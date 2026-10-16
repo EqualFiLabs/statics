@@ -107,7 +107,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 229, 354, 412, and 439. Integrators
+Morpho. The cumulative selector counts are 229, 352, 410, and 437. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 

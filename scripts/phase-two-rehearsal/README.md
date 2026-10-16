@@ -121,17 +121,17 @@ bytes. Its `entities` object binds the exact General and basket pool IDs, both
 standalone hook addresses, preparation ID, basket ID, and restricted basket token. These identities derive
 the mandatory call and view checks; the input cannot declare substitute targets
 or selectors. The required successful lifecycle cases are `general-create`,
-`general-swap`, `basket-prepare`, `basket-stage`, `basket-finalize`, `basket-mint`,
-and `basket-swap`. The five Diamond lifecycle cases must contain the exact
-`createPool`, `prepareBasketCreation`, `deployPreparedBasketContracts`,
-`createBasketPrepared`, and `mint` selectors at the Diamond. Required post-action
+`general-swap`, `basket-prepare`, `basket-finalize`, `basket-mint`, and
+`basket-swap`. The four Diamond lifecycle cases must contain the exact
+`createPool`, `prepareBasketToken`, `createBasketPrepared`, and `mint` selectors
+at the Diamond. Required post-action
 views are `general-pool-state`, `general-swap-state`, `basket-state`,
 `basket-supply`, and `basket-swap-state`; their targets and calldata are derived
 from the frozen entities and their returned bytes must match the reviewed values.
 Both swaps must emit a nonzero, opposite-sign `Swap` delta from the canonical
 PoolManager for the exact expected pool ID. The preflight also decodes the Diamond
 pool registry, configured-hook registration and immutable bindings, restricted token identity, Active basket
-state, and positive minted supply. Creation, preparation, contract staging,
+state, and positive minted supply. Creation, token preparation,
 finalization, mint, and swap receipts must emit the exact factory, Diamond, and
 PoolManager events that thread those identities through the lifecycle in order;
 each mandatory case contains exactly one outer call.
@@ -139,7 +139,7 @@ The preflight refuses placeholders, omitted cases, changed Safe
 or smoke bytes, expected failures in a mandatory lifecycle action, an outdated
 guard snapshot, unqualified cut facets, runtime drift, wrong factory code stores,
 changed bindings, topology changes during smoke execution, or anything other than
-the frozen 51-facet/354-selector deployment-address routing after the cut. It also recomputes
+the frozen 51-facet/352-selector deployment-address routing after the cut. It also recomputes
 the release and artifact digests, binds the exact initializer arguments, and checks
 the Phase 2 deployment phase, zero basket and General creation fees, five-basis-point
 single-asset flash fee, every retained Phase 1 and activated Phase 2 ERC-165

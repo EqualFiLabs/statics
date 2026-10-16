@@ -884,7 +884,6 @@ contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
         uint256 senderExtraBundle,
         uint256 reentrantBundle
     ) private returns (uint256 basketId, address basketToken) {
-        _ensureTestBasketSalts(basketFactory, 3);
         address[] memory assets = new address[](3);
         assets[0] = address(weth);
         assets[1] = address(senderExtra);

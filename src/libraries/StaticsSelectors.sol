@@ -71,13 +71,11 @@ library StaticsSelectors {
     }
 
     function basketPreparation() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
-        selectors[0] = IStaticsBasketPreparation.basketFactory.selector;
-        selectors[1] = IStaticsBasketPreparation.basketTokenFactory.selector;
-        selectors[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
-        selectors[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
-        selectors[4] = IStaticsBasketPreparation.deployPreparedBasketContracts.selector;
-        selectors[5] = IStaticsBasketPreparation.preparedBasketContracts.selector;
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsBasketPreparation.basketTokenFactory.selector;
+        selectors[1] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
+        selectors[2] = IStaticsBasketPreparation.prepareBasketToken.selector;
+        selectors[3] = IStaticsBasketPreparation.preparedBasketContracts.selector;
     }
 
     function basketSettlement() internal pure returns (bytes4[] memory selectors) {

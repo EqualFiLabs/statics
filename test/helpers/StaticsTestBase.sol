@@ -220,7 +220,6 @@ abstract contract StaticsTestBase is BasketFactoryTestTools {
                     .installPublicHooks(
                         address(_localGeneralHook), address(_localBasketHook), address(_localBasketFactory)
                     );
-                if (_automaticallyQueueBasketSalts()) _ensureTestBasketSalts(_localBasketFactory, 2);
             }
             if (_installDefaultLiquidityManager()) {
                 IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
@@ -309,9 +308,6 @@ abstract contract StaticsTestBase is BasketFactoryTestTools {
         returns (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums)
     {
         uint256 length = assets.length;
-        if (_automaticallyQueueBasketSalts() && address(_localBasketFactory) != address(0)) {
-            _ensureTestBasketSalts(_localBasketFactory, length);
-        }
         pools = new IStaticsBasket.PoolLaunchParams[](length);
         maximums = new uint256[](length);
         vm.startPrank(creator);
@@ -384,10 +380,6 @@ abstract contract StaticsTestBase is BasketFactoryTestTools {
     }
 
     function _installLocalLiquidityIntegration() internal pure virtual returns (bool) {
-        return true;
-    }
-
-    function _automaticallyQueueBasketSalts() internal pure virtual returns (bool) {
         return true;
     }
 

@@ -68,7 +68,7 @@ campaigns, and bootstrap zaps.
 A zero public pool creation fee means owner-only creation on every pool-producing
 path, including restricted markets and canonical pools created with baskets.
 Check execution-time configuration and the authenticated external caller;
-prepared/queued salts and creator signatures cannot bypass the gate. The separate
+prepared/automatic salts and creator signatures cannot bypass the gate. The separate
 basket creation fee retains its own zero-means-owner-only rule and exact-payment
 terms. Canonical basket creation does not acquire an additional per-pool charge.
 

@@ -91,7 +91,7 @@ library LibBasketDeployment {
         StaticsBasketTokenFactory configured = factory();
         StaticsBasketTokenFactory.Intent memory intent =
             StaticsBasketTokenFactory.Intent(payer, creator, configuration, deadline, configured.VERSION());
-        if (id == bytes32(0)) return configured.reserveQueued(intent);
+        if (id == bytes32(0)) return configured.reserveNext(intent);
         StaticsBasketTokenFactory.Preparation memory prepared = configured.preparation(id);
         if (
             (prepared.tokenDeployed

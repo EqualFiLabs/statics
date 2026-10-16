@@ -440,7 +440,6 @@ contract DiamondGovernanceTest is BasketFactoryTestTools {
         _executeThroughTimelock(
             abi.encodeCall(IStaticsProtocolPools.setPoolCreationFee, (1 ether)), "enable public pool creation"
         );
-        _ensureTestBasketSalts(basketFactory, 1);
         address[] memory assets = new address[](1);
         MockERC20 constituent = new MockERC20("Constituent", "C", 18);
         assets[0] = address(constituent);
@@ -519,7 +518,6 @@ contract DiamondGovernanceTest is BasketFactoryTestTools {
             ),
             "install modular public hook architecture"
         );
-        _ensureTestBasketSalts(basketFactory, 1);
     }
 
     function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {

@@ -27,14 +27,13 @@ ROLES = {
     "initializer": "StaticsPublicHookReleaseInit",
 }
 REQUIRED_SMOKE_SEQUENCE = (
-    "general-create", "general-swap", "basket-prepare", "basket-stage",
+    "general-create", "general-swap", "basket-prepare",
     "basket-finalize", "basket-mint", "basket-swap",
 )
 REQUIRED_SMOKE = set(REQUIRED_SMOKE_SEQUENCE)
 REQUIRED_DIAMOND_SMOKE = {
     "general-create": "0x68bb0543",
-    "basket-prepare": "0xd1af5fbc",
-    "basket-stage": "0xaf4b7fe0",
+    "basket-prepare": "0xe32827fb",
     "basket-finalize": "0x56fc01c7",
     "basket-mint": "0x6daf3848",
 }
@@ -112,7 +111,7 @@ SWAP_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f
 EVENT_TOPICS = {
     "ProtocolPoolCreated": "0x2b81f93e44fe360dc656e86156e0904f1e071c43b6e1d0155c00fd7cbfa6047d",
     "CreationPrepared": "0xbb1b8c759a4ac7e36c17fe5a6fe6b4a05042c45592504aa83ae4af36447a9cf6",
-    "PreparedBasketContractsDeployed": "0x3323705ce40a3fca31946294f0fb0e650a2b34417a41e2e447a29547b8620b8f",
+    "PreparedBasketTokenDeployed": "0x10c2108f83689cb1bb5542d669efb27688499966a62dc2c4e1f75baa4d05dfe8",
     "BasketTokenDeployed": "0xb02c8e7b26081a2115bfa64881c71fe7803ce95fab7a1b3d7ec2c68060bdc934",
     "BasketCreated": "0x288ef0d890d3ae68c069b367bd8bf222d473fc14a25799eb56d7f7f7e28980a5",
     "BasketLaunched": "0xe37ece32610bf8cc5bb59355f6132eb3ea779210c6b9499e1b0deaf5adee9625",
@@ -237,7 +236,7 @@ def load_json(path, label):
 
 
 def selector_inventory(simulated):
-    require(simulated.get("facetCount") == 51 and simulated.get("selectorCount") == 354,
+    require(simulated.get("facetCount") == 51 and simulated.get("selectorCount") == 352,
             "frozen selector inventory count drift")
     contracts = simulated.get("contracts")
     require(isinstance(contracts, dict), "frozen selector inventory missing")
@@ -255,7 +254,7 @@ def selector_inventory(simulated):
             selector = selector.lower()
             require(len(selector) == 10 and selector not in result, "duplicate frozen selector")
             result[selector] = entry["artifact"]
-    require(facets == 51 and len(result) == 354, "frozen selector inventory incomplete")
+    require(facets == 51 and len(result) == 352, "frozen selector inventory incomplete")
     return result
 
 
@@ -590,7 +589,7 @@ class Preflight:
 
     def _assert_topology(self):
         facets = self.scalar(self.candidate["diamond"], "facets()((address,bytes4[])[])")
-        require(len(facets) == 51 and sum(len(item[1]) for item in facets) == 354, "post-cut selector drift")
+        require(len(facets) == 51 and sum(len(item[1]) for item in facets) == 352, "post-cut selector drift")
         candidate_artifacts = {
             entry["address"].lower(): entry["artifact"] for entry in self.candidate["contracts"].values()
         }
@@ -750,16 +749,12 @@ class Preflight:
                     lambda log, topics: len(topics) >= 2
                     and topics[1] == entities["preparationId"].lower()
                     and self._data_address(log, 0) == entities["basketToken"].lower())
-
-    def _assert_basket_staged(self, receipt):
-        entities = self.smoke_entities
-        factory = self.candidate["contracts"]["basketTokenFactory"]["address"]
         prepared = lambda log, topics: (
             len(topics) >= 3 and topics[1] == entities["preparationId"].lower()
             and topics[2] == self._topic_uint(entities["basketId"])
             and self._data_address(log, 0) == entities["basketToken"].lower()
         )
-        self._event(receipt, self.candidate["diamond"], "PreparedBasketContractsDeployed", prepared)
+        self._event(receipt, self.candidate["diamond"], "PreparedBasketTokenDeployed", prepared)
         self._event(receipt, factory, "BasketTokenDeployed", prepared)
         self._require_code(entities["basketToken"], "basket token")
         self._require_code(entities["basketHook"], "basket hook")
@@ -800,8 +795,6 @@ class Preflight:
             self._assert_general_entity()
         elif case == "basket-prepare":
             self._assert_basket_prepared(receipt)
-        elif case == "basket-stage":
-            self._assert_basket_staged(receipt)
         elif case == "basket-finalize":
             self._assert_basket_finalized(receipt)
         elif case == "basket-mint":
@@ -844,7 +837,7 @@ class Preflight:
         save(self.root / "summary.json", dict(status="pass", kind="current-head-production-preflight",
              sourceCommit=self.candidate["sourceCommit"], releaseId=self.candidate["releaseId"], chainId=4663,
              forkBlock=int(os.environ["FORK_BLOCK"]), forkBlockHash=os.environ["FORK_BLOCK_HASH"],
-             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=51, selectorCount=354,
+             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=51, selectorCount=352,
              candidateSha256=digest(self.candidate), safeSha256=digest(self.safe_json),
              smokeSha256=digest(self.smoke), smokeCases=self.smoke_cases))
 

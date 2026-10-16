@@ -76,11 +76,9 @@ contract StagedBasketLaunchTest is CanonicalPoolTestBase {
     function testPreparedTokenSupportsStagedLaunch() public {
         Launch memory launch = _fixture(2);
         IStaticsBasketPreparation prep = IStaticsBasketPreparation(address(diamond));
-        vm.startPrank(alice);
-        (bytes32 id, address token) =
-            prep.prepareBasketCreation(launch.params, launch.pools, launch.maximums, launch.deadline, 887);
-        prep.deployPreparedBasketContracts(launch.params, launch.pools, launch.maximums, launch.deadline, id);
-        vm.stopPrank();
+        vm.prank(alice);
+        (bytes32 id,, address token) =
+            prep.prepareBasketToken(launch.params, launch.pools, launch.maximums, launch.deadline, 887);
         _start(launch, 1, id);
         assertEq(launch.token, token);
         _continue(launch, 1);

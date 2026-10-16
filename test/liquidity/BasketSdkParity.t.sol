@@ -58,7 +58,7 @@ contract BasketSdkParityTest is BasketFactoryTestTools {
         bytes32 id = vm.parseJsonBytes32(json, ".preparationId");
         assertEq(
             keccak256(
-                abi.encodeCall(IStaticsBasketPreparation.prepareBasketCreation, (params, pools, maxima, deadline, 42))
+                abi.encodeCall(IStaticsBasketPreparation.prepareBasketToken, (params, pools, maxima, deadline, 42))
             ),
             vm.parseJsonBytes32(json, ".prepareCalldataHash")
         );
@@ -89,8 +89,8 @@ contract BasketSdkParityTest is BasketFactoryTestTools {
         // Only relocate compiled code for a fixed address fixture; real CREATE3 deployment is tested separately.
         vm.etch(expectedFactory, address(template).code);
         StaticsBasketTokenFactory factory = StaticsBasketTokenFactory(expectedFactory);
-        bytes32 salt = vm.parseJsonBytes32(json, ".tokenSalt");
-        assertEq(factory.saltFor(42), salt);
+        bytes32 salt = factory.automaticSaltFor(0);
+        assertEq(salt, vm.parseJsonBytes32(json, ".tokenSalt"));
         _assertPreparedFixture(json, factory);
         assertEq(factory.effectiveSalt(salt), vm.parseJsonBytes32(json, ".effectiveSalt"));
         (address token, address proxy) = factory.predict(salt);
@@ -103,6 +103,6 @@ contract BasketSdkParityTest is BasketFactoryTestTools {
             2_000_000_000,
             1
         );
-        assertEq(factory.preparationId(intent, salt), vm.parseJsonBytes32(json, ".preparationId"));
+        assertEq(factory.preparationId(intent, salt), vm.parseJsonBytes32(json, ".automaticPreparationId"));
     }
 }

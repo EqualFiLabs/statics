@@ -6,8 +6,7 @@ from pathlib import Path
 from phase_two_runtime import BASKET, GENERAL, KEY, LAUNCH, MAX, POOL, Q96, ZERO, Rehearsal, abi, command, data, keccak, selector
 from execution_evidence import require, save
 
-PREPARE = "prepareBasketCreation(" + BASKET + "," + LAUNCH + ",uint256[],uint256,uint256)"
-DEPLOY = "deployPreparedBasketContracts(" + BASKET + "," + LAUNCH + ",uint256[],uint256,bytes32)"
+PREPARE = "prepareBasketToken(" + BASKET + "," + LAUNCH + ",uint256[],uint256,uint256)"
 STAGED = "createBasketStaged(" + BASKET + "," + LAUNCH + ",uint256[],uint256,bytes32,uint256)"
 CONTINUE = "continueBasketLaunch(uint256," + LAUNCH + ",uint256[],uint256,uint256)"
 FINALIZE = "createBasketPrepared(" + BASKET + "," + LAUNCH + ",uint256[],uint256,bytes32)"
@@ -21,13 +20,13 @@ MANDATORY = {
     "general-zero-fee", "general-hook-attacker", "general-create", "general-second-create", "general-rebind",
     "general-liquidity", "general-swap-in", "general-swap-out", "general-second-liquidity", "general-second-swap",
     "general-unauthorized-creator", "general-initialize-squat", "general-direct-create", "general-duplicate",
-    "basket-prepare-gate", "basket-prepare", "basket-squat", "basket-staged", "basket-config-mismatch",
+    "basket-prepare-gate", "basket-prepare", "basket-config-mismatch",
     "basket-expired", "basket-finalization-rollback", "basket-finalize", "basket-finalize-replay", "basket-mint", "basket-redeem",
     "distributor-owner", "distributor-zero", "distributor-peer-blocked",
     "distributor-owner-not-exempt", "distributor-diamond-not-exempt", "distributor-add", "distributor-inbound",
     "distributor-outbound", "distributor-no-allowance", "distributor-transfer-from", "distributor-spender-only",
     "distributor-remove", "distributor-revoked", "manager-approval", "manager-locked", "settlement-forged",
-    "second-basket-prepare", "second-basket-stage", "second-basket-finalize", "second-basket-mint",
+    "second-basket-prepare", "second-basket-finalize", "second-basket-mint",
     "second-basket-inbound", "second-basket-outbound", "second-basket-revoked",
     "basket-swap-in", "basket-swap-out", "basket-exact-output", "same-unlock-replay", "multiple-unlock-replay",
     "basket-managed-ingress", "basket-managed-exit", "basket-collateral", "ticket-distributor-replay",
@@ -36,7 +35,7 @@ MANDATORY = {
     "market-unwind", "market-unwind-replay", "market-historical-exit",
     "multi-pool-revenue", "multi-pool-funding", "legacy-managed-exit", "basket-exit-only", "basket-exit-swap",
     "basket-exit-mint", "basket-exit-redeem", "basket-pol-close", "basket-unwind", "basket-unwind-replay",
-    "max-basket-prepare", "max-basket-token", "max-basket-finalize", "max-basket-mint", "max-basket-swap",
+    "max-basket-prepare", "max-basket-finalize", "max-basket-mint", "max-basket-swap",
     "max-basket-exit-only", "max-basket-redeem", "max-basket-pol-close", "max-basket-unwind",
     "staged-first", "staged-unauthorized", "staged-mint-blocked", "staged-terms-changed", "staged-complete", "staged-replay",
     "max-staged-first-eight", "max-staged-last-eight",
@@ -105,7 +104,7 @@ class PhaseTwo(Rehearsal):
         self.govern(None, "setPoolCreationFee(uint256)", 0)
         self.safe("upgrade-cut", targets, payloads, case_target=self.diamond, case_data=payloads[1])
         facets = self.scalar(self.diamond, "facets()((address,bytes4[])[])")
-        require(len(facets) == 51 and sum(len(f[1]) for f in facets) == 354, "incomplete Phase 2 cut")
+        require(len(facets) == 51 and sum(len(f[1]) for f in facets) == 352, "incomplete Phase 2 cut")
         require(self.scalar(self.diamond, "owner()(address)").lower() == self.owner.lower(), "owner changed")
         require(self.scalar(self.diamond, "liquidityManager()(address,bool)").lower() == self.candidate["manager"].lower(),
                 "replacement manager disconnected")
@@ -195,6 +194,7 @@ class PhaseTwo(Rehearsal):
         factory = self.candidate["basketTokenFactory"]
         prepare = data(PREPARE, params, pools, maximums, deadline, 0)
         self.send("basket-prepare-gate", self.diamond, prepare, error="PermissionlessPoolCreationDisabled()")
+        before = [self.scalar(asset, "balanceOf(address)(uint256)", self.owner) for asset in assets]
         receipt = self.safe("basket-prepare", [self.diamond], [prepare], case_target=self.diamond, case_data=prepare)
         topic = "0x" + keccak(b"CreationPrepared(bytes32,address,address,address)").hex()
         event = next(log for log in receipt["logs"] if log["address"].lower() == factory.lower() and log["topics"][0] == topic)
@@ -202,30 +202,10 @@ class PhaseTwo(Rehearsal):
         self.preparations.append(preparation)
         token = "0x" + event["data"][-40:]
         self.identities.append(token)
-        deploy = data(DEPLOY, params, pools, maximums, deadline, preparation)
-        # The production zero-fee policy rejects an ordinary caller before intent
-        # matching. In a reverted fork branch, prepare a new identity with both
-        # fees nonzero so the squatter reaches the exact payer/creator check.
-        original = self.snapshot()
-        checkpoint = self.rpc("evm_snapshot", [])
-        self.govern(None, "setPoolCreationFee(uint256)", 1)
-        self.govern(None, "setCreationFee(uint256)", 1)
-        open_prepare = data(PREPARE, params, pools, maximums, deadline, 1)
-        open_receipt = self.safe(None, [self.diamond], [open_prepare])
-        open_event = next(log for log in open_receipt["logs"]
-                          if log["address"].lower() == factory.lower() and log["topics"][0] == topic)
-        open_id = open_event["topics"][1]
-        self.send("basket-squat", self.diamond, data(DEPLOY, params, pools, maximums, deadline, open_id),
-                  error="PreparationIntentMismatch()")
-        require(self.rpc("evm_revert", [checkpoint]), "squatter branch did not reset")
-        require(self.snapshot() == original, "squatter branch changed the zero-fee release state")
-        # Governance changes are in the preparation commitment: restore the exact original values.
-        before = [self.scalar(asset, "balanceOf(address)(uint256)", self.owner) for asset in assets]
-        self.safe("basket-staged", [self.diamond], [deploy], case_target=self.diamond, case_data=deploy)
         basket_id, actual_token, finalized = self.call(self.diamond, "preparedBasketContracts(bytes32)(uint256,address,bool)", preparation)
-        require(actual_token.lower() == token.lower() and not finalized, "staged identity mismatch")
-        require(int(self.scalar(token, "totalSupply()(uint256)")) == 0, "staging funded supply")
-        require(before == [self.scalar(asset, "balanceOf(address)(uint256)", self.owner) for asset in assets], "staging moved backing")
+        require(actual_token.lower() == token.lower() and not finalized, "prepared identity mismatch")
+        require(int(self.scalar(token, "totalSupply()(uint256)")) == 0, "preparation funded supply")
+        require(before == [self.scalar(asset, "balanceOf(address)(uint256)", self.owner) for asset in assets], "preparation moved backing")
         changed = (*params[:6], 6, *params[7:])
         mismatch = data(FINALIZE, changed, pools, maximums, deadline, preparation)
         self.safe("basket-config-mismatch", [self.diamond], [mismatch], error="PreparationIntentMismatch()",
@@ -279,10 +259,8 @@ class PhaseTwo(Rehearsal):
         token = "0x" + event["data"][-40:]
         self.preparations.append(preparation)
         self.identities.append(token)
-        deploy = data(DEPLOY, params, pools, maximums, deadline, preparation)
-        self.safe("second-basket-stage", [self.diamond], [deploy], case_target=self.diamond, case_data=deploy)
         basket_id, actual, finalized = self.call(self.diamond, "preparedBasketContracts(bytes32)(uint256,address,bool)", preparation)
-        require(actual.lower() == token.lower() and not finalized, "second staging mismatch")
+        require(actual.lower() == token.lower() and not finalized, "second preparation mismatch")
         finalize = data(FINALIZE, params, pools, maximums, deadline, preparation)
         self.safe("second-basket-finalize", [self.diamond], [finalize], case_target=self.diamond, case_data=finalize)
         self.assets.append(token)
@@ -512,7 +490,6 @@ class PhaseTwo(Rehearsal):
                      and log["topics"][0] == topic)
         preparation = event["topics"][1]
         token = "0x" + event["data"][-40:]
-        self.safe(None, [self.diamond], [data(DEPLOY, params, pools, maximums, deadline, preparation)])
         basket_id = int(self.call(self.diamond, "preparedBasketContracts(bytes32)(uint256,address,bool)", preparation)[0])
         start = data(STAGED, params, pools, maximums, deadline, preparation, 1)
         self.safe("staged-first", [self.diamond], [start], case_target=self.diamond, case_data=start)
@@ -556,13 +533,9 @@ class PhaseTwo(Rehearsal):
                      if log["address"].lower() == factory.lower() and log["topics"][0] == topic)
         preparation = event["topics"][1]
         token = "0x" + event["data"][-40:]
-        deploy = data(DEPLOY, params, pools, maximums, deadline, preparation)
-        receipt = self.safe("max-basket-token", [self.diamond], [deploy],
-                            case_target=self.diamond, case_data=deploy)
-        self.record_gas("max-basket-token", receipt)
         basket_id, actual, finalized = self.call(
             self.diamond, "preparedBasketContracts(bytes32)(uint256,address,bool)", preparation)
-        require(actual.lower() == token.lower() and not finalized, "maximum basket staging mismatch")
+        require(actual.lower() == token.lower() and not finalized, "maximum basket preparation mismatch")
         approvals = [data("approve(address,uint256)", self.diamond, MAX) for _ in assets]
         self.safe(None, assets, approvals)
         finalize = data(FINALIZE, params, pools, maximums, deadline, preparation)
@@ -576,7 +549,6 @@ class PhaseTwo(Rehearsal):
         event = next(log for log in staged_receipt["logs"]
                      if log["address"].lower() == factory.lower() and log["topics"][0] == topic)
         staged_preparation = event["topics"][1]
-        self.safe(None, [self.diamond], [data(DEPLOY, params, pools, maximums, deadline, staged_preparation)])
         staged_id, staged_token, _ = self.call(self.diamond, "preparedBasketContracts(bytes32)(uint256,address,bool)", staged_preparation)
         first = data(STAGED, params, pools, maximums, deadline, staged_preparation, 8)
         first_receipt = self.safe("max-staged-first-eight", [self.diamond], [first], case_target=self.diamond,

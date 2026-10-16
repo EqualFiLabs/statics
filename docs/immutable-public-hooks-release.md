@@ -64,7 +64,7 @@ creation code.
 The same command runs all four pinned Forge fork tests and the mandatory Cast/Anvil Phase 2 and later Morpho rehearsals. It captures the simulated
 deployments, exact constructor arguments and initcode hashes, runtime bytes and
 immutable substitutions, the actual token-factory code store, all 51 facet
-destinations and 354 selectors, and the simulated Safe batch. It compares this evidence with
+destinations and 352 selectors, and the simulated Safe batch. It compares this evidence with
 the independently reproduced artifacts before writing a release manifest. A
 failed test, source/metadata mismatch, missing deployment, or selector mismatch
 fails the gate. `dry-run.json`, `simulated-contracts.json`, and `dry-run.log` retain
@@ -77,7 +77,7 @@ stale copies of the rehearsal from other workspace compiler profiles.
 The Cast/Anvil run starts at the original pre-upgrade Diamond fixture and uses
 real Safe owner approvals and `execTransaction` to execute the guard and cut.
 It proves that a late failed call rolls the whole cut and financial state back;
-then checks a stale guard, the actual cut, and 51 facets / 354 selectors. The
+then checks a stale guard, the actual cut, and 51 facets / 352 selectors. The
 same persistent fork opens a legacy stake and LP leg before the cut, creates two
 General pools against the General hook and two prepared restricted baskets against the Basket hook,
 plus an independent two-basket market, and exercises
@@ -86,8 +86,8 @@ checks, budget replay, managed LP exit, rewards, basket retirement and unwind.
 The second basket proves distributor approval applies to tokens created after
 that approval and that revocation applies to both tokens.
 
-The same run creates a maximum-size 16-asset basket and completes preparation,
-token deployment, single-transaction finalization, minting, a canonical swap, retirement, redemption, POL
+The same run creates a maximum-size 16-asset basket and completes token preparation,
+single-transaction finalization, minting, a canonical swap, retirement, redemption, POL
 closure and all 16 unwinds. A second maximum basket uses two prepared eight-pool
 batches, each submitted with a 16,777,216 gas limit. Preparation, token deployment,
 atomic finalization, both batches, mint, redemption, first POL-close and unwind
@@ -201,7 +201,7 @@ fee allocations. The preflight checks those values before the cut and checks the
 exact copied Diamond values immediately after the cut and after all smoke actions.
 It then requires a real General pool creation and swap plus prepared-token deployment,
 finalization, mint and swap using the supplied production calldata. Post-cut state
-must contain 51 facets and 354 selectors and point to the reviewed General and Basket hooks,
+must contain 51 facets and 352 selectors and point to the reviewed General and Basket hooks,
 token factory and liquidity manager while retaining the same owner, zero General and basket creation
 fees, Phase 2 state, flash fee, every Phase 1 and Phase 2 interface, and no Phase 3
 or Morpho interface. Mandatory smoke actions must succeed. The smoke file freezes
@@ -226,8 +226,8 @@ Deploy the mined General and Basket hook addresses once from their frozen creati
 bytecode and exact constructor arguments. Fully verify both before the Diamond cut.
 General pool creation uses the configured General hook directly; there is no
 child hook prediction, salt, code store or deployment step. Basket preparation
-reserves only the deterministic restricted-token identity and binds the
-authenticated payer, creator, configuration and deadline.
+reserves and deploys only the deterministic restricted-token identity and binds
+the authenticated payer, creator, configuration and deadline.
 
 General creation deploys and initializes an unfunded pool. Keep admission owner-only,
 verify that address and its exact binding, then qualify liquidity, swaps, MarketTape,
@@ -235,13 +235,12 @@ gauges, POL, revenue and claims before production funding.
 
 Prepared baskets support a separate boundary:
 
-1. `prepareBasketCreation` reserves the exact intent and predicted token.
-2. `deployPreparedBasketContracts` deploys it with zero token supply and no pool
+1. `prepareBasketToken` reserves the exact intent and deploys the token with zero supply and no pool
    initialization, constituent transfer or POL seeding. Restricted identity is
    registered immediately, preventing a staged token from entering the General
    path. Unfinalized basket identity is rejected by mint/market creation.
-3. Verify the deployed token address and binding against this release.
-4. `createBasketPrepared` finalizes that token, registers each PoolId on the Basket
+2. Verify the deployed token address and binding against this release.
+3. `createBasketPrepared` finalizes that token, registers each PoolId on the Basket
    hook, initializes canonical pools and funds creator-backed launch liquidity.
    Execution rechecks admission,
    authority, configuration and deadline. An expired deployment may leave a gap

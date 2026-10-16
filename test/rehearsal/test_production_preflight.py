@@ -231,9 +231,7 @@ class ProductionPreflightInputTest(unittest.TestCase):
             "basket-prepare": {"logs": [
                 event(self.basket_factory, "CreationPrepared", [self.preparation_id],
                       [address_word(self.basket_token)]),
-            ]},
-            "basket-stage": {"logs": [
-                event(self.diamond, "PreparedBasketContractsDeployed",
+                event(self.diamond, "PreparedBasketTokenDeployed",
                       [self.preparation_id, p.uint_word(7)], [address_word(self.basket_token)]),
                 event(self.basket_factory, "BasketTokenDeployed",
                       [self.preparation_id, p.uint_word(7)], [address_word(self.basket_token)]),
@@ -271,10 +269,10 @@ class ProductionPreflightInputTest(unittest.TestCase):
                 broken._assert_action_semantics("basket-prepare", wrong)
 
     def test_release_manifest_and_artifact_digests_are_recomputed(self):
-        selectors = {f"0x{index:08x}": "Facet" for index in range(354)}
+        selectors = {f"0x{index:08x}": "Facet" for index in range(352)}
         simulated = {
             "facetCount": 51,
-            "selectorCount": 354,
+            "selectorCount": 352,
             "contracts": {
                 **{f"facet-{index}": {"artifact": "Facet", "selectors": []} for index in range(51)},
             },

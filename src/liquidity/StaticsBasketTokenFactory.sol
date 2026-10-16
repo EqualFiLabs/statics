@@ -30,7 +30,6 @@ contract StaticsBasketTokenFactory {
 
     enum SaltState {
         Unused,
-        QueuedToken,
         Reserved,
         Consumed
     }
@@ -56,8 +55,7 @@ contract StaticsBasketTokenFactory {
 
     mapping(bytes32 salt => SaltState state) public saltState;
     mapping(bytes32 id => Preparation prepared) private preparations;
-    bytes32[] private tokenQueue;
-    uint256 private tokenHead;
+    uint256 public nextAutomaticNonce;
 
     error OnlyDiamond();
     error InvalidDeploymentAuthority();
@@ -66,11 +64,9 @@ contract StaticsBasketTokenFactory {
     error SaltUnavailable(bytes32 salt);
     error InvalidPreparation();
     error PreparationExpired();
-    error SaltQueueDepleted();
     error InvalidDeploymentOrder();
     error UnexpectedDeploymentAddress(address expected, address actual);
 
-    event SaltQueued(bytes32 indexed salt, address predicted);
     event CreationPrepared(bytes32 indexed id, address indexed payer, address indexed creator, address token);
     event BasketTokenDeployed(bytes32 indexed id, uint256 indexed basketId, address token);
 
@@ -99,6 +95,12 @@ contract StaticsBasketTokenFactory {
         return saltFor(entropy | PREPARED_SALT_BIT);
     }
 
+    function automaticSaltFor(uint256 nonce) public view returns (bytes32) {
+        uint88 entropy =
+            uint88(uint256(keccak256(abi.encode("STATICS_AUTOMATIC_BASKET", block.chainid, address(this), nonce))));
+        return saltFor(entropy & (PREPARED_SALT_BIT - 1));
+    }
+
     function effectiveSalt(bytes32 rawSalt) public view returns (bytes32) {
         _validateSalt(rawSalt);
         return keccak256(abi.encode(address(this), block.chainid, rawSalt));
@@ -114,28 +116,6 @@ contract StaticsBasketTokenFactory {
     function saltAvailable(bytes32 rawSalt) public view returns (bool) {
         (address deployed, address proxy) = predict(rawSalt);
         return saltState[rawSalt] == SaltState.Unused && deployed.code.length == 0 && proxy.code.length == 0;
-    }
-
-    function queueAvailability() external view returns (uint256 tokens) {
-        return tokenQueue.length - tokenHead;
-    }
-
-    function queuedSalt(uint256 offset) external view returns (bytes32) {
-        if (offset >= tokenQueue.length - tokenHead) revert SaltQueueDepleted();
-        return tokenQueue[tokenHead + offset];
-    }
-
-    function enqueueSalts(bytes32[] calldata salts) external {
-        if (salts.length == 0 || salts.length > 128) revert InvalidPreparation();
-        for (uint256 i; i < salts.length; ++i) {
-            bytes32 salt = salts[i];
-            if (uint88(uint256(salt)) & PREPARED_SALT_BIT != 0) revert InvalidSalt(salt);
-            _requireAvailable(salt);
-            saltState[salt] = SaltState.QueuedToken;
-            tokenQueue.push(salt);
-            (address predicted,) = predict(salt);
-            emit SaltQueued(salt, predicted);
-        }
     }
 
     function preparationId(Intent memory intent, bytes32 tokenSalt) public view returns (bytes32) {
@@ -154,9 +134,12 @@ contract StaticsBasketTokenFactory {
         return _record(intent, tokenSalt);
     }
 
-    function reserveQueued(Intent calldata intent) external onlyDiamond returns (bytes32 id) {
+    function reserveNext(Intent calldata intent) external onlyDiamond returns (bytes32 id) {
         _validateIntent(intent);
-        return _record(intent, _takeQueue());
+        bytes32 tokenSalt = automaticSaltFor(nextAutomaticNonce++);
+        _requireAvailable(tokenSalt);
+        saltState[tokenSalt] = SaltState.Reserved;
+        return _record(intent, tokenSalt);
     }
 
     function deployBasketToken(bytes32 id, string calldata name, string calldata symbol, uint256 basketId)
@@ -195,12 +178,6 @@ contract StaticsBasketTokenFactory {
             revert InvalidPreparation();
         }
         if (block.timestamp > prepared.intent.deadline) revert PreparationExpired();
-    }
-
-    function _takeQueue() private returns (bytes32 salt) {
-        if (tokenHead == tokenQueue.length) revert SaltQueueDepleted();
-        salt = tokenQueue[tokenHead++];
-        saltState[salt] = SaltState.Reserved;
     }
 
     function _validateSalt(bytes32 salt) private view {

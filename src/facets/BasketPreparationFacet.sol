@@ -13,38 +13,56 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 contract BasketPreparationFacet is ReentrancyGuard {
     error InvalidPreparationShape();
 
-    event PreparedBasketContractsDeployed(bytes32 indexed preparationId, uint256 indexed basketId, address token);
+    event PreparedBasketTokenDeployed(bytes32 indexed preparationId, uint256 indexed basketId, address token);
 
-    /// @notice Deploy uninitialized, unfunded identities for source verification before finalization.
+    /// @notice Reserve and deploy an unfunded restricted token for source verification before finalization.
     /// @dev Reserved basket IDs may leave holes after expiry. No basket is usable until finalization.
-    function deployPreparedBasketContracts(
+    function prepareBasketToken(
         IStaticsBasket.CreateBasketParams calldata params,
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
         uint256 deadline,
-        bytes32 id
-    ) external nonReentrant returns (uint256 basketId, address token) {
+        uint256 tokenNonce
+    ) external nonReentrant returns (bytes32 id, uint256 basketId, address token) {
         LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
-        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
-        if (bs.creationFeeAmount == 0) LibDiamond.enforceIsContractOwner();
+        if (LibBasket.basketStorage().creationFeeAmount == 0) LibDiamond.enforceIsContractOwner();
         if (
-            id == bytes32(0) || params.assets.length == 0 || params.assets.length > LibBasket.MAX_ASSETS
+            params.assets.length == 0 || params.assets.length > LibBasket.MAX_ASSETS
                 || params.assets.length != pools.length || pools.length != maxAmountsIn.length
         ) revert InvalidPreparationShape();
-        LibBasketDeployment.DeploymentStorage storage ds = LibBasketDeployment.deploymentStorage();
-        if (ds.deployed[id].token != address(0)) revert LibBasketDeployment.PreparationIntentMismatch();
-        LibBasketDeployment.begin(
-            id,
+        id = _reserve(params, pools, maxAmountsIn, deadline, tokenNonce);
+        (basketId, token) = _deploy(id, params.name, params.symbol);
+    }
+
+    function _reserve(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        uint256 tokenNonce
+    ) private returns (bytes32 id) {
+        StaticsBasketTokenFactory configured = LibBasketDeployment.factory();
+        StaticsBasketTokenFactory.Intent memory intent = StaticsBasketTokenFactory.Intent(
+            msg.sender,
+            msg.sender,
             LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline),
             deadline,
-            msg.sender,
-            msg.sender
+            configured.VERSION()
         );
+        return configured.reserve(intent, tokenNonce);
+    }
+
+    function _deploy(bytes32 id, string calldata name, string calldata symbol)
+        private
+        returns (uint256 basketId, address token)
+    {
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        LibBasketDeployment.DeploymentStorage storage ds = LibBasketDeployment.deploymentStorage();
         basketId = bs.basketCount++;
-        token = ds.factory.deployBasketToken(id, params.name, params.symbol, basketId);
+        token = ds.factory.deployBasketToken(id, name, symbol, basketId);
         LibRestrictedBasket.register(token, basketId);
         ds.deployed[id] = LibBasketDeployment.PreparedContracts(basketId + 1, token, false);
-        emit PreparedBasketContractsDeployed(id, basketId, token);
+        emit PreparedBasketTokenDeployed(id, basketId, token);
     }
 
     function preparedBasketContracts(bytes32 id)
@@ -60,10 +78,6 @@ contract BasketPreparationFacet is ReentrancyGuard {
         return address(LibBasketDeployment.deploymentStorage().factory);
     }
 
-    function basketFactory() external view returns (address) {
-        return address(LibBasketDeployment.deploymentStorage().factory);
-    }
-
     function basketCreationConfigurationHash(
         IStaticsBasket.CreateBasketParams calldata params,
         IStaticsBasket.PoolLaunchParams[] calldata pools,
@@ -71,28 +85,5 @@ contract BasketPreparationFacet is ReentrancyGuard {
         uint256 deadline
     ) external view returns (bytes32) {
         return LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline);
-    }
-
-    function prepareBasketCreation(
-        IStaticsBasket.CreateBasketParams calldata params,
-        IStaticsBasket.PoolLaunchParams[] calldata pools,
-        uint256[] calldata maxAmountsIn,
-        uint256 deadline,
-        uint256 tokenNonce
-    ) external nonReentrant returns (bytes32 id, address token) {
-        if (params.assets.length != pools.length || maxAmountsIn.length != pools.length) {
-            revert InvalidPreparationShape();
-        }
-        LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
-        StaticsBasketTokenFactory configured = LibBasketDeployment.factory();
-        StaticsBasketTokenFactory.Intent memory intent = StaticsBasketTokenFactory.Intent(
-            msg.sender,
-            msg.sender,
-            LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline),
-            deadline,
-            configured.VERSION()
-        );
-        id = configured.reserve(intent, tokenNonce);
-        (token,) = configured.predict(configured.preparedSaltFor(intent, tokenNonce));
     }
 }

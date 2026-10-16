@@ -67,15 +67,14 @@ initialized twice.
 
 For prepared creation, read `basketCreationConfigurationHash`, choose a token
 nonce, check the resulting `preparedSaltFor(intent, nonce)` with `saltAvailable`,
-then call `prepareBasketCreation`, `deployPreparedBasketContracts` and
-`createBasketPrepared`
-with the same configuration and preparation ID. A reserved token identity does
+then call `prepareBasketToken` and `createBasketPrepared` with the same configuration
+and preparation ID. Preparation reserves and deploys the zero-supply token in one
+transaction. A reserved token identity does
 not depend on the next basket ID. Configuration or implementation changes
 invalidate the prepared intent. The unchanged `createBasket` selector consumes
-permissionlessly replenished token queues; queue exhaustion reverts without
-partial creation. No production contract searches for salts onchain.
-Prepared salts bind the full intent and occupy the high-bit namespace; public
-queue salts must use entropy below `2**87`. The queue cannot preempt prepared identities.
+the factory's next deterministic automatic nonce. No production contract searches
+for salts onchain. Prepared salts bind the full intent and occupy the high-bit
+namespace; automatic salts use the lower namespace and cannot preempt prepared identities.
 
 `createBasketMarket` creates additional restricted markets directly against the
 Basket hook, including BasketToken/BasketToken markets, without changing canonical pointers.

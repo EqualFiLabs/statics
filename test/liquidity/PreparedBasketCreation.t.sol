@@ -30,22 +30,13 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         factory = _localBasketFactory;
     }
 
-    function _automaticallyQueueBasketSalts() internal pure override returns (bool) {
-        return false;
-    }
-
     function testPreparedDeploymentCreatesOnlyTheRestrictedToken() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
-        (bytes32 id, address predicted) = _prepare(alice, params, pools, maximums, 0);
-
         uint256 balanceBefore = assetA.balanceOf(alice);
-        vm.prank(alice);
-        (uint256 basketId, address token) =
-            preparation.deployPreparedBasketContracts(params, pools, maximums, type(uint256).max, id);
+        (bytes32 id, uint256 basketId, address token) = _prepare(alice, params, pools, maximums, 0);
 
-        assertEq(token, predicted);
         assertEq(assetA.balanceOf(alice), balanceBefore);
         assertEq(StaticsRestrictedBasketToken(token).totalSupply(), 0);
         assertEq(StaticsRestrictedBasketToken(token).basketId(), basketId);
@@ -76,13 +67,13 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
-        (bytes32 id, address predicted) = _prepare(alice, params, pools, maximums, 0);
+        (bytes32 id,, address token) = _prepare(alice, params, pools, maximums, 0);
 
         params.name = "Changed";
         vm.prank(alice);
         vm.expectRevert(LibBasketDeployment.PreparationIntentMismatch.selector);
         baskets.createBasketPrepared{value: 1 ether}(params, pools, maximums, type(uint256).max, id);
-        assertEq(predicted.code.length, 0);
+        assertGt(token.code.length, 0);
         params.name = "Static A-B";
 
         vm.prank(alice);
@@ -96,13 +87,13 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
-        (bytes32 id, address predicted) = _prepare(alice, params, pools, maximums, 0);
+        (bytes32 id,, address token) = _prepare(alice, params, pools, maximums, 0);
 
         IStaticsProtocolPools(address(diamond)).setPoolCreationFee(0);
         vm.prank(alice);
         vm.expectRevert(LibProtocolPools.PermissionlessPoolCreationDisabled.selector);
         baskets.createBasketPrepared(params, pools, maximums, type(uint256).max, id);
-        assertEq(predicted.code.length, 0);
+        assertGt(token.code.length, 0);
     }
 
     function testZeroFeeCreationRemainsOwnerOnlyForPreparedBaskets() public {
@@ -113,29 +104,32 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
             _fundDefaultLaunch(params.assets, alice);
         vm.prank(alice);
         vm.expectRevert(LibProtocolPools.PermissionlessPoolCreationDisabled.selector);
-        preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, 0);
+        preparation.prepareBasketToken(params, pools, maximums, type(uint256).max, 0);
 
         (pools, maximums) = _fundDefaultLaunch(params.assets, address(this));
-        (bytes32 id,) = preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, 0);
+        (bytes32 id,,) = preparation.prepareBasketToken(params, pools, maximums, type(uint256).max, 0);
         (uint256 basketId,) = baskets.createBasketPrepared(params, pools, maximums, type(uint256).max, id);
         assertEq(baskets.basket(basketId).creator, address(this));
     }
 
-    function testQueuedCreationConsumesOnlyOneTokenSalt() public {
-        bytes32 salt = factory.saltFor(7);
-        bytes32[] memory salts = new bytes32[](1);
-        salts[0] = salt;
-        factory.enqueueSalts(salts);
+    function testAtomicCreationDerivesOneAutomaticTokenSalt() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, alice);
+        uint256 deadline = type(uint256).max;
+        bytes32 salt = factory.automaticSaltFor(factory.nextAutomaticNonce());
         (address predicted,) = factory.predict(salt);
 
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 basketFee = basketAdmin.creationFee();
+        vm.deal(alice, basketFee);
+        vm.prank(alice);
+        (uint256 basketId, address token) = baskets.createBasket{value: basketFee}(params, pools, maximums, deadline);
         assertEq(token, predicted);
-        assertEq(factory.queueAvailability(), 0);
+        assertEq(factory.nextAutomaticNonce(), 1);
         assertEq(StaticsRestrictedBasketToken(token).basketId(), basketId);
     }
 
     function testIndependentMarketUsesSharedHookAndRejectsDuplicatePoolKey() public {
-        _queueToken(11);
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
         pools.setPoolCreationFee(1 ether);
@@ -156,10 +150,8 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
     }
 
     function testRestrictedPairAttributionUsesSortedFirstRestrictedCurrency() public {
-        _queueToken(21);
         (uint256 firstBasketId, address firstToken) = _createDefaultBasket(0, 0);
 
-        _queueToken(22);
         IStaticsBasket.CreateBasketParams memory secondParams = _defaultParams(0, 0);
         secondParams.name = "Static Second";
         secondParams.symbol = "sSECOND";
@@ -191,7 +183,6 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
     }
 
     function testSamePairMayUseDifferentCompletePoolKey() public {
-        _queueToken(12);
         (, address token) = _createDefaultBasket(0, 0);
         IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
         pools.setPoolCreationFee(1 ether);
@@ -220,10 +211,7 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         }
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
-        (bytes32 id,) = _prepare(alice, params, pools, maximums, 39);
-        vm.prank(alice);
-        (uint256 basketId, address token) =
-            preparation.deployPreparedBasketContracts(params, pools, maximums, type(uint256).max, id);
+        (bytes32 id, uint256 basketId, address token) = _prepare(alice, params, pools, maximums, 39);
         uint256 beforeBalance = IERC20(params.assets[0]).balanceOf(alice);
         assertEq(IERC20(token).totalSupply(), 0);
         for (uint256 i; i < 16; ++i) {
@@ -257,14 +245,8 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         IStaticsBasket.PoolLaunchParams[] memory pools,
         uint256[] memory maximums,
         uint256 nonce
-    ) private returns (bytes32 id, address token) {
+    ) private returns (bytes32 id, uint256 basketId, address token) {
         vm.prank(caller);
-        return preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, nonce);
-    }
-
-    function _queueToken(uint88 entropy) private {
-        bytes32[] memory salts = new bytes32[](1);
-        salts[0] = factory.saltFor(entropy);
-        factory.enqueueSalts(salts);
+        return preparation.prepareBasketToken(params, pools, maximums, type(uint256).max, nonce);
     }
 }

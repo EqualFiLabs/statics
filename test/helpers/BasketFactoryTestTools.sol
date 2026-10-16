@@ -8,16 +8,13 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
 
-/// @dev Local executable CreateX fixture and test-only offchain-equivalent salt provisioning.
-/// Production callers supply SDK-mined salts; no production deployment mines inside a transaction.
+/// @dev Local executable CreateX fixture and mined standalone hook deployment.
 abstract contract BasketFactoryTestTools is Test {
     uint160 private constant GENERAL_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
     uint160 private constant BASKET_HOOK_FLAGS = GENERAL_HOOK_FLAGS | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
-
-    mapping(address => uint88) private _nextTestTokenNonce;
 
     function _deployTestBasketFactory(address diamond, IPoolManager manager, IStaticsSwapFeeHook policy)
         internal
@@ -51,15 +48,6 @@ abstract contract BasketFactoryTestTools is Test {
         return _deployTestPublicHook(
             "out/StaticsGeneralPoolHook.sol/StaticsGeneralPoolHook.json", GENERAL_HOOK_FLAGS, manager, diamond, weth
         );
-    }
-
-    function _ensureTestBasketSalts(StaticsBasketTokenFactory factory, uint256) internal {
-        uint256 tokens = factory.queueAvailability();
-        if (tokens == 0) {
-            bytes32[] memory tokenSalts = new bytes32[](1);
-            tokenSalts[0] = factory.saltFor(((uint88(1) << 87) - 1) - _nextTestTokenNonce[address(factory)]++);
-            factory.enqueueSalts(tokenSalts);
-        }
     }
 
     function _deployTestPublicHook(

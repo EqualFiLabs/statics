@@ -344,7 +344,7 @@ class Rehearsal:
         save(self.root / "case-requirements.json", self.required)
         save(self.root / "summary.json", dict(kind="local-anvil-fork", sourceCommit=os.environ["HEAD_COMMIT"],
             forkBlock=self.fixture["block"], forkBlockHash=self.fixture["blockHash"],
-            phase=2, facetCount=51, selectorCount=354, mandatoryCases=len(self.required),
+            phase=2, facetCount=51, selectorCount=352, mandatoryCases=len(self.required),
             candidateFile="candidate.json", candidateRuntimeChecks="candidate-runtime-checks.json",
             selectorInventory="phase-two-selector-inventory.json", gasEvidence="gas-evidence.jsonl",
             laterMorpho="later-morpho/summary.json",

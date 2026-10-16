@@ -210,7 +210,6 @@ contract LaunchGenesisBasketIntegrationTest is BasketFactoryTestTools {
         timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
         vm.warp(block.timestamp + delay);
         timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
-        _ensureTestBasketSalts(factory, 2);
     }
 
     function testTimelockFundsAndLaunchesAllGenesisPoolsInOneBatch() public {

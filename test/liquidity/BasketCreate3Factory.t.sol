@@ -36,39 +36,32 @@ contract BasketCreate3FactoryTest is Test {
         factory.deployBasketToken(id, "Different", "D", 1);
     }
 
-    function testQueuedCreationConsumesOneTokenSaltAndRollsBackWhenDepleted() public {
-        tokenSalt = factory.saltFor(0);
-        bytes32[] memory salts = new bytes32[](1);
-        salts[0] = tokenSalt;
-        factory.enqueueSalts(salts);
-        assertEq(factory.queueAvailability(), 1);
-        assertEq(factory.queuedSalt(0), tokenSalt);
-
-        bytes32 id = factory.reserveQueued(_intent());
+    function testAutomaticReservationsUseDistinctDeterministicSalts() public {
+        tokenSalt = factory.automaticSaltFor(0);
+        bytes32 id = factory.reserveNext(_intent());
         assertEq(id, factory.preparationId(_intent(), tokenSalt));
-        assertEq(factory.queueAvailability(), 0);
-        vm.expectRevert(StaticsBasketTokenFactory.SaltQueueDepleted.selector);
-        factory.reserveQueued(_intent());
+        assertEq(factory.nextAutomaticNonce(), 1);
+        bytes32 next = factory.automaticSaltFor(1);
+        bytes32 nextId = factory.reserveNext(_intent());
+        assertEq(nextId, factory.preparationId(_intent(), next));
+        assertNotEq(tokenSalt, next);
         (address predicted,) = factory.predict(tokenSalt);
-        assertEq(factory.deployBasketToken(id, "Queued", "Q", 8), predicted);
+        assertEq(factory.deployBasketToken(id, "Automatic", "A", 8), predicted);
     }
 
     function testSaltValidationDeduplicationAndOccupiedProxy() public {
-        bytes32 raw = factory.saltFor(0);
-        bytes32[] memory salts = new bytes32[](2);
-        salts[0] = raw;
-        salts[1] = raw;
+        bytes32 raw = factory.preparedSaltFor(_intent(), 7);
+        factory.reserve(_intent(), 7);
         vm.expectRevert(abi.encodeWithSelector(StaticsBasketTokenFactory.SaltUnavailable.selector, raw));
-        factory.enqueueSalts(salts);
+        factory.reserve(_intent(), 7);
 
-        salts = new bytes32[](1);
-        salts[0] = bytes32(uint256(1));
-        vm.expectRevert(abi.encodeWithSelector(StaticsBasketTokenFactory.InvalidSalt.selector, salts[0]));
-        factory.enqueueSalts(salts);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketTokenFactory.InvalidSalt.selector, bytes32(uint256(1))));
+        factory.effectiveSalt(bytes32(uint256(1)));
 
-        (, address proxy) = factory.predict(raw);
+        bytes32 unreserved = factory.preparedSaltFor(_intent(), 8);
+        (, address proxy) = factory.predict(unreserved);
         vm.etch(proxy, hex"00");
-        assertFalse(factory.saltAvailable(raw));
+        assertFalse(factory.saltAvailable(unreserved));
     }
 
     function testReservationBindsFullIntentChainAndDiamondCaller() public {

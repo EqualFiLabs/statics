@@ -195,7 +195,6 @@ contract RestrictedBasketArbitrageTest is CanonicalPoolTestBase {
         params.assets[1] = inner;
         params.bundleAmounts[0] = underpriced ? 1.5 ether : 0.4 ether;
         params.bundleAmounts[1] = params.bundleAmounts[0];
-        _ensureTestBasketSalts(_localBasketFactory, 2);
         IStaticsBasket.PoolLaunchParams[] memory launch = _defaultPoolLaunchParams(2);
         uint256[] memory maximums = _defaultLaunchMaximums(2);
         vm.startPrank(alice);

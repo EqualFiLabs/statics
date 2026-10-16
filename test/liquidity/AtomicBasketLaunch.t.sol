@@ -36,10 +36,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         uint256 creationFeeAmount = basketAdmin.creationFee();
 
         IStaticsBasketPreparation prepared = IStaticsBasketPreparation(address(diamond));
-        vm.startPrank(alice);
-        (bytes32 id,) = prepared.prepareBasketCreation(params, pools, maximums, type(uint256).max, 16);
-        prepared.deployPreparedBasketContracts(params, pools, maximums, type(uint256).max, id);
-        vm.stopPrank();
+        vm.prank(alice);
+        (bytes32 id,,) = prepared.prepareBasketToken(params, pools, maximums, type(uint256).max, 16);
         uint256 gasBefore = gasleft();
         vm.prank(alice);
         (uint256 basketId, address basketToken) =
@@ -142,7 +140,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         vm.stopPrank();
 
         uint256 diamondNonce = vm.getNonce(address(diamond));
-        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(0));
+        (address predictedBasketToken,) =
+            _localBasketFactory.predict(_localBasketFactory.automaticSaltFor(_localBasketFactory.nextAutomaticNonce()));
         uint256 treasuryBefore = treasury.balance;
         uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
@@ -243,7 +242,9 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         view
         returns (LaunchExpectation memory expected)
     {
-        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(0));
+        (address predictedBasketToken,) = _localBasketFactory.predict(
+            _localBasketFactory.automaticSaltFor(_localBasketFactory.nextAutomaticNonce())
+        );
         bool assetIsCurrency0 = taxed < predictedBasketToken;
         (, expected.basketAmount, expected.pairedAssetAmount) =
             LibBasketLiquidityMath.fullRangeAmounts(DEFAULT_LAUNCH_SQRT_PRICE, assetIsCurrency0, 1 ether);
@@ -264,7 +265,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         vm.prank(alice);
         assets[0].approve(address(diamond), maximums[0]);
 
-        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(0));
+        (address predictedBasketToken,) =
+            _localBasketFactory.predict(_localBasketFactory.automaticSaltFor(_localBasketFactory.nextAutomaticNonce()));
         uint160 lower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(10));
         uint160 upper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(10));
         uint160[2] memory invalidCanonicalPrices = [lower - 1, upper + 1];
@@ -321,7 +323,6 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         private
         returns (IStaticsBasket.CreateBasketParams memory params, MockERC20[] memory deployedAssets)
     {
-        _ensureTestBasketSalts(_localBasketFactory, count);
         address[] memory assets = new address[](count);
         uint256[] memory bundleAmounts = new uint256[](count);
         deployedAssets = new MockERC20[](count);

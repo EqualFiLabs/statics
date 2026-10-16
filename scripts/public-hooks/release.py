@@ -172,7 +172,7 @@ def check_dry_run(report, artifacts, destination, commit):
                 raise ValueError(f"simulated initcode differs from the frozen build: {name}")
             immutable_values = check_runtime(frozen[name], runtime)
         checked[label] = {**item, "artifact": name, "immutableValues": immutable_values}
-    if len(facet_addresses) != 51 or len(selectors) != 354:
+    if len(facet_addresses) != 51 or len(selectors) != 352:
         raise ValueError("incomplete Phase 1/2 selector simulation")
     item = json_object(report["basketTokenStore"])
     code = hexbytes(item["code"])
@@ -325,7 +325,7 @@ def check_rehearsal(destination, artifacts, commit):
     require(summary.get("status") == "pass" and summary.get("kind") == "local-anvil-fork"
             and summary.get("sourceCommit") == commit and summary.get("forkBlock") == fixture["block"]
             and summary.get("forkBlockHash") == fixture["blockHash"]
-            and summary.get("facetCount") == 51 and summary.get("selectorCount") == 354
+            and summary.get("facetCount") == 51 and summary.get("selectorCount") == 352
             and summary.get("mandatoryCases") == len(module.MANDATORY), "Phase 2 rehearsal summary drift")
     require(morpho.get("status") == "pass" and morpho.get("kind") == "local-anvil-later-morpho"
             and morpho.get("sourceCommit") == commit, "later Morpho rehearsal summary drift")
