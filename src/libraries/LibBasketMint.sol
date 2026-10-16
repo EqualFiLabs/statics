@@ -15,6 +15,7 @@ library LibBasketMint {
     error InvalidShares();
     error InvalidAmountsLength();
     error MaximumInputExceeded(address asset, uint256 required, uint256 maximum);
+    error InputDebitExceedsMaximum(address asset, uint256 debit, uint256 maximum);
     error InsufficientTransferReceived(address asset, uint256 required, uint256 received);
     error ActionPaused(uint256 action);
 
@@ -88,7 +89,13 @@ library LibBasketMint {
         if (required > maxAmountsIn[index]) revert MaximumInputExceeded(asset, required, maxAmountsIn[index]);
         uint256 baseIn =
             LibBasket.backingIncrease(configured.bundleAmounts[index], settlement.supply, settlement.shares);
+        uint256 payerBefore = IERC20(asset).balanceOf(settlement.payer);
         uint256 received = LibCustody.pullAndReserve(settlement.custodyAccount, asset, settlement.payer, required);
+        uint256 payerAfter = IERC20(asset).balanceOf(settlement.payer);
+        uint256 debit = payerBefore > payerAfter ? payerBefore - payerAfter : 0;
+        if (debit > maxAmountsIn[index]) {
+            revert InputDebitExceedsMaximum(asset, debit, maxAmountsIn[index]);
+        }
         if (received < baseIn) revert InsufficientTransferReceived(asset, baseIn, received);
         amountsIn[index] = received;
         bs.vaultBalances[settlement.basketId][asset] += baseIn;

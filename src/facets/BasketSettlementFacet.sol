@@ -8,6 +8,7 @@ import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.s
 import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IMsgSender} from "@uniswap/v4-periphery/src/interfaces/IMsgSender.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
@@ -54,7 +55,10 @@ contract BasketSettlementFacet is IStaticsBasketSettlement, ReentrancyGuard {
                 && LibBasket.basketStorage().baskets[market.basketId].status == IStaticsBasket.BasketStatus.Pending
         ) {
             address manager = LibBasketLiquidity.liquidityStorage().manager;
-            if (caller != IStaticsLiquidityManager(manager).positionManager()) {
+            if (
+                caller != IStaticsLiquidityManager(manager).positionManager()
+                    || IMsgSender(caller).msgSender() != manager
+            ) {
                 revert LibBasketMarkets.BasketMarketNotActive(poolId);
             }
         }

@@ -6,6 +6,7 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams, ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketStaging} from "../../src/interfaces/IStaticsBasketStaging.sol";
@@ -13,10 +14,14 @@ import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPrep
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
+import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
+import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
+import {IMsgSender} from "@uniswap/v4-periphery/src/interfaces/IMsgSender.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
 import {LibBasketDeployment} from "../../src/libraries/LibBasketDeployment.sol";
+import {LibBasketMarkets} from "../../src/libraries/LibBasketMarkets.sol";
 import {LibProtocolPools} from "../../src/libraries/LibProtocolPools.sol";
 import {StaticsRestrictedBasketToken} from "../../src/tokens/StaticsRestrictedBasketToken.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -85,6 +90,18 @@ contract StagedBasketLaunchTest is CanonicalPoolTestBase {
     function testPendingBasketRejectsPublicMintSwapLiquidityAndNewMarkets() public {
         Launch memory launch = _fixture(2);
         _start(launch, 1, bytes32(0));
+        vm.expectRevert(
+            abi.encodeWithSelector(LibBasket.BasketNotActive.selector, launch.id, IStaticsBasket.BasketStatus.Pending)
+        );
+        IStaticsFlashLoan(address(diamond)).quoteFlashLoanAsset(launch.token, 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(LibBasket.BasketNotActive.selector, launch.id, IStaticsBasket.BasketStatus.Pending)
+        );
+        IStaticsFlashLoan(address(diamond)).maxFlashLoan(launch.token);
+        vm.expectRevert(
+            abi.encodeWithSelector(LibBasket.BasketNotActive.selector, launch.id, IStaticsBasket.BasketStatus.Pending)
+        );
+        IStaticsFlashLoan(address(diamond)).flashLoanAsset(launch.token, 1, address(this), "");
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(LibBasket.BasketNotActive.selector, launch.id, IStaticsBasket.BasketStatus.Pending)
@@ -113,6 +130,30 @@ contract StagedBasketLaunchTest is CanonicalPoolTestBase {
             abi.encodeWithSelector(LibBasket.BasketNotActive.selector, launch.id, IStaticsBasket.BasketStatus.Pending)
         );
         baskets.redeem(launch.id, 1, alice, new uint256[](2));
+    }
+
+    function testPendingPoolLiquidityRequiresTheConfiguredManagerAsPositionManagerLocker() public {
+        Launch memory launch = _fixture(2);
+        _start(launch, 1, bytes32(0));
+        (address manager,) = basketLiquidity.liquidityManager();
+        address positionManager = IStaticsLiquidityManager(manager).positionManager();
+        vm.mockCall(positionManager, abi.encodeWithSelector(IMsgSender.msgSender.selector), abi.encode(alice));
+        vm.prank(alice);
+        try staged.continueBasketLaunch(launch.id, launch.pools, launch.maximums, launch.deadline, 1) {
+            fail("hostile PositionManager locker accepted");
+        } catch (bytes memory reason) {
+            bytes4 wrapper;
+            bytes4 cause;
+            assembly ("memory-safe") {
+                wrapper := mload(add(reason, 32))
+                cause := mload(add(reason, 196))
+            }
+            assertEq(wrapper, CustomRevert.WrappedError.selector);
+            assertEq(cause, LibBasketMarkets.BasketMarketNotActive.selector);
+        }
+        vm.clearMockedCalls();
+        _continue(launch, 1);
+        assertEq(uint256(baskets.basketStatus(launch.id)), uint256(IStaticsBasket.BasketStatus.Active));
     }
 
     function testResumeRejectsUnauthorizedCallerChangedLimitsConfigurationAndDeadline() public {

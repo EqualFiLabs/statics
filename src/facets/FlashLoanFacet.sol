@@ -20,6 +20,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibFlashLoan} from "../libraries/LibFlashLoan.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 
 contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
     using StorageSlot for bytes32;
@@ -226,6 +227,11 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
 
     function _enforceValidAsset(address asset) private view {
         if (asset == address(0) || asset == address(this) || asset.code.length == 0) revert InvalidAsset(asset);
+        uint256 basketIdPlusOne = LibRestrictedBasket.restrictedStorage().basketIds[asset];
+        if (basketIdPlusOne != 0) {
+            uint256 basketId = basketIdPlusOne - 1;
+            LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
+        }
     }
 
     function _enforceValidReceiver(address receiver) private view {
