@@ -10,8 +10,8 @@ load_current_run
 require_local_chain
 cd_repo
 
-EXPECTED_FACETS=32
-EXPECTED_SELECTORS=226
+EXPECTED_FACETS=35
+EXPECTED_SELECTORS=229
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -390,3 +390,11 @@ record_result verification immutable-bindings pass "canonical Robinhood dependen
 record_result verification selector-routes pass "$EXPECTED_SELECTORS selectors across $EXPECTED_FACETS facets"
 note "verified $EXPECTED_SELECTORS selectors across $EXPECTED_FACETS facets"
 note "selector inventory: $RUN_DIR/selector-inventory.json"
+
+# These selectors are installed in fresh Phase 1, with policy activation deferred.
+cast call "$STATICS_DIAMOND_ADDRESS" 'staticsDiamond()(address)' --rpc-url "$RPC_URL" >/dev/null
+cast call "$STATICS_DIAMOND_ADDRESS" 'publicHookConfiguration()(address,address,address)' --rpc-url "$RPC_URL" >/dev/null
+for signature in 'publicHookWeth()' 'defaultFeeRate()'; do
+    python3 "$SCRIPT_DIR/helpers/observe-reverting-view.py" "$RUN_DIR" "$RPC_URL" \
+        "$STATICS_DIAMOND_ADDRESS" "$signature" "$(cast sig 'PublicHookPolicyNotInstalled()')"
+done

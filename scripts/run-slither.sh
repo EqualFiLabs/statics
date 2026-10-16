@@ -26,10 +26,18 @@ python3 "$ROOT/scripts/slither_baseline.py" scope --output "$SCOPE_REPORT"
 # consumes only that build-info and may still call read-only `forge config`.
 forge build --build-info --skip test
 
+slither_build_args=()
+if [[ -n "${FOUNDRY_BUILD_INFO_PATH:-}" ]]; then
+  slither_build_args+=(--foundry-build-info-directory "$FOUNDRY_BUILD_INFO_PATH")
+fi
+if [[ -n "${FOUNDRY_OUT:-}" ]]; then
+  slither_build_args+=(--foundry-out-directory "$FOUNDRY_OUT")
+fi
 set +e
 "$SLITHER_BIN" . \
   --compile-force-framework foundry \
   --foundry-ignore-compile \
+  "${slither_build_args[@]}" \
   --exclude-dependencies \
   --json "$RAW_JSON" \
   >"$RUN_LOG" 2>&1

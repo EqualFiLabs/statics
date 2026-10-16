@@ -22,12 +22,14 @@ fi
 cd_repo
 # The configured provider prunes historical trie proofs, so capture its current
 # executable state and pin the exact block and hash in this run's artifacts.
-FORK_BLOCK=$(cast block-number --rpc-url "$ROBINHOOD_MAINNET")
+FORK_BLOCK=${STATICS_REHEARSAL_FORK_BLOCK:-$(cast block-number --rpc-url "$ROBINHOOD_MAINNET")}
+[[ "$FORK_BLOCK" =~ ^[0-9]+$ ]] || fail "invalid fork block"
 EXPECTED_BLOCK_HASH=$(cast block "$FORK_BLOCK" --field hash --rpc-url "$ROBINHOOD_MAINNET")
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 RUN_DIR="$ARTIFACT_ROOT/$RUN_ID"
 mkdir -p "$RUN_DIR"
 
+python3 "$SCRIPT_DIR/helpers/chain_gas_policy.py" "$FORK_BLOCK" "$RUN_DIR/chain-gas-policy.json"
 ANVIL_LOG="$RUN_DIR/anvil.log"
 ANVIL_SESSION="statics-p1-$RUN_ID"
 ANVIL_PORT=$(python3 -c 'import sys; from urllib.parse import urlsplit

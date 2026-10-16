@@ -12,6 +12,7 @@ __pycache__/
 .env
 .DS_Store
 artifacts/diamond-manifests/
+/artifacts/public-hook-release/
 /artifacts/genesis-launch/
 /artifacts/genesis-testnet/
 /artifacts/morpho-testnet/
@@ -27,3 +28,10 @@ x-ray/
 /verification/doppler/out-formal/
 /verification/morpho/cache/
 /verification/morpho/out/
+
+/artifacts/phase-two-rehearsal/
+
+# Local investigation and audit bundles; retain them outside published source.
+/.tooling/
+/.audit-*/
+/artifacts/phase-two-production-preflight/
