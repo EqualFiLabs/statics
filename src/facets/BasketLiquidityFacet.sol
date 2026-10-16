@@ -23,18 +23,21 @@ import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.s
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissionedSwapFeeHook.sol";
+import {LibBasketLaunchExecution} from "../libraries/LibBasketLaunchExecution.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketLiquidityMath} from "../libraries/LibBasketLiquidityMath.sol";
-import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 import {LibProtocolPol} from "../libraries/LibProtocolPol.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
+import {LibPublicHookPolicy} from "../libraries/LibPublicHookPolicy.sol";
 
-contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
+contract BasketLiquidityFacet {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
@@ -139,44 +142,49 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn
     ) external returns (uint256 basketShares) {
+        (basketShares,) = _launchBasketPoolBatch(
+            IStaticsBasketLaunchModule.PoolBatch(basketId, payer, 0, pools.length), pools, maxAmountsIn
+        );
+    }
+
+    function launchBasketPoolBatch(
+        IStaticsBasketLaunchModule.PoolBatch calldata batch,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn
+    ) external returns (uint256 shares, uint256[] memory debits) {
+        return _launchBasketPoolBatch(batch, pools, maxAmountsIn);
+    }
+
+    function _launchBasketPoolBatch(
+        IStaticsBasketLaunchModule.PoolBatch memory batch,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn
+    ) private returns (uint256 basketShares, uint256[] memory debits) {
         if (msg.sender != address(this)) revert OnlyDiamondSelf(msg.sender);
+        LibProtocolPools.enforcePoolCreationAllowed(batch.payer);
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
         if (!ls.managerInstalled) revert LiquidityManagerNotInstalled();
-        LibBasket.Basket storage configured = _basket(basketId);
+        LibBasket.Basket storage configured = _basket(batch.basketId);
         uint256 length = configured.assets.length;
-        if (pools.length != length || maxAmountsIn.length != length) revert InvalidPoolLaunchParameters();
-        uint256[] memory payerBalancesBefore = _payerBalances(configured, payer);
+        if (
+            pools.length != length || maxAmountsIn.length != length || batch.poolCount == 0 || batch.firstPool > length
+                || batch.poolCount > length - batch.firstPool
+        ) revert InvalidPoolLaunchParameters();
+        uint256[] memory payerBalancesBefore = _payerBalances(configured, batch.payer);
 
-        BasketPolPlan memory plan = _prepareBasketPools(ls, configured, basketId, pools, maxAmountsIn);
+        BasketPolPlan memory plan = _prepareBasketPools(ls, configured, batch, pools, maxAmountsIn);
         basketShares = plan.basketShares;
         IStaticsBasketLaunchModule(address(this))
-            .mintBasketLaunch(basketId, payer, basketShares, plan.assetAmounts, maxAmountsIn);
-        _fundAndOpenBasketPools(configured, payer, plan);
-        _enforcePayerDebits(configured, payer, payerBalancesBefore, maxAmountsIn);
-    }
-
-    function mintBasketLaunch(
-        uint256 basketId,
-        address payer,
-        uint256 basketShares,
-        uint256[] calldata assetAmounts,
-        uint256[] calldata maxAmountsIn
-    ) external {
-        if (msg.sender != address(this)) revert OnlyDiamondSelf(msg.sender);
-        uint256 length = assetAmounts.length;
-        if (maxAmountsIn.length != length) revert InvalidPoolLaunchParameters();
-        uint256[] memory mintMaximums = new uint256[](length);
-        for (uint256 i; i < length; ++i) {
-            mintMaximums[i] = maxAmountsIn[i] - assetAmounts[i];
-        }
-        LibBasketMint.mintFromPayer(basketId, basketShares, payer, address(this), mintMaximums);
+            .mintBasketLaunch(batch.basketId, batch.payer, basketShares, plan.assetAmounts, maxAmountsIn);
+        _fundAndOpenBasketPools(configured, batch.payer, plan);
+        debits = _enforcePayerDebits(configured, batch.payer, payerBalancesBefore, maxAmountsIn);
     }
 
     function _prepareBasketPools(
         LibBasketLiquidity.LiquidityStorage storage ls,
         LibBasket.Basket storage configured,
-        uint256 basketId,
+        IStaticsBasketLaunchModule.PoolBatch memory batch,
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn
     ) private returns (BasketPolPlan memory plan) {
@@ -185,11 +193,11 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         plan.basketAmounts = new uint256[](length);
         plan.assetAmounts = new uint256[](length);
 
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i = batch.firstPool; i < batch.firstPool + batch.poolCount; ++i) {
             address asset = configured.assets[i];
             IStaticsBasket.PoolLaunchParams calldata launch = pools[i];
             (plan.positions[i], plan.basketAmounts[i], plan.assetAmounts[i]) =
-                _prepareCanonicalPoolSeed(ls, configured.token, basketId, asset, launch);
+                _prepareCanonicalPoolSeed(ls, configured.token, batch.basketId, asset, launch);
             if (plan.assetAmounts[i] >= maxAmountsIn[i]) {
                 revert LaunchInputExceedsMaximum(asset, plan.assetAmounts[i], maxAmountsIn[i]);
             }
@@ -207,7 +215,9 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         private
         returns (IStaticsProtocolPools.ProtocolPolOpenParams memory position, uint256 basketAmount, uint256 assetAmount)
     {
-        (PoolKey memory key, uint160 sqrtPriceX96) = _initializeCanonicalPool(ls, basketToken, basketId, asset, launch);
+        (PoolKey memory key, uint160 sqrtPriceX96) = _initializeCanonicalPool(
+            ls, basketToken, basketId, asset, launch, LibBasket.basketStorage().baskets[basketId].creator
+        );
         bool assetIsCurrency0 = Currency.unwrap(key.currency0) == asset;
         uint128 liquidity;
         (liquidity, basketAmount, assetAmount) =
@@ -233,12 +243,15 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         for (uint256 i; i < length; ++i) {
             address asset = configured.assets[i];
             uint256 required = plan.assetAmounts[i];
+            if (required == 0) continue;
             uint256 received = LibCustody.pull(asset, payer, required);
             if (received < required) revert InsufficientLaunchAssetReceived(asset, required, received);
             bytes32 account = LibCustody.protocolPolAccount(PoolId.unwrap(plan.positions[i].poolId));
             LibCustody.reserve(account, asset, received);
             LibCustody.reserve(account, configured.token, plan.basketAmounts[i]);
+            LibBasketLaunchExecution.setPool(plan.positions[i].poolId);
             LibProtocolPol.open(plan.positions[i]);
+            LibBasketLaunchExecution.clear();
         }
     }
 
@@ -259,12 +272,14 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         address payer,
         uint256[] memory balancesBefore,
         uint256[] calldata maximums
-    ) private view {
+    ) private view returns (uint256[] memory debits) {
         uint256 length = configured.assets.length;
+        debits = new uint256[](length);
         for (uint256 i; i < length; ++i) {
             address asset = configured.assets[i];
             uint256 balanceAfter = IERC20(asset).balanceOf(payer);
             uint256 actualDebit = balancesBefore[i] > balanceAfter ? balancesBefore[i] - balanceAfter : 0;
+            debits[i] = actualDebit;
             if (actualDebit > maximums[i]) {
                 revert LaunchDebitExceedsMaximum(asset, actualDebit, maximums[i]);
             }
@@ -323,7 +338,7 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
         if (address(stored.key.hooks) == address(0)) return false;
-        return IStaticsSwapFeeHook(ls.hook).poolDecommissioned(stored.key.toId());
+        return IStaticsSwapFeeHook(address(stored.key.hooks)).poolDecommissioned(stored.key.toId());
     }
 
     function _initializeCanonicalPool(
@@ -331,7 +346,8 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         address basketToken,
         uint256 basketId,
         address asset,
-        IStaticsBasket.PoolLaunchParams calldata launch
+        IStaticsBasket.PoolLaunchParams calldata launch,
+        address creator
     ) private returns (PoolKey memory key, uint160 sqrtPriceX96) {
         if (!LibProtocolPoolFee.isValidStaticLpFee(launch.lpFee)) {
             revert InvalidPoolLaunchLpFee(asset, launch.lpFee);
@@ -340,38 +356,43 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
             revert InvalidPoolLaunchTickSpacing(asset, launch.tickSpacing);
         }
         sqrtPriceX96 = _canonicalSqrtPrice(basketToken, asset, launch.tickSpacing, launch.sqrtPriceAssetPerBasketX96);
-        (Currency currency0, Currency currency1) = basketToken < asset
-            ? (Currency.wrap(basketToken), Currency.wrap(asset))
-            : (Currency.wrap(asset), Currency.wrap(basketToken));
         key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
+            currency0: Currency.wrap(basketToken < asset ? basketToken : asset),
+            currency1: Currency.wrap(basketToken < asset ? asset : basketToken),
             fee: launch.lpFee,
             tickSpacing: launch.tickSpacing,
-            hooks: IHooks(ls.hook)
+            hooks: IHooks(
+                LibPublicHookPolicy.policyStorage().initialized
+                    ? LibPublicHookPolicy.policyStorage().basketHook
+                    : ls.hook
+            )
         });
         PoolId poolId = key.toId();
         LibProtocolPools.enforceUnregistered(poolId);
-        LibBasketLiquidity.PoolAssociation storage association = ls.poolAssociations[poolId];
-        if (association.associated) {
-            revert CanonicalPoolAlreadyAssociated(poolId, association.basketId, association.asset);
+        {
+            LibBasketLiquidity.PoolAssociation storage association = ls.poolAssociations[poolId];
+            if (association.associated) {
+                revert CanonicalPoolAlreadyAssociated(poolId, association.basketId, association.asset);
+            }
+
+            LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
+            stored.key = key;
+            association.basketId = basketId;
+            association.asset = asset;
+            association.associated = true;
         }
 
-        LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
-        stored.key = key;
-        association.basketId = basketId;
-        association.asset = asset;
-        association.associated = true;
-
-        IStaticsSwapFeeHook(ls.hook)
-            .registerPool(
-                key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, LibBasket.basketStorage().baskets[basketId].creator
-            );
+        IStaticsSwapFeeHook(address(key.hooks)).registerPool(key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, creator);
+        if (LibRestrictedBasket.isRestricted(basketToken)) {
+            LibBasketMarkets.register(key, creator, basketId, asset, 1);
+        }
+        LibBasketLaunchExecution.setPool(poolId);
         IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
+        LibBasketLaunchExecution.clear();
         (, int24 tick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
         LibRangeGauge.initializePool(poolId, tick);
         emit CanonicalPoolInitialized(
-            basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick
+            basketId, asset, poolId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1), sqrtPriceX96, tick
         );
     }
 

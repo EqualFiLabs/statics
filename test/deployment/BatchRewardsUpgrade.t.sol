@@ -7,7 +7,7 @@ import {BatchRewardsFlowTestBase} from "../helpers/BatchRewardsFlowTestBase.sol"
 import {PrepareStaticsBatchRewardsUpgrade} from "../../script/PrepareStaticsBatchRewardsUpgrade.s.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
-import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -34,9 +34,9 @@ contract BatchRewardsUpgradeTest is BatchRewardsFlowTestBase {
             StaticsSelectors.rangeGaugeLiveness()
         );
         compatible[2] = IDiamondCut.FacetCut(
-            address(new GaugeIncentiveFacet()),
+            address(new GaugeAllocatorRewardFacet()),
             IDiamondCut.FacetCutAction.Replace,
-            StaticsSelectors.gaugeIncentiveActions()
+            StaticsSelectors.gaugeAllocatorRewards()
         );
         IDiamondCut(address(diamond)).diamondCut(compatible, address(0), "");
         preparation = new PrepareStaticsBatchRewardsUpgrade();

@@ -12,14 +12,19 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
-import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
+import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
+import {LibBasketDeployment} from "../libraries/LibBasketDeployment.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
 
-contract BasketCreationFacet is ReentrancyGuard {
+contract BasketCreationFacet is ReentrancyGuard, IStaticsBasketStaging {
+    error InvalidBasketLaunchState();
+    error OnlyBasketLaunchCreator();
     error InvalidBasketDefinition();
     error FeeExceedsCap(uint16 feeBps);
     error LtvExceedsMaximum(uint16 ltvBps);
@@ -39,9 +44,126 @@ contract BasketCreationFacet is ReentrancyGuard {
         uint256[] calldata maxAmountsIn,
         uint256 launchDeadline
     ) external payable nonReentrant returns (uint256 basketId, address token) {
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, bytes32(0), 0);
+    }
+
+    function createBasketPrepared(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline,
+        bytes32 preparationId
+    ) external payable nonReentrant returns (uint256 basketId, address token) {
+        if (preparationId == bytes32(0)) revert LibBasketDeployment.PreparationIntentMismatch();
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, preparationId, 0);
+    }
+
+    function createBasketStaged(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        bytes32 preparationId,
+        uint256 poolCount
+    ) external payable nonReentrant returns (uint256 basketId, address token) {
+        if (poolCount == 0 || poolCount > pools.length) revert InvalidPoolLaunchParameters();
+        return _createBasket(params, pools, maxAmountsIn, deadline, preparationId, poolCount);
+    }
+
+    function continueBasketLaunch(
+        uint256 basketId,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        uint256 poolCount
+    ) external nonReentrant {
+        LibBasket.Basket storage configured = LibBasket.basketStorage().baskets[basketId];
+        if (configured.status != IStaticsBasket.BasketStatus.Pending) revert InvalidBasketLaunchState();
+        if (msg.sender != configured.creator) revert OnlyBasketLaunchCreator();
+        if (block.timestamp > deadline) revert LaunchDeadlineExpired(deadline, block.timestamp);
+        _enforceNotPaused(LibGovernance.PAUSE_LIQUIDITY);
+        LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
+        if (LibBasket.basketStorage().creationFeeAmount == 0) LibDiamond.enforceIsContractOwner();
+        if (
+            LibBasketDeployment.deploymentStorage().staged[basketId].terms
+                != _launchTerms(pools, maxAmountsIn, deadline)
+        ) {
+            revert LibBasketDeployment.PreparationIntentMismatch();
+        }
+        _stage(basketId, pools, maxAmountsIn, poolCount);
+    }
+
+    function cancelBasketLaunch(uint256 basketId) external nonReentrant {
+        LibBasket.Basket storage configured = LibBasket.basketStorage().baskets[basketId];
+        if (configured.status != IStaticsBasket.BasketStatus.Pending) revert InvalidBasketLaunchState();
+        if (msg.sender != configured.creator && msg.sender != LibDiamond.contractOwner()) {
+            revert OnlyBasketLaunchCreator();
+        }
+        configured.status = IStaticsBasket.BasketStatus.ExitOnly;
+        delete LibBasketDeployment.deploymentStorage().launching[basketId];
+        emit BasketLaunchCancelled(basketId);
+    }
+
+    function basketLaunchProgress(uint256 basketId)
+        external
+        view
+        returns (uint256 completedPools, uint256 basketShares, uint256[] memory assetDebits)
+    {
+        LibBasketDeployment.StagedLaunch storage launch = LibBasketDeployment.deploymentStorage().staged[basketId];
+        return (launch.nextPool, launch.basketShares, launch.assetDebits);
+    }
+
+    function _launchTerms(
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maximums,
+        uint256 deadline
+    ) private view returns (bytes32) {
+        return keccak256(abi.encode(pools, maximums, deadline, LibBasketDeployment.environmentHash()));
+    }
+
+    function _stage(
+        uint256 basketId,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maximums,
+        uint256 count
+    ) private {
+        LibBasketDeployment.StagedLaunch storage launch = LibBasketDeployment.deploymentStorage().staged[basketId];
+        uint256 length = pools.length;
+        if (count == 0 || count > length - launch.nextPool) revert InvalidPoolLaunchParameters();
+        uint256[] memory remaining = new uint256[](length);
+        for (uint256 i; i < length; ++i) {
+            remaining[i] = maximums[i] - launch.assetDebits[i];
+        }
+        (uint256 shares, uint256[] memory debits) = IStaticsBasketLaunchModule(address(this))
+            .launchBasketPoolBatch(
+                IStaticsBasketLaunchModule.PoolBatch(basketId, msg.sender, launch.nextPool, count), pools, remaining
+            );
+        for (uint256 i; i < length; ++i) {
+            launch.assetDebits[i] += debits[i];
+        }
+        launch.nextPool += count;
+        launch.basketShares += shares;
+        emit BasketLaunchProgress(basketId, launch.nextPool, length);
+        if (launch.nextPool == length) {
+            LibBasket.Basket storage configured = LibBasket.basketStorage().baskets[basketId];
+            configured.status = IStaticsBasket.BasketStatus.Active;
+            delete LibBasketDeployment.deploymentStorage().launching[basketId];
+            emit IStaticsBasket.BasketLaunched(basketId, configured.token, msg.sender, launch.basketShares, length);
+        }
+    }
+
+    function _createBasket(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline,
+        bytes32 preparationId,
+        uint256 firstBatch
+    ) private returns (uint256 basketId, address token) {
         if (block.timestamp > launchDeadline) {
             revert LaunchDeadlineExpired(launchDeadline, block.timestamp);
         }
+        LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
         _validateDefinition(params);
         _enforceNotPaused(LibGovernance.PAUSE_LIQUIDITY);
         uint256 assetCount = params.assets.length;
@@ -55,10 +177,16 @@ contract BasketCreationFacet is ReentrancyGuard {
         }
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         _collectCreationFee(bs);
+        LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
 
-        basketId = bs.basketCount;
-        bs.basketCount = basketId + 1;
-        token = address(new StaticsBasketToken(params.name, params.symbol, address(this), basketId));
+        uint256 reservedId = LibBasketDeployment.deploymentStorage().deployed[preparationId].basketIdPlusOne;
+        if (reservedId != 0) {
+            basketId = reservedId - 1;
+        } else {
+            basketId = bs.basketCount;
+            bs.basketCount = basketId + 1;
+        }
+        token = _deployBasket(params, pools, maxAmountsIn, launchDeadline, preparationId, basketId);
 
         {
             LibBasket.Basket storage created = bs.baskets[basketId];
@@ -79,9 +207,58 @@ contract BasketCreationFacet is ReentrancyGuard {
 
         _emitBasketCreated(basketId, token, params);
 
-        uint256 basketShares =
-            IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
-        emit IStaticsBasket.BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
+        _launchCreatedBasket(basketId, pools, maxAmountsIn, launchDeadline, firstBatch);
+    }
+
+    function _launchCreatedBasket(
+        uint256 basketId,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        uint256 firstBatch
+    ) private {
+        LibBasket.Basket storage configured = LibBasket.basketStorage().baskets[basketId];
+        if (firstBatch == 0) {
+            uint256 shares =
+                IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
+            delete LibBasketDeployment.deploymentStorage().launching[basketId];
+            emit IStaticsBasket.BasketLaunched(basketId, configured.token, msg.sender, shares, pools.length);
+        } else {
+            configured.status = IStaticsBasket.BasketStatus.Pending;
+            LibBasketDeployment.StagedLaunch storage launch = LibBasketDeployment.deploymentStorage().staged[basketId];
+            launch.terms = _launchTerms(pools, maxAmountsIn, deadline);
+            launch.assetDebits = new uint256[](pools.length);
+            _stage(basketId, pools, maxAmountsIn, firstBatch);
+        }
+    }
+
+    function _deployBasket(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        bytes32 preparationId,
+        uint256 basketId
+    ) private returns (address token) {
+        bytes32 configuration = LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline);
+        bytes32 prepared = LibBasketDeployment.begin(preparationId, configuration, deadline, msg.sender, msg.sender);
+        token = _materializeBasketToken(prepared, params.name, params.symbol, basketId);
+        LibBasketDeployment.deploymentStorage().launching[basketId] = prepared;
+    }
+
+    function _materializeBasketToken(bytes32 prepared, string calldata name, string calldata symbol, uint256 basketId)
+        private
+        returns (address token)
+    {
+        LibBasketDeployment.PreparedContracts storage deployed =
+            LibBasketDeployment.deploymentStorage().deployed[prepared];
+        if (deployed.token != address(0)) {
+            token = deployed.token;
+            deployed.finalized = true;
+        } else {
+            token = LibBasketDeployment.factory().deployBasketToken(prepared, name, symbol, basketId);
+            LibRestrictedBasket.register(token, basketId);
+        }
     }
 
     function _emitBasketCreated(uint256 basketId, address token, IStaticsBasket.CreateBasketParams calldata params)

@@ -107,9 +107,34 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 224, 316, 374, and 401. Integrators
+Morpho. The cumulative selector counts are 229, 354, 412, and 439. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
+
+Phase 2 also installs `setBasketDistributor(address,bool)` and
+`isBasketDistributor(address)`, with the `BasketDistributorSet` event. The Diamond
+owner controls a shared registry for restricted baskets; either transfer endpoint
+must be approved unless an exact protocol ticket authorizes the transfer. ERC-20
+allowances remain independent and PoolManager settlement restrictions take
+precedence. Approval of a caller alone does not approve the transfer endpoints.
+Both the original and extended basket-admin ERC-165 interface IDs remain valid.
+
+New General pools use the configured immutable General hook; restricted-basket
+pools use the separate configured immutable Basket hook. Each hook serves multiple pools. Integrators must identify markets by the complete PoolKey or
+PoolId; the hook address alone no longer identifies one market. An identical pair,
+native LP fee and tick spacing resolves to the same complete PoolKey and cannot be
+initialized twice. Existing pools retain their legacy hook addresses.
+
+The later Morpho configuration batch explicitly approves Morpho as a distributor.
+Users may call Morpho's `supplyCollateral` with the Statics position's Morpho
+account as `onBehalf`. These top-ups improve Morpho health without increasing
+tracked collateral or Statics stake. Only collateral above the tracked amount is
+untracked surplus. Synchronization measures the current net deficit; replenishment
+before synchronization can offset a loss and its reward forfeiture. Use
+`withdrawUntrackedMorphoCollateral` for authorized surplus withdrawals, subject
+to Morpho health checks. An account must be empty before position closure, so
+third-party donations to historical markets can require surplus recovery first.
+Direct top-ups are not plain token transfers to Morpho.
 
 PositionNFT financial views are intentionally public so a prospective buyer can
 value the live account immediately before transfer. `IStaticsPositionMarket`
@@ -430,7 +455,7 @@ The `ProtocolPoolCreated` event carries the creator, sorted currencies, native
 LP fee, tick spacing, normalized initial price, and initial tick. Indexers
 reconstruct and rank markets from `ProtocolPoolCreated`,
 `CanonicalPoolInitialized`, `ProtocolPoolFeeRateSet`, `PoolCreationFeeSet`,
-`PoolCreationNonceInvalidated`, creator credit and claim events,
+`PoolCreationCommitted`, `PoolCreationNonceInvalidated`, creator credit and claim events,
 the staged decommission events, managed-POL position and fee events, and
 PoolManager state. A first-party frontend may
 maintain curated token lists and hide spam without changing contract-level
@@ -499,13 +524,14 @@ to the currencies, native LP fee, tick spacing, and hook, those parameters
 cannot be changed by a relayer.
 Three paths apply:
 when the creation fee is nonzero, a direct creator (`creator == msg.sender`) may
-pass empty authorization and consumes no nonce; while creation is disabled the
+pass empty authorization and consumes no nonce;
+while creation is disabled the
 Diamond owner may designate any nonzero creator without a signature; otherwise
 the named creator must supply a valid authorization and its unordered nonce is
 consumed. Relayed authorizations
-deliberately do not bind `msg.sender`, so a copied transaction may pay the fee
-and initialize the pool first but can never replace the creator or change the
-PoolId, price, or initial hook fees. Cancel an unused authorization with
+deliberately do not bind `msg.sender`. A copied signed creation may pay the fee and
+initialize the exact committed pool first, but it can never replace the creator
+or change the PoolId, price, or initial hook fees. Cancel an unused authorization with
 `invalidatePoolCreationNonce(nonce)` and check state through
 `isPoolCreationNonceUsed(creator, nonce)`.
 
@@ -999,3 +1025,21 @@ The companion SDK exports `staticsAggregatedBatchRewardsAbi`,
 Reuse `splitBatchRewardClaims`; simulation, further gas-based splitting and
 submission remain caller responsibilities. See the [validation evidence](aggregated-batch-claims-validation.md)
 for transfer counts, gas comparisons and execution boundaries.
+
+### Optional staged basket launch
+
+`IStaticsBasketStaging.createBasketStaged` accepts the same full basket/pool terms
+as atomic creation, an optional prepared-token ID and a positive pool count.
+`continueBasketLaunch` advances sequentially by a caller-selected count; the last
+batch emits `BasketLaunched` and changes `Pending` to `Active`. The caller must be
+the original creator. Configuration, deadline, current creation admission and
+aggregate asset limits are enforced across batches. A revert preserves previous
+progress. Use `basketLaunchProgress` to inspect completed pools, issued shares and
+actual asset debits. Public operations and distributor transfers are unavailable
+while pending. Each batch applies existing mint fee tiers to its own mint action.
+
+The creator or owner may `cancelBasketLaunch`, moving to exit-only even after
+expiry. Funded positions remain protocol-owned: close them through the existing
+POL administration and unwind each seeded pool to treasury. Cancellation does not
+refund contributions or fees. Atomic creation remains available and does not
+require staging. Prepared-token deployment can precede either path.

@@ -15,6 +15,7 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
@@ -28,11 +29,19 @@ import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../../src/facets/BasketArbitrageDeploymentFacet.sol";
+import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
+import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
+import {BasketFactoryTestTools} from "./BasketFactoryTestTools.sol";
 import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
 import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
 import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
+import {SwapRewardFundingFacet} from "../../src/facets/SwapRewardFundingFacet.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
@@ -65,6 +74,8 @@ import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {MockWrappedNative} from "../mocks/MockWrappedNative.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsGeneralPoolHook} from "../../src/liquidity/StaticsGeneralPoolHook.sol";
+import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -73,7 +84,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](40);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](46);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -117,13 +128,19 @@ contract StaticsTestDeployer {
         cut[37] = _cut(address(new ProtocolPoolMaintenanceFacet()), StaticsSelectors.protocolPoolMaintenance());
         cut[38] = _cut(address(new ProtocolPolFacet()), StaticsSelectors.protocolPol());
         cut[39] = _cut(address(new PositionMarketFacet()), StaticsSelectors.positionMarket());
+        cut[40] = _cut(address(new BasketPreparationFacet()), StaticsSelectors.basketPreparation());
+        cut[41] = _cut(address(new BasketSettlementFacet()), StaticsSelectors.basketSettlement());
+        cut[42] = _cut(address(new BasketMarketCreationFacet()), StaticsSelectors.basketMarkets());
+        cut[43] = _cut(address(new BasketArbitrageDeploymentFacet()), StaticsSelectors.basketArbitrageDeployment());
+        cut[44] = _cut(address(new SwapRewardFundingFacet()), StaticsSelectors.swapRewardFunding());
+        cut[45] = _cut(address(new PublicHookPolicyFacet()), StaticsSelectors.publicHookPolicy());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
             address(0),
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0, 0, 5)
+                StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0, 1 wei, 5)
             )
         );
     }
@@ -135,12 +152,14 @@ contract StaticsTestDeployer {
     }
 }
 
-abstract contract StaticsTestBase is Test {
+abstract contract StaticsTestBase is BasketFactoryTestTools {
     MockWrappedNative internal wrappedNative;
     uint160 internal constant DEFAULT_LAUNCH_SQRT_PRICE = 1 << 96;
-    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+    uint160 private constant LEGACY_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
+    uint160 private constant PUBLIC_HOOK_FLAGS = LEGACY_HOOK_FLAGS | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+        | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
 
     address internal guardian = makeAddr("guardian");
     address internal treasury = makeAddr("treasury");
@@ -164,6 +183,9 @@ abstract contract StaticsTestBase is Test {
     MockERC20 internal stakingAsset;
     IPoolManager private _localPoolManager;
     StaticsSwapFeeHook private _localSwapFeeHook;
+    StaticsBasketHook internal _localBasketHook;
+    StaticsGeneralPoolHook internal _localGeneralHook;
+    StaticsBasketTokenFactory internal _localBasketFactory;
 
     function setUp() public virtual {
         assetA = new MockERC20("Asset A", "A", 18);
@@ -190,6 +212,16 @@ abstract contract StaticsTestBase is Test {
             _localPoolManager = _deployPoolManager();
             _localSwapFeeHook = _deployLocalHook(_localPoolManager);
             basketLiquidity.installCanonicalPoolIntegration(address(_localPoolManager), address(_localSwapFeeHook));
+            if (_installLegacyBasketFactory()) {
+                _localBasketFactory = _deployTestBasketFactory(address(diamond), _localPoolManager, _localSwapFeeHook);
+                _localBasketHook = _deployBasketHook(_localPoolManager);
+                _localGeneralHook = _deployGeneralHook(_localPoolManager);
+                PublicHookPolicyFacet(address(diamond))
+                    .installPublicHooks(
+                        address(_localGeneralHook), address(_localBasketHook), address(_localBasketFactory)
+                    );
+                if (_automaticallyQueueBasketSalts()) _ensureTestBasketSalts(_localBasketFactory, 2);
+            }
             if (_installDefaultLiquidityManager()) {
                 IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
                 IPositionManager positionManager = IPositionManager(
@@ -209,6 +241,10 @@ abstract contract StaticsTestBase is Test {
                 );
             }
         }
+    }
+
+    function _installLegacyBasketFactory() internal pure virtual returns (bool) {
+        return true;
     }
 
     function _createDefaultBasket(uint256 mintFeeShares, uint256 redemptionFeeShares)
@@ -273,6 +309,9 @@ abstract contract StaticsTestBase is Test {
         returns (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums)
     {
         uint256 length = assets.length;
+        if (_automaticallyQueueBasketSalts() && address(_localBasketFactory) != address(0)) {
+            _ensureTestBasketSalts(_localBasketFactory, length);
+        }
         pools = new IStaticsBasket.PoolLaunchParams[](length);
         maximums = new uint256[](length);
         vm.startPrank(creator);
@@ -338,10 +377,17 @@ abstract contract StaticsTestBase is Test {
     }
 
     function _localLiquidity() internal view returns (IPoolManager manager, StaticsSwapFeeHook hook) {
-        return (_localPoolManager, _localSwapFeeHook);
+        hook = address(_localGeneralHook) == address(0)
+            ? _localSwapFeeHook
+            : StaticsSwapFeeHook(payable(address(_localGeneralHook)));
+        return (_localPoolManager, hook);
     }
 
     function _installLocalLiquidityIntegration() internal pure virtual returns (bool) {
+        return true;
+    }
+
+    function _automaticallyQueueBasketSalts() internal pure virtual returns (bool) {
         return true;
     }
 
@@ -361,8 +407,27 @@ abstract contract StaticsTestBase is Test {
         bytes memory constructorArgs =
             abi.encode(manager, address(diamond), uint16(25), uint16(25), address(wrappedNative));
         (address expected, bytes32 salt) =
-            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+            HookMiner.find(address(this), LEGACY_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25, address(wrappedNative));
+        assertEq(address(deployed), expected);
+    }
+
+    function _deployBasketHook(IPoolManager manager) internal returns (StaticsBasketHook deployed) {
+        bytes memory constructorArgs =
+            abi.encode(manager, address(diamond), uint16(25), uint16(25), address(wrappedNative));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), PUBLIC_HOOK_FLAGS, type(StaticsBasketHook).creationCode, constructorArgs);
+        deployed = new StaticsBasketHook{salt: salt}(
+            manager, address(diamond), uint16(25), uint16(25), address(wrappedNative)
+        );
+        assertEq(address(deployed), expected);
+    }
+
+    function _deployGeneralHook(IPoolManager manager) internal returns (StaticsGeneralPoolHook deployed) {
+        bytes memory args = abi.encode(manager, address(diamond), uint16(25), uint16(25), address(wrappedNative));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), LEGACY_HOOK_FLAGS, type(StaticsGeneralPoolHook).creationCode, args);
+        deployed = new StaticsGeneralPoolHook{salt: salt}(manager, address(diamond), 25, 25, address(wrappedNative));
         assertEq(address(deployed), expected);
     }
 }

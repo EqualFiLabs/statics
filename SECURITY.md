@@ -256,6 +256,27 @@ transition still requires its own review and timelocked execution.
 
 ## Economic and liveness assumptions
 
+New restricted BasketTokens consult one owner-governed Diamond distributor
+registry for ordinary transfers. Either transfer endpoint must be approved unless
+an exact protocol ticket authorizes the movement. A distributor spender still
+needs ERC-20 allowance, and ownership grants no implicit exemption. Exact tickets
+are consumed before distributor fallback; PoolManager lock, directional-budget
+and claim checks take precedence over every distributor approval.
+
+Morpho uses this registry without per-token bindings or ingress permissions.
+The later Morpho configuration batch explicitly approves its contract; Phase 2
+leaves distributor approvals empty and Morpho selectors absent. Governance is
+responsible for maintaining Morpho approval; no special revocation guard exists.
+Direct collateral deposits credited to a Statics position's Morpho account count
+toward Morpho health without increasing tracked collateral or Statics stake.
+Only collateral above the tracked amount is untracked surplus. Existing surplus
+withdrawal authorization and Morpho health checks govern recovery. Synchronization
+recognizes a loss only while actual collateral remains below tracked collateral;
+replenishment before synchronization can reduce or remove that loss and its reward
+forfeiture. This preserves net-balance accounting rather than introducing a
+historical liquidation penalty. Donations to previously tracked markets can
+require surplus recovery before position closure; the account must be empty.
+
 Holding a BasketToken in a wallet does not earn basket-specific fees. Deposited
 BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the

@@ -24,12 +24,15 @@ import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
+import {LibPublicHookPolicy} from "../libraries/LibPublicHookPolicy.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 
 /// @notice Permissionless general-pool creation with deterministic quoting, sorted PoolKey policy,
 /// reciprocal normalized pricing, independent native creation fee gating, EIP-712 creator
-/// authorization (EOA and ERC-1271 via `SignatureChecker`), and unordered creator nonces.
+/// authorization (EOA and ERC-1271 via `SignatureChecker`), creator attribution, and
+/// unordered creator nonces.
 contract ProtocolPoolCreationFacet is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -46,6 +49,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
 
     error LiquidityIntegrationNotInstalled();
     error InvalidToken(address token);
+    error RestrictedBasketRequiresBasketHook(address token);
     error IdenticalTokens(address token);
     error DeadlineExpired(uint256 deadline);
     error InvalidTickSpacing(int24 tickSpacing);
@@ -83,14 +87,17 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         LibProtocolPools.enforceUnregistered(poolId);
 
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
-        if (hook.poolRegistration(poolId).registered) revert PoolAlreadyRegisteredInHook(poolId);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(quote.key.hooks));
+        if (address(hook).code.length != 0 && hook.poolRegistration(poolId).registered) {
+            revert PoolAlreadyRegisteredInHook(poolId);
+        }
         (uint160 initializedPrice,,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
         if (initializedPrice != 0) revert PoolAlreadyInitialized(poolId);
 
         _authorizeCreator(params, quote.authorizationDigest, creatorAuthorization);
         _collectCreationFee(quote.totalNativeFee);
-        bool overrideInitialFeeRate = _validateInitialFeeRate(hook, params.initialFeeRate);
+        LibProtocolPools.enforcePoolCreationAllowed(msg.sender);
+        bool overrideInitialFeeRate = _validateInitialFeeRate(_feePolicy(ls), params.initialFeeRate);
         _registerAndInitialize(ls, hook, params, quote, overrideInitialFeeRate);
     }
 
@@ -140,6 +147,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         emit IStaticsProtocolPools.PoolCreationNonceInvalidated(msg.sender, nonce);
     }
 
+    /// @notice Reserves a public-pool creation authorization until a later block.
     function _quote(IStaticsProtocolPools.CreatePoolParams calldata params)
         private
         view
@@ -152,14 +160,18 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (!LibProtocolPoolFee.isValidTickSpacing(params.tickSpacing)) revert InvalidTickSpacing(params.tickSpacing);
         if (!LibProtocolPoolFee.isValidStaticLpFee(params.lpFee)) revert InvalidNativeLpFee(params.lpFee);
         if (params.creator == address(0)) revert InvalidCreator(params.creator);
-        _validateInitialFeeRate(IStaticsSwapFeeHook(ls.hook), params.initialFeeRate);
+        _validateInitialFeeRate(_feePolicy(ls), params.initialFeeRate);
         quote.sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
         quote.key = PoolKey({
             currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
             currency1: params.tokenA < params.tokenB ? Currency.wrap(params.tokenB) : Currency.wrap(params.tokenA),
             fee: params.lpFee,
             tickSpacing: params.tickSpacing,
-            hooks: IHooks(ls.hook)
+            hooks: IHooks(
+                LibPublicHookPolicy.policyStorage().initialized
+                    ? LibPublicHookPolicy.policyStorage().generalHook
+                    : ls.hook
+            )
         });
         quote.poolId = quote.key.toId();
         LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
@@ -247,6 +259,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     }
 
     function _validateToken(address token) private view {
+        if (LibRestrictedBasket.isRestricted(token)) revert RestrictedBasketRequiresBasketHook(token);
         if (token != address(0) && token.code.length == 0) revert InvalidToken(token);
     }
 
@@ -272,6 +285,12 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_LIQUIDITY != 0) {
             revert ActionPaused(LibGovernance.PAUSE_LIQUIDITY);
         }
+    }
+
+    function _feePolicy(LibBasketLiquidity.LiquidityStorage storage ls) private view returns (IStaticsSwapFeeHook) {
+        return IStaticsSwapFeeHook(
+            LibPublicHookPolicy.policyStorage().initialized ? LibPublicHookPolicy.policyStorage().generalHook : ls.hook
+        );
     }
 
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {

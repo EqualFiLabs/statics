@@ -26,6 +26,7 @@ import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibPublicHookPolicy} from "../libraries/LibPublicHookPolicy.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
@@ -61,7 +62,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     function setProtocolPoolFeeRate(PoolId poolId, IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate) external {
         LibDiamond.enforceIsContractOwner();
         _enforcePublicProtocolPool(poolId);
-        IStaticsSwapFeeHook(_liquidityStorage().hook)
+        IStaticsSwapFeeHook(LibProtocolPools.publicHook(poolId))
             .setPoolFeeRate(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateSet(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
     }
@@ -69,7 +70,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     function clearProtocolPoolFeeRate(PoolId poolId) external {
         LibDiamond.enforceIsContractOwner();
         _enforcePublicProtocolPool(poolId);
-        IStaticsSwapFeeHook(_liquidityStorage().hook).clearPoolFeeRate(poolId);
+        IStaticsSwapFeeHook(LibProtocolPools.publicHook(poolId)).clearPoolFeeRate(poolId);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateCleared(poolId);
     }
 
@@ -107,11 +108,71 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         );
     }
 
+    event HookDefaultFeeRateSet(address indexed hook, uint16 inputFeePips, uint16 outputFeePips);
+    event HookBasketFeeAllocationSet(
+        address indexed hook,
+        uint16 polShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
+        uint16 treasuryShareBps
+    );
+    event HookGeneralFeeAllocationSet(
+        address indexed hook, uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
+    );
+
+    function setDefaultProtocolPoolFeeRate(address hook, IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate)
+        external
+    {
+        LibDiamond.enforceIsContractOwner();
+        LibPublicHookPolicy.enforceConfigured(hook);
+        IStaticsSwapFeeHook(hook).setDefaultFeeRate(feeRate.inputFeePips, feeRate.outputFeePips);
+        emit HookDefaultFeeRateSet(hook, feeRate.inputFeePips, feeRate.outputFeePips);
+    }
+
+    function setBasketFeeAllocation(address hook, IStaticsProtocolPools.BasketFeeAllocation calldata allocation)
+        external
+    {
+        LibDiamond.enforceIsContractOwner();
+        LibPublicHookPolicy.enforceAllocation(hook, true);
+        IStaticsSwapFeeHook(hook)
+            .setBasketFeeAllocation(
+                IStaticsSwapFeeHook.BasketFeeAllocation(
+                    allocation.polShareBps,
+                    allocation.basketStakerShareBps,
+                    allocation.staticsStakerShareBps,
+                    allocation.treasuryShareBps
+                )
+            );
+        emit HookBasketFeeAllocationSet(
+            hook,
+            allocation.polShareBps,
+            allocation.basketStakerShareBps,
+            allocation.staticsStakerShareBps,
+            allocation.treasuryShareBps
+        );
+    }
+
+    function setGeneralFeeAllocation(address hook, IStaticsProtocolPools.GeneralFeeAllocation calldata allocation)
+        external
+    {
+        LibDiamond.enforceIsContractOwner();
+        LibPublicHookPolicy.enforceAllocation(hook, false);
+        IStaticsSwapFeeHook(hook)
+            .setGeneralFeeAllocation(
+                IStaticsSwapFeeHook.GeneralFeeAllocation(
+                    allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
+                )
+            );
+        emit HookGeneralFeeAllocationSet(
+            hook, allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
+        );
+    }
+
     function beginGeneralPoolDecommission(PoolId poolId) external nonReentrant {
         LibDiamond.enforceIsContractOwner();
         LibProtocolPools.GeneralPool storage stored = LibProtocolPools.generalPool(poolId);
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(stored.key.hooks));
         if (hook.poolDecommissioned(poolId)) revert PoolAlreadyDecommissioned(poolId);
         _stopRangeGauge(ls, stored.key, poolId);
         hook.decommissionPool(stored.key);
@@ -126,7 +187,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         LibDiamond.enforceIsContractOwner();
         LibProtocolPools.GeneralPool storage stored = LibProtocolPools.generalPool(poolId);
         LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(stored.key.hooks));
         if (!hook.poolDecommissioned(poolId)) revert PoolNotDecommissioned(poolId);
         if (ps.polDecommissionFinalized[poolId]) revert PoolDecommissionAlreadyFinalized(poolId);
         uint256 activePositions = ps.activePolPositionCount[poolId];

@@ -67,6 +67,7 @@ contract RobinhoodMorphoIntegrationTest is StaticsTestBase {
         marketId = keccak256(abi.encode(marketParams));
         realMorpho.createMarket(marketParams);
         morphoApi.initializeMorphoIntegration(address(realMorpho), address(usdStx), 500);
+        basketAdmin.setBasketDistributor(address(realMorpho), true);
         morphoApi.registerMorphoMarket(
             marketParams, IStaticsMorpho.CollateralKind.Basket, basketId, IStaticsMorpho.MarketMode.Active
         );

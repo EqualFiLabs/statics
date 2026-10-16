@@ -3,12 +3,14 @@ pragma solidity 0.8.33;
 
 import {Vm} from "forge-std/Vm.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
@@ -28,7 +30,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         super.setUp();
         GaugeIncentiveFacet actions = new GaugeIncentiveFacet();
         GaugeIncentiveViewFacet views = new GaugeIncentiveViewFacet();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](2);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(actions),
             action: IDiamondCut.FacetCutAction.Add,
@@ -39,6 +41,11 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _incentiveViewSelectors()
         });
+        cut[2] = IDiamondCut.FacetCut(
+            address(new GaugeAllocatorRewardFacet()),
+            IDiamondCut.FacetCutAction.Add,
+            StaticsSelectors.gaugeAllocatorRewards()
+        );
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         incentives = IStaticsGaugeIncentives(address(diamond));
     }
@@ -1042,15 +1049,13 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
     }
 
     function _incentiveActionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](6);
         selectors[0] = GaugeIncentiveFacet.fundGaugeReserve.selector;
         selectors[1] = GaugeIncentiveFacet.activateGaugeSchedule.selector;
         selectors[2] = GaugeIncentiveFacet.setGaugeAllocations.selector;
         selectors[3] = GaugeIncentiveFacet.checkpointGaugeSchedule.selector;
         selectors[4] = GaugeIncentiveFacet.scheduleGaugeReleaseBps.selector;
         selectors[5] = GaugeIncentiveFacet.setGaugeAllocationCooldown.selector;
-        selectors[6] = GaugeIncentiveFacet.claimGaugeAllocatorRewards.selector;
-        selectors[7] = GaugeIncentiveFacet.forfeitGaugeAllocatorReward.selector;
     }
 
     function _incentiveViewSelectors() private pure returns (bytes4[] memory selectors) {

@@ -11,6 +11,8 @@ optimizer_runs = 200
 bytecode_hash = "none"
 fs_permissions = [
     { access = "read-write", path = "./artifacts/diamond-manifests" },
+    { access = "read-write", path = "./artifacts/public-hook-release" },
+    { access = "read-write", path = "./artifacts/phase-two-rehearsal" },
     { access = "read-write", path = "./artifacts/genesis-launch" },
     { access = "read-write", path = "./artifacts/genesis-testnet" },
     { access = "read-write", path = "./artifacts/launch-liquidity" },
@@ -24,10 +26,18 @@ fs_permissions = [
 ]
 
 additional_compiler_profiles = [
+    # Public-hook release roots and their importers retain full Solidity source metadata.
+    { name = "verified-public-hooks", bytecode_hash = "Ipfs", optimizer_runs = 200 },
     { name = "uniswap-position-manager", via_ir = true, optimizer_runs = 200 },
 ]
 
 compilation_restrictions = [
+    # Include metadata in deployed contracts and factory-embedded constructor bytecode.
+    { paths = "src/liquidity/StaticsGeneralPoolHook.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/liquidity/StaticsBasketHook.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/liquidity/StaticsBasketTokenFactory.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/tokens/StaticsRestrictedBasketToken.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+
     # Upstream PositionManager fails legacy codegen; scoped IR with the repository optimizer setting preserves headroom.
     { paths = "lib/v4-periphery/src/PositionManager.sol", version = "=0.8.26", via_ir = true, optimizer_runs = 200 },
     # Nested third-party permit2 contracts fail legacy codegen; interfaces stay no-IR so

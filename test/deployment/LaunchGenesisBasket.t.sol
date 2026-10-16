@@ -6,6 +6,8 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {Test} from "forge-std/Test.sol";
 
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
@@ -18,6 +20,12 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {CanonicalWETH9} from "../../src/dollar/mocks/CanonicalWETH9.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
+import {StaticsGeneralPoolHook} from "../../src/liquidity/StaticsGeneralPoolHook.sol";
+import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 
 contract LaunchGenesisBasketBatchTest is Test {
     function testBatchApprovesEveryAssetBeforeTypedBasketCreation() public {
@@ -148,7 +156,11 @@ contract LaunchGenesisBasketBatchTest is Test {
     }
 }
 
-contract LaunchGenesisBasketIntegrationTest is Test {
+contract LaunchGenesisBasketIntegrationTest is BasketFactoryTestTools {
+    uint160 private constant PUBLIC_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+        | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
     LaunchGenesisBasket private ceremony;
     StaticsTimelock private timelock;
     StaticsDollarStackDeployment private deployment;
@@ -169,6 +181,36 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         DeployStatics.V4Config memory v4 = _v4Config();
         (deployment, timelock) = deployer.deployWithLiquidity(config, v4);
         _installLiquidity(v4);
+        StaticsBasketTokenFactory factory = _deployTestBasketFactory(
+            deployment.diamond, IPoolManager(v4.poolManager), IStaticsSwapFeeHook(deployment.swapFeeHook)
+        );
+        address weth = IStaticsSwapFeeHook(deployment.swapFeeHook).weth();
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(v4.poolManager), deployment.diamond, uint16(25), uint16(25), weth);
+        (address expected, bytes32 hookSalt) =
+            HookMiner.find(address(this), PUBLIC_HOOK_FLAGS, type(StaticsBasketHook).creationCode, constructorArgs);
+        StaticsBasketHook publicHook =
+            new StaticsBasketHook{salt: hookSalt}(IPoolManager(v4.poolManager), deployment.diamond, 25, 25, weth);
+        assertEq(address(publicHook), expected);
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory payloads = new bytes[](1);
+        targets[0] = deployment.diamond;
+        payloads[0] = abi.encodeCall(
+            PublicHookPolicyFacet.installPublicHooks,
+            (
+                _deployStandaloneGeneral(IPoolManager(v4.poolManager), deployment.diamond, weth),
+                address(publicHook),
+                address(factory)
+            )
+        );
+        bytes32 salt = keccak256("install restricted basket factory before genesis");
+        uint256 delay = timelock.getMinDelay();
+        vm.prank(address(ceremony));
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
+        vm.warp(block.timestamp + delay);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
+        _ensureTestBasketSalts(factory, 2);
     }
 
     function testTimelockFundsAndLaunchesAllGenesisPoolsInOneBatch() public {
@@ -282,10 +324,10 @@ contract LaunchGenesisBasketIntegrationTest is Test {
     function _assertLaunchedPool(address basketToken, address asset) private view {
         IStaticsBasketLiquidity liquidity = IStaticsBasketLiquidity(deployment.diamond);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = liquidity.canonicalPool(0, asset);
-        (, address hook,) = liquidity.liquidityIntegration();
         assertEq(pool.basketToken, basketToken);
         assertEq(pool.asset, asset);
-        assertEq(pool.hook, hook);
+        assertNotEq(pool.hook, deployment.swapFeeHook);
+        assertEq(address(IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId).key.hooks), pool.hook);
         IStaticsProtocolPools.ProtocolPoolView memory protocolPool =
             IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId);
         assertEq(uint256(protocolPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical));
@@ -321,5 +363,16 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             positionManagerCodeHash: address(positionManager).codehash,
             permit2CodeHash: address(permit2Contract).codehash
         });
+    }
+
+    function _deployStandaloneGeneral(IPoolManager manager_, address diamond_, address weth_)
+        private
+        returns (address result)
+    {
+        bytes memory args_ = abi.encode(manager_, diamond_, uint16(25), uint16(25), weth_);
+        (address predicted_, bytes32 salt_) =
+            HookMiner.find(address(this), 0x10ec, type(StaticsGeneralPoolHook).creationCode, args_);
+        result = address(new StaticsGeneralPoolHook{salt: salt_}(manager_, diamond_, 25, 25, weth_));
+        assertEq(result, predicted_);
     }
 }

@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -124,6 +125,7 @@ contract RangeGaugeRegistryTest is RangeGaugeFeatureTestBase {
     }
 
     function testBasketCreatorControlsCanonicalPoolRewardSlots() public {
+        IStaticsProtocolPools(address(diamond)).setPoolCreationFee(1 wei);
         (uint256 basketId,) = _createDefaultBasket(0, 0);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, address(assetA));
         MockERC20 reward = new MockERC20("Basket Reward", "BRWD", 18);

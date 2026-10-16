@@ -33,6 +33,24 @@ library LibBasketMint {
         address receiver,
         uint256[] memory maxAmountsIn
     ) internal returns (uint256[] memory amountsIn) {
+        return _mintFromPayer(basketId, shares, payer, receiver, maxAmountsIn, false);
+    }
+
+    function mintLaunchFromPayer(uint256 basketId, uint256 shares, address payer, uint256[] memory maximums)
+        internal
+        returns (uint256[] memory)
+    {
+        return _mintFromPayer(basketId, shares, payer, address(this), maximums, true);
+    }
+
+    function _mintFromPayer(
+        uint256 basketId,
+        uint256 shares,
+        address payer,
+        address receiver,
+        uint256[] memory maxAmountsIn,
+        bool launch
+    ) private returns (uint256[] memory amountsIn) {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_MINT != 0) {
             revert ActionPaused(LibGovernance.PAUSE_MINT);
         }
@@ -40,7 +58,9 @@ library LibBasketMint {
         if (receiver == address(0)) revert InvalidReceiver();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = basket(bs, basketId);
-        LibBasket.enforceActive(configured, basketId);
+        if (!launch || configured.status != IStaticsBasket.BasketStatus.Pending) {
+            LibBasket.enforceActive(configured, basketId);
+        }
         uint256 length = configured.assets.length;
         if (maxAmountsIn.length != length) revert InvalidAmountsLength();
         uint256 supply = IERC20(configured.token).totalSupply();

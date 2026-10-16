@@ -461,7 +461,10 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
-        PoolId publicPoolId = protocolPools.createPool(publicParams, "");
+        uint256 publicFee = protocolPools.poolCreationFee();
+        vm.deal(creator, creator.balance + publicFee);
+        vm.prank(creator);
+        PoolId publicPoolId = protocolPools.createPool{value: publicFee}(publicParams, "");
         (PoolId permissionedPoolId, PoolKey memory permissionedKey,) = _createDefaultPool(tokenA, tokenB, 3_000, 100);
 
         IStaticsProtocolPools.ProtocolPoolView memory publicPool = protocolPools.protocolPool(publicPoolId);

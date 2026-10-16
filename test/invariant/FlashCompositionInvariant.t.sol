@@ -434,8 +434,10 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
             })
         );
         address compositionReceiver = address(handler.receiver());
+        uint256[] memory receiverBacking = baskets.quoteMint(firstBasketId, 100 ether);
+        _fundAndApprove(alice, receiverBacking[0], receiverBacking[1]);
         vm.prank(alice);
-        IERC20(firstBasketToken).transfer(compositionReceiver, 100 ether);
+        baskets.mint(firstBasketId, 100 ether, compositionReceiver, receiverBacking);
         handler.successfulV4Redeem(0.05 ether);
         assertTrue(handler.v4SuccessObserved());
         targetContract(address(handler));

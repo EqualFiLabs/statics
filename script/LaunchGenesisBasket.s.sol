@@ -186,7 +186,7 @@ contract LaunchGenesisBasket is Script {
                 || launched.assets.length != config.basket.assets.length
         ) revert GenesisLaunchFailed(basketId);
 
-        (, address hook, bool integrationInstalled) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
+        (,, bool integrationInstalled) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
         (, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         if (!integrationInstalled || !managerInstalled) revert GenesisLaunchFailed(basketId);
 
@@ -200,7 +200,8 @@ contract LaunchGenesisBasket is Script {
             if (
                 launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i]
                     || baskets.vaultBalance(basketId, asset) == 0 || pool.asset != asset
-                    || pool.basketToken != launched.token || pool.hook != hook || protocolPool.activePolPositions == 0
+                    || pool.basketToken != launched.token || pool.hook.code.length == 0
+                    || address(protocolPool.key.hooks) != pool.hook || protocolPool.activePolPositions == 0
                     || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
                     || protocolPool.basketId != basketId || protocolPool.basketAsset != asset
                     || protocolPool.decommissioned

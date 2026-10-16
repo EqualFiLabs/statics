@@ -46,6 +46,7 @@ interface IStaticsBasketLiquidity {
         external;
     function installLiquidityManager(address manager) external;
     function unwindBasketLiquidity(uint256 basketId, address asset) external;
+    function unwindBasketMarket(PoolId poolId) external;
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed);
     function permissionedLiquidityIntegration()

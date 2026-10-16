@@ -19,6 +19,7 @@ import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibLiquidityStatement} from "../libraries/LibLiquidityStatement.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 /// @notice PNFT-authorized mutation of existing managed public Uniswap v4 positions.
 contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
@@ -47,6 +48,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             IStaticsRangeGauge.LiquidityStatementMovement memory statement
         ) = _increasePosition(positionId, leg, key, params);
         uint128 expectedLiquidity = leg.liquidity + params.liquidity;
+        LibBasketManagerSettlement.end();
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _replaceRange(poolId, key.tickSpacing, leg, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _enforceInputDebits(balances, msg.sender, params.amount0Maximum, params.amount1Maximum);
@@ -66,6 +68,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             IStaticsRangeGauge.LiquidityStatementMovement memory statement
         )
     {
+        LibBasketManagerSettlement.begin(key, leg.manager, IERC721(address(this)).ownerOf(positionId));
         FundingAmounts memory funding =
             _fundManager(key, msg.sender, leg.manager, params.amount0Maximum, params.amount1Maximum);
         IStaticsLiquidityManager.ManagedLiquidityRequest memory request = _managerRequest(
@@ -93,6 +96,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         }
         _synchronizeAndSettle(poolId, key, leg);
         address receiver = IERC721(address(this)).ownerOf(positionId);
+        LibBasketManagerSettlement.begin(key, leg.manager, receiver);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(leg.manager)
             .decreaseManagedPosition(
                 _managerRequest(
@@ -105,6 +109,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
                 )
             );
         uint128 expectedLiquidity = leg.liquidity - params.liquidity;
+        LibBasketManagerSettlement.end();
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _replaceRange(poolId, key.tickSpacing, leg, leg.tickLower, leg.tickUpper, expectedLiquidity);
         movement = _outputMovement(managed);
@@ -121,14 +126,16 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         uint256 deadline
     ) external nonReentrant returns (IStaticsRangeGauge.LiquidityMovement memory movement) {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        _enforcePublicGauge(poolId, false);
+        PoolKey memory key = _enforcePublicGauge(poolId, false);
         LibRangeGauge.LpLeg storage leg = _leg(positionId, poolId);
         address receiver = IERC721(address(this)).ownerOf(positionId);
+        LibBasketManagerSettlement.begin(key, leg.manager, receiver);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(leg.manager)
             .collectManagedPositionFees(
                 _managerRequest(leg.posmTokenId, 0, amount0Minimum, amount1Minimum, deadline, receiver)
             );
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, leg.liquidity);
+        LibBasketManagerSettlement.end();
         movement = _outputMovement(managed);
         emit IStaticsRangeGauge.ManagedLiquidityFeesCollected(
             positionId, poolId, leg.posmTokenId, receiver, managed.received0, managed.received1
@@ -172,6 +179,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
     ) private returns (RebalanceResult memory result) {
         LibCurrency.enforceValue(Currency.unwrap(key.currency0), params.amount0Maximum);
         result.oldPosmTokenId = leg.posmTokenId;
+        LibBasketManagerSettlement.begin(key, leg.manager, address(this));
         if (key.currency0.isAddressZero()) LibNativeReceipt.expect(leg.manager);
         IStaticsLiquidityManager.ManagedPositionMovement memory exited = IStaticsLiquidityManager(leg.manager)
             .exitManagedPosition(
@@ -186,6 +194,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             );
         LibNativeReceipt.clear();
         LibRangeGauge.unbindPosm(result.oldPosmTokenId, positionId, poolId);
+        LibBasketManagerSettlement.end();
 
         FundingAmounts memory funding;
         funding = _mintReplacement(positionId, poolId, key, params, exited, result);
@@ -229,6 +238,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         RebalanceResult memory result
     ) private returns (FundingAmounts memory funding) {
         result.newManager = _activeManager();
+        LibBasketManagerSettlement.begin(key, result.newManager, IERC721(address(this)).ownerOf(positionId));
         funding = _fundRebalance(
             key,
             msg.sender,
@@ -256,5 +266,6 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         result.state = _verifiedState(
             result.newManager, result.minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity
         );
+        LibBasketManagerSettlement.end();
     }
 }

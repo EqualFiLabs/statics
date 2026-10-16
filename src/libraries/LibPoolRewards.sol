@@ -3,12 +3,16 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IStaticsBasketHook} from "../interfaces/IStaticsBasketHook.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "./LibBasketLiquidity.sol";
 import {LibCurrency} from "./LibCurrency.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibNativeReceipt} from "./LibNativeReceipt.sol";
+import {LibPublicHookPolicy} from "./LibPublicHookPolicy.sol";
+import {LibSwapRewardSources} from "./LibSwapRewardSources.sol";
 
 interface IPoolRewardWeth {
     function deposit() external payable;
@@ -51,7 +55,7 @@ library LibPoolRewards {
         address source = Currency.unwrap(currency);
         uint256 beforeBalance = LibCurrency.balance(source, address(this));
         if (source == address(0)) LibNativeReceipt.expect(ls.poolManager);
-        distribution = IStaticsSwapFeeHook(ls.hook).settleFeeDistribution(key, currency, address(this));
+        distribution = IStaticsSwapFeeHook(address(key.hooks)).settleFeeDistribution(key, currency, address(this));
         LibNativeReceipt.clear();
         uint256 amount =
             distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
@@ -65,6 +69,12 @@ library LibPoolRewards {
         uint256 tokenAmount = amount;
         if (asset == hook.weth()) {
             uint256 pending = hook.pendingStakerRewards(Currency.wrap(asset));
+            // Post-upgrade WETH claims on this same legacy hook belong to the
+            // source queue. Only its untracked remainder can fund old ETH/WETH
+            // liabilities; redeeming tracked WETH here would strand that queue.
+            LibSwapRewardSources.SourceQueue storage queue = LibSwapRewardSources.sourceStorage().sources[asset];
+            bytes32 hookCurrency = LibSwapRewardSources.hookCurrencyId(address(hook), asset);
+            pending -= queue.pending[hookCurrency] + queue.pendingByHookCurrency[hookCurrency];
             if (tokenAmount > pending) tokenAmount = pending;
         }
         if (tokenAmount != 0) _redeemStaker(hook, asset, tokenAmount);
@@ -73,6 +83,25 @@ library LibPoolRewards {
             _redeemStaker(hook, address(0), nativeAmount);
             materialize(address(0), nativeAmount);
         }
+    }
+
+    /// @notice Redeem the original currency from its authenticated originating hook.
+    function settleSource(address hook, PoolId poolId, address source, uint256 amount) internal {
+        if (hook == LibPublicHookPolicy.policyStorage().basketHook) {
+            _redeemStakerForPool(IStaticsBasketHook(hook), poolId, source, amount);
+        } else {
+            _redeemStaker(IStaticsSwapFeeHook(hook), source, amount);
+        }
+        materialize(source, amount);
+    }
+
+    function _redeemStakerForPool(IStaticsBasketHook hook, PoolId poolId, address source, uint256 amount) private {
+        uint256 beforeBalance = LibCurrency.balance(source, address(this));
+        if (source == address(0)) LibNativeReceipt.expect(LibBasketLiquidity.liquidityStorage().poolManager);
+        uint256 settled = hook.settleStakerRewardsForPool(poolId, Currency.wrap(source), address(this), amount);
+        LibNativeReceipt.clear();
+        if (settled != amount) revert IncompatibleRewardReceipt(source, amount, settled);
+        enforceReceipt(source, beforeBalance, amount);
     }
 
     function _redeemStaker(IStaticsSwapFeeHook hook, address source, uint256 amount) private {

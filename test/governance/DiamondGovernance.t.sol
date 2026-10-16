@@ -20,19 +20,25 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsGeneralPoolHook} from "../../src/liquidity/StaticsGeneralPoolHook.sol";
+import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -40,7 +46,7 @@ contract VersionFacet {
     }
 }
 
-contract DiamondGovernanceTest is Test {
+contract DiamondGovernanceTest is BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -59,6 +65,7 @@ contract DiamondGovernanceTest is Test {
 
     StaticsDiamond internal diamond;
     StaticsTimelock internal timelock;
+    StaticsBasketTokenFactory internal basketFactory;
 
     function setUp() public {
         DeployStatics deployer = new DeployStatics();
@@ -81,7 +88,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 54);
+        assertEq(loupe.facetAddresses().length, 61);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -433,6 +440,10 @@ contract DiamondGovernanceTest is Test {
     }
 
     function _createBasket() private returns (uint256 basketId) {
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsProtocolPools.setPoolCreationFee, (1 ether)), "enable public pool creation"
+        );
+        _ensureTestBasketSalts(basketFactory, 1);
         address[] memory assets = new address[](1);
         MockERC20 constituent = new MockERC20("Constituent", "C", 18);
         assets[0] = address(constituent);
@@ -499,11 +510,46 @@ contract DiamondGovernanceTest is Test {
             abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (address(manager))),
             "install basket liquidity manager"
         );
+        basketFactory = _deployTestBasketFactory(address(diamond), poolManager, hook);
+        StaticsBasketHook publicHook = _deploySharedPublicHook(poolManager);
+        _executeThroughTimelock(
+            abi.encodeCall(
+                PublicHookPolicyFacet.installPublicHooks,
+                (
+                    _deployStandaloneGeneral(poolManager, address(diamond), address(1)),
+                    address(publicHook),
+                    address(basketFactory)
+                )
+            ),
+            "install shared public hook architecture"
+        );
+        _ensureTestBasketSalts(basketFactory, 1);
+    }
+
+    function _deploySharedPublicHook(IPoolManager poolManager) private returns (StaticsBasketHook publicHook) {
+        uint160 publicFlags = REQUIRED_HOOK_FLAGS | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
+            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
+        bytes memory publicArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25), address(1));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), publicFlags, type(StaticsBasketHook).creationCode, publicArgs);
+        publicHook = new StaticsBasketHook{salt: salt}(poolManager, address(diamond), 25, 25, address(1));
+        assertEq(address(publicHook), expected);
     }
 
     function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {
         return IDiamondCut.FacetCut({
             facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
+    }
+
+    function _deployStandaloneGeneral(IPoolManager manager_, address diamond_, address weth_)
+        private
+        returns (address result)
+    {
+        bytes memory args_ = abi.encode(manager_, diamond_, uint16(25), uint16(25), weth_);
+        (address predicted_, bytes32 salt_) =
+            HookMiner.find(address(this), 0x10ec, type(StaticsGeneralPoolHook).creationCode, args_);
+        result = address(new StaticsGeneralPoolHook{salt: salt_}(manager_, diamond_, 25, 25, weth_));
+        assertEq(result, predicted_);
     }
 }

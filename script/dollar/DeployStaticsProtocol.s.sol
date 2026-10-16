@@ -6,14 +6,21 @@ import {DiamondLoupeFacet} from "../../src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../../src/facets/BasketArbitrageDeploymentFacet.sol";
+import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
 import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
 import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
+import {SwapRewardFundingFacet} from "../../src/facets/SwapRewardFundingFacet.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
@@ -160,6 +167,10 @@ abstract contract DeployStaticsProtocol {
     {
         parts.positionPortfolio = address(new PositionPortfolioFacet());
         parts.basketCreation = address(new BasketCreationFacet());
+        parts.basketPreparation = address(new BasketPreparationFacet());
+        parts.basketSettlement = address(new BasketSettlementFacet());
+        parts.basketMarkets = address(new BasketMarketCreationFacet());
+        parts.basketArbitrageDeployment = address(new BasketArbitrageDeploymentFacet());
         parts.basketMint = address(new BasketMintFacet());
         parts.basketRedemption = address(new BasketRedemptionFacet());
         parts.basketView = address(new BasketViewFacet());
@@ -206,6 +217,8 @@ abstract contract DeployStaticsProtocol {
         parts.positionMarket = address(new PositionMarketFacet());
         parts.custody = address(new CustodyFacet());
         parts.globalRewards = address(new GlobalRewardsFacet());
+        parts.swapRewardFunding = address(new SwapRewardFundingFacet());
+        parts.publicHookPolicy = address(new PublicHookPolicyFacet());
         parts.batchRewards = address(new BatchRewardsFacet());
         parts.basketAdmin = address(new BasketAdminFacet());
         parts.basketLiquidity = address(new BasketLiquidityFacet());
@@ -229,6 +242,7 @@ abstract contract DeployStaticsProtocol {
         parts.marketTapeViews = address(new MarketTapeViewFacet());
         parts.marketTapeObservations = address(new MarketTapeObservationFacet());
         parts.gaugeIncentiveActions = address(new GaugeIncentiveFacet());
+        parts.gaugeAllocatorRewards = address(new GaugeAllocatorRewardFacet());
         parts.gaugeIncentiveViews = address(new GaugeIncentiveViewFacet());
     }
 
