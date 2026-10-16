@@ -110,3 +110,106 @@ Pinning the Phase 1 mainnet guardian to the Genesis governance Safe moves four
 reviewed deployment-script fingerprints because their source spans shift. The
 detectors, subjects, classifications, rationales, and 886-finding total are
 unchanged.
+
+## Immutable public hooks and restricted baskets
+
+The [PR #139 CI artifact](https://github.com/EqualFiLabs/statics/actions/runs/38759691949)
+at `1dbb08d9be2607069a45f4d4cbd139d50c79778c` covers 286 production files
+and retains the existing 17 explicit exclusions. It contains 992 normalized
+findings: 69 high, 437 medium, 288 low, and 198 informational. Compared with the
+previous baseline, 378 fingerprints are new and 272 are absent. These include
+source-span changes and findings in the new hook, factory, settlement, and
+deployment paths.
+
+Each new fingerprint has an individual source-reviewed decision and rationale
+in `baseline.json`. The review checks authenticated callers and shared locks
+around token callbacks, exact balance deltas and fresh manager state reads,
+zero-initialized accumulators, intentionally unused tuple fields and side-effect
+returns, and bounded or caller-sized loops. Existing reviewed decisions remain
+attached to matching fingerprints. No detector suppression or scope exclusion
+is added. Exact-fingerprint, occurrence-growth, and unresolved-finding gates
+remain unchanged.
+
+This artifact reports an analyzer coverage limitation: Slither cannot generate
+IR for seven unchanged `LibGlobalRewards` helpers (`_increasePending`,
+`_rollMatured`, `_matureBucket`, `_duePendingStake`, `_duePendingWeight`,
+`_needsCheckpoint`, and `_eligibleAt`). The per-finding decisions cover the
+reported results; a passing baseline does not establish analyzer coverage of
+those helpers. Source review, executable tests, and formal checks remain
+separate evidence.
+
+
+## Shared basket distributor permissions
+
+The [distributor-enabled CI artifact](https://github.com/EqualFiLabs/statics/actions/runs/38790538662)
+at `4be0a9e2fe965c25975a35cb2e374ba0d4f3eb9c` covers the same 286 production
+files and 17 explicit exclusions. It contains 989 normalized findings: 69 high,
+437 medium, 286 low, and 197 informational. All 35 new fingerprints map to
+previously reviewed subjects after source-span and call-graph changes. Each
+receives an individual decision in `baseline.json` after source review.
+
+The four high findings retain authenticated callers, the shared reentrancy
+guard, fresh post-call balance measurements, and exact receipt checks. The
+three medium findings intentionally discard a state-synchronization result
+or exact-assets Morpho supply return values that do not feed custody
+accounting. Restricted protocol-transfer authorization targets only registered
+factory-created basket tokens and writes an exact transient ticket without an
+external callback; distributor lookup is read-only and introduces no payout
+callback. Low event reports retain the relevant guarded or atomic settlement
+boundaries. Deployment-script events deliberately follow checked timelock
+scheduling rather than relying on a script reentrancy guard.
+
+Three findings disappear with the removed token-specific Morpho binding:
+its interface-parameter shadow, a market-registration event report, and the
+registration complexity warning. Three unchanged low PositionNFT event
+fingerprints have two duplicate compile-unit reports instead of one; the
+source occurrence and caller authority are unchanged. Their individual
+rationales describe fresh-ID allocation, initialization, ERC-721 callbacks,
+and checked creation-fee forwarding.
+
+No high or medium occurrence group grows. No detector suppression, scope
+exclusion, or gate change is added. The seven `LibGlobalRewards` IR-generation
+limitations recorded above remain present in this artifact.
+
+## Standalone modular hooks candidate `7ca2796`
+
+Slither 0.11.6 analyzes the remediated source with the repository Slither
+profile, Solidity 0.8.33, optimization 200, and no global IR. The fresh result
+contains 1,038 stable fingerprints: 70 high, 470 medium, 292 low, and 206
+informational. No detector family is suppressed, and the new, expanded, and
+unresolved gates remain enabled.
+
+The focused Solidity audit reported three supported findings: a pending-basket
+liquidity authorization that trusted the PositionManager without authenticating
+its active locker, flash access to pending restricted baskets, and a sender-fee
+token path whose actual payer debit could exceed the mint maximum. Candidate
+`7ca2796` authenticates both the configured PositionManager and its Statics
+liquidity-manager locker, requires active restricted baskets for flash paths,
+and measures the payer balance around each custody pull. Regression tests cover
+each case and the audit remediation review found no remaining supported issue in
+those paths.
+
+The payer-debit measurement adds one `reentrancy-balance` fingerprint. The
+balance reads deliberately bracket the custody pull; all reachable mint paths
+are protected by the Diamond-wide reentrancy guard, with the launch helper
+restricted to Diamond-self calls inside guarded finalization. A failed debit
+cap rolls back the transfer and reservation atomically. Six other fingerprints
+move only because the remediation changes source spans; their detector, subject,
+classification, and rationale remain unchanged. The baseline contains an
+individual decision for every current fingerprint.
+
+The audit also retained one design lead: basket full-range arithmetic uses the
+configured fixed tick spacing. This behavior predates the candidate and the
+review did not establish an exploit or loss. The reviewed POL-operator finding
+remains an explicitly governed strategy risk because only the configured
+operator or owner can initiate the operation; there is no unprivileged trigger.
+
+Coverage limitation: Slither cannot generate complete IR for the seven existing
+`LibGlobalRewards` maturity and checkpoint helpers recorded in `run.log`.
+Focused runtime reward tests supplement this limitation; this run is not a
+formal proof. Symbolic proofs remain assigned to CI or the dedicated formal
+verification environment.
+
+Raw result SHA-256: `abeaf152b9325ae09796f1d4f27a914d6fe77fd6611b6af98ad6520db2c3ce62`.
+Local raw and normalized outputs remain in ignored Slither-results storage.
+Historical review sections above describe their own snapshots and are retained.

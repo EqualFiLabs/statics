@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SLITHER_BIN="${SLITHER_BIN:-slither}"
 RESULTS_DIR="${SLITHER_RESULTS_DIR:-$ROOT/slither-results}"
 RAW_JSON="$RESULTS_DIR/raw.json"
+RAW_JSON_TMP="$RESULTS_DIR/raw.json.tmp"
 CURRENT_JSON="$RESULTS_DIR/current.json"
 SCOPE_REPORT="$RESULTS_DIR/scope.json"
 RUN_LOG="$RESULTS_DIR/run.log"
@@ -34,20 +35,32 @@ if [[ -n "${FOUNDRY_OUT:-}" ]]; then
   slither_build_args+=(--foundry-out-directory "$FOUNDRY_OUT")
 fi
 set +e
+rm -f "$RAW_JSON_TMP"
 "$SLITHER_BIN" . \
   --compile-force-framework foundry \
   --foundry-ignore-compile \
   "${slither_build_args[@]}" \
   --exclude-dependencies \
-  --json "$RAW_JSON" \
+  --json "$RAW_JSON_TMP" \
   >"$RUN_LOG" 2>&1
 slither_status=$?
 set -e
 
-if [[ ! -s "$RAW_JSON" ]]; then
+if [[ ! -s "$RAW_JSON_TMP" ]]; then
   printf 'Slither produced no JSON (exit %s). See %s\n' "$slither_status" "$RUN_LOG" >&2
   exit 1
 fi
+
+python3 - "$RAW_JSON_TMP" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if result.get("success") is not True:
+    raise SystemExit("Slither JSON reports an unsuccessful analysis")
+PY
+mv "$RAW_JSON_TMP" "$RAW_JSON"
 
 python3 "$ROOT/scripts/slither_baseline.py" check \
   --raw "$RAW_JSON" \

@@ -308,14 +308,20 @@ def command_scope(args: argparse.Namespace) -> int:
 
 
 def command_normalize(args: argparse.Namespace) -> int:
-    normalized = normalize(load_json(args.raw))
+    raw = load_json(args.raw)
+    if raw.get("success") is not True:
+        raise ValueError("Slither JSON reports an unsuccessful analysis")
+    normalized = normalize(raw)
     write_json(normalized, args.output)
     print(f"normalized {len(normalized['findings'])} in-scope findings to {args.output}")
     return 0
 
 
 def command_check(args: argparse.Namespace) -> int:
-    current = normalize(load_json(args.raw))
+    raw = load_json(args.raw)
+    if raw.get("success") is not True:
+        raise ValueError("Slither JSON reports an unsuccessful analysis")
+    current = normalize(raw)
     baseline = load_json(args.baseline)
     baseline_by_id = validate_baseline(baseline)
     apply_reviewed_decisions(current, baseline_by_id)
