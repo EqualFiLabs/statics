@@ -2,14 +2,14 @@
   "schema": 2,
   "counts": {
     "High": 70,
-    "Medium": 470,
-    "Low": 292,
+    "Medium": 466,
+    "Low": 291,
     "Informational": 206
   },
   "raw_counts": {
     "High": 78,
-    "Medium": 470,
-    "Low": 388,
+    "Medium": 466,
+    "Low": 390,
     "Informational": 206
   },
   "findings": [
@@ -2283,6 +2283,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsGeneralPoolHook.sol#470) is a local variable never initialized",
+      "rationale": "Reviewed StaticsGeneralPoolHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "occurrences": 1,
+      "id": "216a7227cbf9b52bffe6927c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/core/facets/CoreGovernanceFacet.sol"
       ],
       "summary": "CoreGovernanceFacet._retireProfile(LibCoreStorage.CS,uint256,IStaticsDollarCoreTypes.StableCollateralProfile).terminalSurplus (src/dollar/core/facets/CoreGovernanceFacet.sol#386) is a local variable never initialized",
@@ -2369,6 +2385,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "3d26988bbf08be60f7d782f3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsBasketHook.sol#764) is a local variable never initialized",
+      "rationale": "Reviewed StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "occurrences": 1,
+      "id": "3d33c34e5d1090ab14d2e39d"
     },
     {
       "impact": "Medium",
@@ -2491,44 +2523,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury (src/liquidity/StaticsBasketHook.sol#727) is a local variable never initialized",
-      "rationale": "Reviewed StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "6094f4cdad8016624e93dccf"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._redeem(PairingVaultFacet.RedemptionRequest).distribution (src/dollar/periphery/facets/PairingVaultFacet.sol#189) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "61c213f23ba98616b3b50157"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury (src/liquidity/StaticsGeneralPoolHook.sol#604) is a local variable never initialized",
-      "rationale": "Reviewed StaticsGeneralPoolHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "62cbe49d06b5c9b492e1629f"
     },
     {
       "impact": "Medium",
@@ -2619,28 +2619,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
+        "src/liquidity/StaticsGeneralPoolHook.sol"
       ],
-      "summary": "StaticsBasketHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsBasketHook.sol#472) is a local variable never initialized",
-      "rationale": "Reviewed StaticsBasketHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "summary": "StaticsGeneralPoolHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsGeneralPoolHook.sol#422) is a local variable never initialized",
+      "rationale": "Reviewed StaticsGeneralPoolHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
       "occurrences": 1,
-      "id": "6e8c3086cc67a7b2f51e8e3d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsBasketHook.sol#525) is a local variable never initialized",
-      "rationale": "Reviewed StaticsBasketHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "74f0a4b57d2a639b650d653c"
+      "id": "78bf113c4538137fd1898199"
     },
     {
       "impact": "Medium",
@@ -2801,6 +2785,22 @@
       "rationale": "Solidity sets hasInput to false; the loop records whether any bounded constituent input is positive, and the final check rejects an all-zero route. Source: src/periphery/StaticsFlashArbitrageReceiver.sol:208.",
       "occurrences": 1,
       "id": "8d3ae98a02a2deee66dc77bb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsBasketHook.sol#520) is a local variable never initialized",
+      "rationale": "Reviewed StaticsBasketHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "occurrences": 1,
+      "id": "96fe911084cf2e2f27d010f2"
     },
     {
       "impact": "Medium",
@@ -3019,22 +3019,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsGeneralPoolHook.sol#603) is a local variable never initialized",
-      "rationale": "Reviewed StaticsGeneralPoolHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "bae017c2953c39d3621e3c36"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/BasketRedemptionFacet.sol"
       ],
       "summary": "BasketRedemptionFacet._redeemAsset(LibBasket.BasketStorage,LibBasket.Basket,BasketRedemptionFacet.RedeemSettlement,uint256,uint256,uint256).received (src/facets/BasketRedemptionFacet.sol#141) is a local variable never initialized",
@@ -3051,12 +3035,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/core/libraries/LibCoreHealth.sol"
+        "src/liquidity/StaticsBasketHook.sol"
       ],
-      "summary": "LibCoreHealth._isolatedCustodyDeficit(LibCoreStorage.CS,uint256,IStaticsDollarCoreTypes.ProfileSolvency,IStaticsDollarCoreTypes.StableCollateralProfile,LibCoreHealth.SolvencyScratch).custodyInsuranceCollateral (src/dollar/core/libraries/LibCoreHealth.sol#103) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "summary": "StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury (src/liquidity/StaticsBasketHook.sol#765) is a local variable never initialized",
+      "rationale": "Reviewed StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToTreasury: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
       "occurrences": 1,
-      "id": "c3bf020dd3972f4296470e17"
+      "id": "c1577d7148a4839d7946570a"
     },
     {
       "impact": "Medium",
@@ -3067,12 +3051,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
+        "src/dollar/core/libraries/LibCoreHealth.sol"
       ],
-      "summary": "StaticsGeneralPoolHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount (src/liquidity/StaticsGeneralPoolHook.sol#382) is a local variable never initialized",
-      "rationale": "Reviewed StaticsGeneralPoolHook._chargeSpecifiedLeg(PoolId,PoolKey,SwapParams).stakerAmount: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "summary": "LibCoreHealth._isolatedCustodyDeficit(LibCoreStorage.CS,uint256,IStaticsDollarCoreTypes.ProfileSolvency,IStaticsDollarCoreTypes.StableCollateralProfile,LibCoreHealth.SolvencyScratch).custodyInsuranceCollateral (src/dollar/core/libraries/LibCoreHealth.sol#103) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "c6d9f73cb200a1cae0f0b6bc"
+      "id": "c3bf020dd3972f4296470e17"
     },
     {
       "impact": "Medium",
@@ -3121,22 +3105,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "cbd67785c31392c1cca8169d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsGeneralPoolHook.sol#430) is a local variable never initialized",
-      "rationale": "Reviewed StaticsGeneralPoolHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "d6d95af856c1be4f33b262f2"
     },
     {
       "impact": "Medium",
@@ -3307,6 +3275,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsBasketHook.sol#573) is a local variable never initialized",
+      "rationale": "Reviewed StaticsBasketHook._chargeUnspecifiedLeg(PoolId,PoolKey,SwapParams,BalanceDelta).context: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
+      "occurrences": 1,
+      "id": "f495913dd4dc3ea78186fb85"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/core/libraries/LibCoreHealth.sol"
       ],
       "summary": "LibCoreHealth.currentGlobalHealth(LibCoreStorage.CS).unavailable (src/dollar/core/libraries/LibCoreHealth.sol#138) is a local variable never initialized",
@@ -3377,22 +3361,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "fbdf50b231ed9d9c9c9f22e6"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsBasketHook.sol#726) is a local variable never initialized",
-      "rationale": "Reviewed StaticsBasketHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol: uses the Solidity zero default for its accumulator, optional fee branch, boolean, or memory struct; assigned fields and conditional use preserve the intended zero case.",
-      "occurrences": 1,
-      "id": "ff3e771c4700ad20b721d624"
     },
     {
       "impact": "Medium",
@@ -3489,22 +3457,6 @@
       "rationale": "The registry call is validation-only: it must revert for an unknown pool, while the returned pool metadata is not needed to release quarantine.",
       "occurrences": 1,
       "id": "03653f6456bbb4f0b56c9d71"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/PrepareStaticsBasketTokenFactory.s.sol"
-      ],
-      "summary": "PrepareStaticsBasketTokenFactory.validateFactory(address,address,bytes32) (script/PrepareStaticsBasketTokenFactory.s.sol#22-31) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/PrepareStaticsBasketTokenFactory.s.sol#23)",
-      "rationale": "Reviewed PrepareStaticsBasketTokenFactory.validateFactory(address,address,bytes32): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "0537a9f76f6fd251d1230480"
     },
     {
       "impact": "Medium",
@@ -3633,6 +3585,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "0c0be89700d25c9cdd940910"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/PrepareStaticsBasketTokenFactory.s.sol"
+      ],
+      "summary": "PrepareStaticsBasketTokenFactory.validateFactory(address,address,bytes32) (script/PrepareStaticsBasketTokenFactory.s.sol#21-30) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/PrepareStaticsBasketTokenFactory.s.sol#22)",
+      "rationale": "Reviewed PrepareStaticsBasketTokenFactory.validateFactory(address,address,bytes32): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "0cae20031dcd566201b09da2"
     },
     {
       "impact": "Medium",
@@ -4363,22 +4331,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._settleStakerRewards(PoolId,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#335-353) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(StakerSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsBasketHook.sol#344-351)",
-      "rationale": "Reviewed StaticsBasketHook._settleStakerRewards(PoolId,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "2f149b12330f6653ec71fec6"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/GaugeIncentiveViewFacet.sol"
       ],
       "summary": "GaugeIncentiveViewFacet._requirePosition(uint256) (src/facets/GaugeIncentiveViewFacet.sol#170-172) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/GaugeIncentiveViewFacet.sol#171)",
@@ -4971,44 +4923,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook.settleStakerRewards(Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#296-307) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(currency,receiver,amount))) (src/liquidity/StaticsGeneralPoolHook.sol#305)",
-      "rationale": "Reviewed StaticsGeneralPoolHook.settleStakerRewards(Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "4c2ac891938e9afcfdf3a5cb"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/BasketCollateralFacet.sol"
       ],
       "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#71-85) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#76)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "4cbd6a4b9c1fda462055aad9"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#309-331) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsGeneralPoolHook.sol#324-329)",
-      "rationale": "Reviewed StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "4e41234b8debb1e633b48749"
     },
     {
       "impact": "Medium",
@@ -5595,6 +5515,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#349-371) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsGeneralPoolHook.sol#364-369)",
+      "rationale": "Reviewed StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "63ed61faf33788a435e320d4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/BasketCollateralFacet.sol"
       ],
       "summary": "BasketCollateralFacet.withdrawBasketCollateral(uint256,uint256,uint256,address) (src/facets/BasketCollateralFacet.sol#56-69) ignores return value by LibCustody.pushReserved(LibCustody.basketAccount(basketId),configured.token,receiver,shares,shares) (src/facets/BasketCollateralFacet.sol#66)",
@@ -5784,6 +5720,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook.settleStakerRewards(Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#336-347) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(currency,receiver,amount))) (src/liquidity/StaticsGeneralPoolHook.sol#345)",
+      "rationale": "Reviewed StaticsGeneralPoolHook.settleStakerRewards(Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "6e61e97798cbbf75f8b428ea"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5825,6 +5777,22 @@
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
       "id": "6fb9a1a725a377534ad07424"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._settleStakerRewards(PoolId,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#383-401) ignores return value by poolManager.unlock(abi.encode(UNLOCK_STAKER,abi.encode(StakerSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsBasketHook.sol#392-399)",
+      "rationale": "Reviewed StaticsBasketHook._settleStakerRewards(PoolId,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "7053396d5cc5f412c1d8868b"
     },
     {
       "impact": "Medium",
@@ -6827,22 +6795,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketPreparationFacet.sol"
-      ],
-      "summary": "BasketPreparationFacet.deployPreparedBasketContracts(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,bytes32) (src/facets/BasketPreparationFacet.sol#20-48) ignores return value by LibBasketDeployment.begin(id,LibBasketDeployment.configurationHash(params,pools,maxAmountsIn,deadline),deadline,msg.sender,msg.sender) (src/facets/BasketPreparationFacet.sol#36-42)",
-      "rationale": "Reviewed BasketPreparationFacet.deployPreparedBasketContracts(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,bytes32): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "a384c1026a5246d81e51e7bc"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
       "summary": "SeriesMigrationFacet._recoverExpiredTransition(LibPeriphery.PS,IStaticsDollarCore,uint256,IStaticsDollarCoreTypes.RiskSeries,IStaticsDollarCoreTypes.RecoveryClaimMode) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#244-275) ignores return value by (None,None,claim.newPrincipal) = core.recoverExpiredRisk(address(this),oldSeriesId,claim.oldPrincipal,claimMode,preview.seniorCollateralOut + preview.keeperBounty) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#263-269)",
@@ -6913,22 +6865,6 @@
       "rationale": "The second seeding call supplies fixed assetsPerMarket to the basket collateral market with shares=0 and empty callback data. Canonical Morpho credits lender shares and pulls exactly that requested loan-token amount or reverts. The return tuple does not authorize any Statics accounting transition and the bounded approval is cleared afterward. This call imposes no minimum-share-output policy; distributor configuration is a separate atomic timelock batch action.",
       "occurrences": 1,
       "id": "a989445ea51a76321853cfb2"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#355-377) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsBasketHook.sol#370-375)",
-      "rationale": "Reviewed StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "aac4d121b6adbbd7008b6b01"
     },
     {
       "impact": "Medium",
@@ -7137,6 +7073,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b70a139bda48cb56d175a115"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#403-425) ignores return value by poolManager.unlock(abi.encode(UNLOCK_POL,abi.encode(PolSettleRequest({poolId:poolId,currency:currency,receiver:receiver,amount:amount})))) (src/liquidity/StaticsBasketHook.sol#418-423)",
+      "rationale": "Reviewed StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "b8bffcbb0a12c98265b72c61"
     },
     {
       "impact": "Medium",
@@ -8059,22 +8011,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketPreparationFacet.sol"
-      ],
-      "summary": "BasketPreparationFacet.prepareBasketCreation(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,uint256) (src/facets/BasketPreparationFacet.sol#76-97) ignores return value by (token,None) = configured.predict(configured.preparedSaltFor(intent,tokenNonce)) (src/facets/BasketPreparationFacet.sol#96)",
-      "rationale": "Reviewed BasketPreparationFacet.prepareBasketCreation(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,uint256): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "dcfc90d6e03cfc3bd2fbd9e8"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/facets/CoreRecoveryFacet.sol"
       ],
       "summary": "CoreRecoveryFacet._burnExpiredRisk(LibCoreStorage.CS,CoreRecoveryFacet.ExpiredRecoveryContext) (src/dollar/core/facets/CoreRecoveryFacet.sol#323-334) ignores return value by LibCoreRecovery.consumeExpiredBook(cs.expiredRecoveryBook[ctx.seriesId],ctx.shares,ctx.gross) (src/dollar/core/facets/CoreRecoveryFacet.sol#326)",
@@ -8472,6 +8408,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/PrepareStaticsBasketTokenFactory.s.sol"
+      ],
+      "summary": "PrepareStaticsBasketTokenFactory.deployFactory(address) (script/PrepareStaticsBasketTokenFactory.s.sol#15-19) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/PrepareStaticsBasketTokenFactory.s.sol#16)",
+      "rationale": "Reviewed PrepareStaticsBasketTokenFactory.deployFactory(address): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
+      "occurrences": 1,
+      "id": "f7ab1b2fd73945cd4ae2e39a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -8497,22 +8449,6 @@
       "rationale": "Reviewed RangeGaugeCallbackFacet._recordAuthenticatedSwap(PoolId,BalanceDelta,uint256,uint8): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
       "occurrences": 1,
       "id": "f97f11b407f230f3932bac4b"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/PrepareStaticsBasketTokenFactory.s.sol"
-      ],
-      "summary": "PrepareStaticsBasketTokenFactory.deployFactory(address) (script/PrepareStaticsBasketTokenFactory.s.sol#16-20) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/PrepareStaticsBasketTokenFactory.s.sol#17)",
-      "rationale": "Reviewed PrepareStaticsBasketTokenFactory.deployFactory(address): uses the called state transition or selected tuple fields; unused identifiers, ticks, metadata serialization, and unlock return bytes do not control authorization or measured receipt.",
-      "occurrences": 1,
-      "id": "f9f7ce924d67544eca1c9ba5"
     },
     {
       "impact": "Medium",
@@ -8913,22 +8849,6 @@
       "rationale": "The route iterates over the validated basket vector of at most 16 assets. This call executes one canonical-pool swap or measures its exact input/output delta under the receiver lock; failure reverts the caller's route.",
       "occurrences": 1,
       "id": "3504be5d140df6c131cdf8f7"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/PrepareStaticsBasketTokenFactory.s.sol"
-      ],
-      "summary": "PrepareStaticsBasketTokenFactory.replenishmentPayload(StaticsBasketTokenFactory,bytes32[]) (script/PrepareStaticsBasketTokenFactory.s.sol#33-48) has external calls inside a loop: uint88(uint256(salts[i])) & factory.PREPARED_SALT_BIT() != 0 || ! factory.saltAvailable(salts[i]) (script/PrepareStaticsBasketTokenFactory.s.sol#40)",
-      "rationale": "Reviewed PrepareStaticsBasketTokenFactory.replenishmentPayload(StaticsBasketTokenFactory,bytes32[]): iterates the bounded basket asset set, selected launch batch, or installed selector manifest; the operation reverts atomically if a required call fails.",
-      "occurrences": 1,
-      "id": "36b910931c68461125bc476f"
     },
     {
       "impact": "Low",
@@ -9933,10 +9853,10 @@
       "paths": [
         "src/liquidity/StaticsBasketHook.sol"
       ],
-      "summary": "StaticsBasketHook.constructor(IPoolManager,address,uint16,uint16,address).diamond (src/liquidity/StaticsBasketHook.sol#137) lacks a zero-check on :",
+      "summary": "StaticsBasketHook.constructor(IPoolManager,address,uint16,uint16,address).diamond (src/liquidity/StaticsBasketHook.sol#197) lacks a zero-check on :",
       "rationale": "Reviewed StaticsBasketHook.constructor(IPoolManager,address,uint16,uint16,address).diamond lacks a zero-check on :: checks diamond == address(0) and diamond.code.length == 0 later in the constructor and reverts InvalidPublicHookBinding.",
       "occurrences": 1,
-      "id": "e3c126e5d31d53381fe29d29"
+      "id": "ef5d1bceb704d57d654be514"
     },
     {
       "impact": "Low",
@@ -9979,12 +9899,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/genesis/StaticsFeeReceiver.sol"
+        "src/liquidity/StaticsBasketHook.sol"
       ],
-      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#218-245):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in StaticsBasketHook._mintClaim(Currency,uint256) (src/liquidity/StaticsBasketHook.sol#700-705):",
+      "rationale": "Reviewed StaticsBasketHook._mintClaim(Currency,uint256): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
       "occurrences": 1,
-      "id": "17a8956c0213eeb17158d42d"
+      "id": "0ff518a83580219bc09be8a0"
     },
     {
       "impact": "Low",
@@ -9995,12 +9915,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
+        "src/liquidity/StaticsGeneralPoolHook.sol"
       ],
-      "summary": "Reentrancy in StaticsBasketHook._mintClaim(Currency,uint256) (src/liquidity/StaticsBasketHook.sol#661-666):",
-      "rationale": "Reviewed StaticsBasketHook._mintClaim(Currency,uint256): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
+      "summary": "Reentrancy in StaticsGeneralPoolHook._mintClaim(Currency,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#584-589):",
+      "rationale": "Reviewed StaticsGeneralPoolHook._mintClaim(Currency,uint256): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
       "occurrences": 1,
-      "id": "1a38ab11df7d8c816dce3088"
+      "id": "1210510f1d55f148a5e049a3"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#218-245):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "17a8956c0213eeb17158d42d"
     },
     {
       "impact": "Low",
@@ -10043,12 +9979,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
+        "src/tokens/StaticsGenesis.sol"
       ],
-      "summary": "Reentrancy in StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsBasketHook.sol#554-560):",
-      "rationale": "Reviewed StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
+      "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "2da66418128c02a3c5e26028"
+      "id": "3bef814fcd941cf30fa4a104"
     },
     {
       "impact": "Low",
@@ -10059,12 +9995,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/tokens/StaticsGenesis.sol"
+        "src/liquidity/StaticsGeneralPoolHook.sol"
       ],
-      "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsGeneralPoolHook.sol#499-505):",
+      "rationale": "Reviewed StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
       "occurrences": 1,
-      "id": "3bef814fcd941cf30fa4a104"
+      "id": "4554fe747c19f77699d26324"
     },
     {
       "impact": "Low",
@@ -10129,22 +10065,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "598bdf070594cd40bb5f572b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsGeneralPoolHook._mintClaim(Currency,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#565-570):",
-      "rationale": "Reviewed StaticsGeneralPoolHook._mintClaim(Currency,uint256): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
-      "occurrences": 1,
-      "id": "6151212e571cde27a6bbd5b0"
     },
     {
       "impact": "Low",
@@ -10283,12 +10203,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/genesis/GenesisLaunchDistributor.sol"
+        "src/liquidity/StaticsBasketHook.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#177-214):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsBasketHook.sol#602-608):",
+      "rationale": "Reviewed StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
       "occurrences": 1,
-      "id": "b8b3918d442c80ecc5bc3eed"
+      "id": "b7d1a7c45e0e00418dd9983f"
     },
     {
       "impact": "Low",
@@ -10299,12 +10219,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
+        "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsGeneralPoolHook.sol#459-465):",
-      "rationale": "Reviewed StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): issues claims through the immutable PoolManager during its authenticated callback; PoolManager mint has no recipient callback, and allocation and solvency checks share the same transaction.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#177-214):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "b916ebd0cc0146e2bdbc7e54"
+      "id": "b8b3918d442c80ecc5bc3eed"
     },
     {
       "impact": "Low",
@@ -10544,6 +10464,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsBasketHook.sol#602-608):",
+      "rationale": "Reviewed StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "occurrences": 1,
+      "id": "10bf8607305f40f65fa8c35e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
       "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#96-109):",
@@ -10663,7 +10599,7 @@
       ],
       "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#194-204):",
       "rationale": "The position ID and initialization state are allocated before the ERC-721 receiver callback, and the owner index is updated before _safeMint returns. A nested creation receives a distinct ID, while closePosition rejects an initializing position. The creation and state events intentionally follow successful receiver acceptance; any failure rolls back the entire mint.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "25407348b8182602af66d0a3"
     },
     {
@@ -10707,6 +10643,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#403-425):",
+      "rationale": "Reviewed StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "occurrences": 1,
+      "id": "3972253ba00bcdb8840ed84c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibPoolRewards.sol"
       ],
       "summary": "Reentrancy in LibPoolRewards.settleSource(address,PoolId,address,uint256) (src/libraries/LibPoolRewards.sol#89-96):",
@@ -10729,24 +10681,8 @@
       ],
       "summary": "Reentrancy in LibProtocolPol.close(uint256,uint256,uint256,uint256) (src/libraries/LibProtocolPol.sol#170-193):",
       "rationale": "Reviewed LibProtocolPol.close(uint256,uint256,uint256,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "3d3a4e48ccc16c3cf2598d37"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#309-331):",
-      "rationale": "Reviewed StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
-      "id": "3df0e8d98178d6dd48aab024"
     },
     {
       "impact": "Low",
@@ -10813,7 +10749,7 @@
       ],
       "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
       "rationale": "The nonReentrant Genesis entrypoint checks ownership for every ID, consumes all per-ID and owner claims before payouts, and uses exact reserved transfers. Events describe those consumed claims; a later failure reverts all logs.",
-      "occurrences": 2,
+      "occurrences": 1,
       "id": "53954c452fca9f3267559f2d"
     },
     {
@@ -10862,27 +10798,11 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsGeneralPoolHook.sol#459-465):",
-      "rationale": "Reviewed StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
-      "id": "5dde7aaa956c6a4114b592af"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#57-67):",
       "rationale": "createPositionForModule is restricted to a Diamond self-call, validates the module type and exact fee, and creates a fresh ID before the ERC-721 receiver callback. Its completion and fee events follow successful minting and checked forwarding. The duplicate compile-unit report introduces no additional source occurrence or caller authority.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "5fbc567b5c225ddfa0ecbc96"
     },
     {
@@ -10955,6 +10875,22 @@
       "rationale": "The nonReentrant treasury entrypoint checks treasury authority; the library clears treasuryClaimable and subtracts custody before the exact transfer. The final event records the completed payout, and a failure reverts all effects.",
       "occurrences": 1,
       "id": "66d16289995cfe49a5a2b73c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsGeneralPoolHook.sol#499-505):",
+      "rationale": "Reviewed StaticsGeneralPoolHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "occurrences": 1,
+      "id": "6758ac282a5de45913542e0f"
     },
     {
       "impact": "Low",
@@ -11085,7 +11021,7 @@
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#51-55):",
       "rationale": "createPosition validates the exact creation fee, allocates a fresh position ID before the ERC-721 callback, then forwards only the supplied fee using a checked call. Nested creations use separate IDs; completion events are emitted after successful minting/forwarding and revert atomically on failure. The doubled count is a duplicate compile-unit report of the same source occurrence.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "7abd35219268dbf9c4ef1d58"
     },
     {
@@ -11103,22 +11039,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "7e9d5299e2dfce41823d83f5"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketTokenFactory.sol"
-      ],
-      "summary": "Reentrancy in StaticsBasketTokenFactory.deployBasketToken(bytes32,string,string,uint256) (src/liquidity/StaticsBasketTokenFactory.sol#162-173):",
-      "rationale": "Reviewed StaticsBasketTokenFactory.deployBasketToken(bytes32,string,string,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
-      "id": "84ef1a1155c79069830cc011"
     },
     {
       "impact": "Low",
@@ -11228,12 +11148,14 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibPoolRewards.sol",
+        "src/libraries/LibProtocolPol.sol"
       ],
-      "summary": "Reentrancy in StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsBasketHook.sol#554-560):",
-      "rationale": "Reviewed StaticsBasketHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
-      "id": "9804ff8b6ac91f2a09693788"
+      "summary": "Reentrancy in LibProtocolPol.decrease(IStaticsProtocolPools.ProtocolPolLiquidityParams) (src/libraries/LibProtocolPol.sol#144-168):",
+      "rationale": "Reviewed LibProtocolPol.decrease(IStaticsProtocolPools.ProtocolPolLiquidityParams): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "occurrences": 2,
+      "id": "9d09557beba8c680ed6380a2"
     },
     {
       "impact": "Low",
@@ -11244,14 +11166,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibPoolRewards.sol",
-        "src/libraries/LibProtocolPol.sol"
+        "src/liquidity/StaticsGeneralPoolHook.sol"
       ],
-      "summary": "Reentrancy in LibProtocolPol.decrease(IStaticsProtocolPools.ProtocolPolLiquidityParams) (src/libraries/LibProtocolPol.sol#144-168):",
-      "rationale": "Reviewed LibProtocolPol.decrease(IStaticsProtocolPools.ProtocolPolLiquidityParams): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "summary": "Reentrancy in StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#349-371):",
+      "rationale": "Reviewed StaticsGeneralPoolHook.settleProtocolPol(PoolKey,Currency,address,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
       "occurrences": 1,
-      "id": "9d09557beba8c680ed6380a2"
+      "id": "9f79e3e17414306caefbe61e"
     },
     {
       "impact": "Low",
@@ -11545,6 +11465,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketTokenFactory.sol"
+      ],
+      "summary": "Reentrancy in StaticsBasketTokenFactory.deployBasketToken(bytes32,string,string,uint256) (src/liquidity/StaticsBasketTokenFactory.sol#145-156):",
+      "rationale": "Reviewed StaticsBasketTokenFactory.deployBasketToken(bytes32,string,string,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
+      "occurrences": 1,
+      "id": "bfcc54f1790115fb58dcd66e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibCustody.sol",
         "src/libraries/LibRestrictedBasket.sol"
       ],
@@ -11733,7 +11669,7 @@
       ],
       "summary": "Reentrancy in LibBasketMint._mintFromPayer(uint256,uint256,address,address,uint256[],bool) (src/libraries/LibBasketMint.sol#47-77):",
       "rationale": "Reviewed LibBasketMint._mintFromPayer(uint256,uint256,address,address,uint256[],bool): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 2,
+      "occurrences": 1,
       "id": "e1b381bcaba75884380c8e62"
     },
     {
@@ -11870,22 +11806,6 @@
       "rationale": "The nonReentrant Genesis entrypoint verifies NFT ownership, clears accrued rewards, subtracts claim/custody totals, and pays the exact reserved amount. Events cannot enable a second claim during token callbacks.",
       "occurrences": 1,
       "id": "f7439493ea13c6fe7617e66b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256) (src/liquidity/StaticsBasketHook.sol#355-377):",
-      "rationale": "Reviewed StaticsBasketHook.settleProtocolPol(PoolKey,Currency,address,uint256): emits after authenticated settlement or governed configuration; guarded public entrypoints, exact receipts, self-only modules, and immutable manager/hook bindings retain the accounting boundary.",
-      "occurrences": 1,
-      "id": "f83e62c7883b965c4d8f76eb"
     },
     {
       "impact": "Low",
@@ -12411,6 +12331,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketTokenFactory.sol"
+      ],
+      "summary": "StaticsBasketTokenFactory._validateIntent(StaticsBasketTokenFactory.Intent) (src/liquidity/StaticsBasketTokenFactory.sol#167-173) uses timestamp for comparisons",
+      "rationale": "Reviewed StaticsBasketTokenFactory._validateIntent(StaticsBasketTokenFactory.Intent) uses timestamp for comparisons: uses block.timestamp for an explicit deadline or reward checkpoint; no timestamp is treated as randomness or used to authorize another payer.",
+      "occurrences": 1,
+      "id": "3e3cc8b27c23835da42a414f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
       "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#77-102) uses timestamp for comparisons",
@@ -12907,22 +12843,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketTokenFactory.sol"
-      ],
-      "summary": "StaticsBasketTokenFactory._livePreparation(bytes32) (src/liquidity/StaticsBasketTokenFactory.sol#192-198) uses timestamp for comparisons",
-      "rationale": "Reviewed StaticsBasketTokenFactory._livePreparation(bytes32) uses timestamp for comparisons: uses block.timestamp for an explicit deadline or reward checkpoint; no timestamp is treated as randomness or used to authorize another payer.",
-      "occurrences": 1,
-      "id": "af8a636b26d2fb64675736eb"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting._requireBootstrapped() (src/genesis/StaticsTreasuryVesting.sol#180-182) uses timestamp for comparisons",
@@ -13179,22 +13099,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketTokenFactory.sol"
-      ],
-      "summary": "StaticsBasketTokenFactory._validateIntent(StaticsBasketTokenFactory.Intent) (src/liquidity/StaticsBasketTokenFactory.sol#184-190) uses timestamp for comparisons",
-      "rationale": "Reviewed StaticsBasketTokenFactory._validateIntent(StaticsBasketTokenFactory.Intent) uses timestamp for comparisons: uses block.timestamp for an explicit deadline or reward checkpoint; no timestamp is treated as randomness or used to authorize another payer.",
-      "occurrences": 1,
-      "id": "d2e8ba85811d0a8d2f666b40"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver.executeBuyAndRedeem(uint256,uint256,PoolKey[],uint256[],uint256[],uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#123-143) uses timestamp for comparisons",
@@ -13345,6 +13249,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "f4744d6d1b75207f457c1838"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketTokenFactory.sol"
+      ],
+      "summary": "StaticsBasketTokenFactory._livePreparation(bytes32) (src/liquidity/StaticsBasketTokenFactory.sol#175-181) uses timestamp for comparisons",
+      "rationale": "Reviewed StaticsBasketTokenFactory._livePreparation(bytes32) uses timestamp for comparisons: uses block.timestamp for an explicit deadline or reward checkpoint; no timestamp is treated as randomness or used to authorize another payer.",
+      "occurrences": 1,
+      "id": "f79e052556f921e0ed8ea076"
     },
     {
       "impact": "Low",
@@ -13547,6 +13467,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#638-643) uses assembly",
+      "rationale": "Reviewed StaticsGeneralPoolHook._storeSpecifiedStaker(PoolId,uint256) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "0f595ae0e34ec6eac45d199a"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsBasketHook.sol#540-567) uses assembly",
+      "rationale": "Reviewed StaticsBasketHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "121521fd6136a3808a8e8235"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGaugeRouting.sol"
       ],
       "summary": "LibGaugeRouting.routingStorage() (src/libraries/LibGaugeRouting.sol#74-79) uses assembly",
@@ -13595,6 +13547,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsBasketHook.sol#815-821) uses assembly",
+      "rationale": "Reviewed StaticsBasketHook._takeSpecifiedStaker(PoolId) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "1c7b112e415b4411ce1a1d31"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibPermissionedPools.sol"
       ],
       "summary": "LibPermissionedPools.permissionedPoolStorage() (src/libraries/LibPermissionedPools.sol#29-34) uses assembly",
@@ -13633,22 +13601,6 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "218e4f432a4fcd6986a3ec50"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsBasketHook.sol#784-790) uses assembly",
-      "rationale": "Reviewed StaticsBasketHook._takeSpecifiedStaker(PoolId) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "23132ea68948f5d091851ef0"
     },
     {
       "impact": "Informational",
@@ -13713,6 +13665,22 @@
       "rationale": "The assembly reads and sets a PoolId-scoped, keccak-derived transient lock. It rejects an already active lock and has no persistent storage effect.",
       "occurrences": 1,
       "id": "2bfe3981959e65c8253a8403"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsBasketHook.sol#808-813) uses assembly",
+      "rationale": "Reviewed StaticsBasketHook._storeSpecifiedStaker(PoolId,uint256) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "2f1bf122879af1ca135d9980"
     },
     {
       "impact": "Informational",
@@ -13915,60 +13883,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsGeneralPoolHook.sol#659-665) uses assembly",
-      "rationale": "Reviewed StaticsGeneralPoolHook._takeSpecifiedStaker(PoolId) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "5d14f19ff89253684475ba92"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibRewardPayout.sol"
       ],
       "summary": "LibRewardPayout._slot(uint256,uint256) (src/libraries/LibRewardPayout.sol#16-22) uses assembly",
       "rationale": "Context slots use a dedicated keccak namespace plus disjoint 256-slot field ranges; entry indices are bounded below 64. Assembly addition preserves this fixed layout without caller-provided slot access.",
       "occurrences": 1,
       "id": "627d88b46d46d4c87706748a"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsBasketHook.sol#777-782) uses assembly",
-      "rationale": "Reviewed StaticsBasketHook._storeSpecifiedStaker(PoolId,uint256) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "6522999fa55c41f58c53262d"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsGeneralPoolHook.sol#402-424) uses assembly",
-      "rationale": "Reviewed StaticsGeneralPoolHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "6fdcc2f5a22beb273509f45f"
     },
     {
       "impact": "Informational",
@@ -14027,12 +13947,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsBasketTokenFactory.sol"
+      ],
+      "summary": "StaticsBasketTokenFactory._deploy(bytes32,address,bytes) (src/liquidity/StaticsBasketTokenFactory.sol#191-201) uses assembly",
+      "rationale": "Reviewed StaticsBasketTokenFactory._deploy(bytes32,address,bytes) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "81a9aedfb9bbce585a550ab4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolPools.sol"
       ],
       "summary": "LibProtocolPools.protocolPoolStorage() (src/libraries/LibProtocolPools.sol#73-78) uses assembly",
       "rationale": "This accessor assigns a storage pointer to its library's fixed, namespaced storage-position constant. The assembly neither calls another contract nor computes a caller-selected storage location.",
       "occurrences": 1,
       "id": "838ec6b072f27f9201067724"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook._takeSpecifiedStaker(PoolId) (src/liquidity/StaticsGeneralPoolHook.sol#645-651) uses assembly",
+      "rationale": "Reviewed StaticsGeneralPoolHook._takeSpecifiedStaker(PoolId) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "850493c2a39ec1f843a6bb1c"
     },
     {
       "impact": "Informational",
@@ -14107,6 +14059,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsGeneralPoolHook.sol"
+      ],
+      "summary": "StaticsGeneralPoolHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsGeneralPoolHook.sol#442-464) uses assembly",
+      "rationale": "Reviewed StaticsGeneralPoolHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
+      "occurrences": 1,
+      "id": "99c1003c7f7306247c8efc13"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/diamond/DiamondKernel.sol"
       ],
       "summary": "DiamondKernel.fallback() (src/diamond/DiamondKernel.sol#19-31) uses assembly",
@@ -14129,22 +14097,6 @@
       "rationale": "Reviewed StaticsSwapFeeHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
       "occurrences": 1,
       "id": "9cf9125b219931dfab6c2c44"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsGeneralPoolHook.sol"
-      ],
-      "summary": "StaticsGeneralPoolHook._storeSpecifiedStaker(PoolId,uint256) (src/liquidity/StaticsGeneralPoolHook.sol#652-657) uses assembly",
-      "rationale": "Reviewed StaticsGeneralPoolHook._storeSpecifiedStaker(PoolId,uint256) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "9de3ece794807755eea3af91"
     },
     {
       "impact": "Informational",
@@ -14347,22 +14299,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) (src/liquidity/StaticsBasketHook.sol#492-519) uses assembly",
-      "rationale": "Reviewed StaticsBasketHook._afterStaticsPoolSwap(PoolId,BalanceDelta,uint256,uint256,uint8) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "ba64ec9e2b6e05a024754779"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibBasketArbitrageSettlement.sol"
       ],
       "summary": "LibBasketArbitrageSettlement.receiverStorage() (src/libraries/LibBasketArbitrageSettlement.sol#25-28) uses assembly",
@@ -14401,22 +14337,6 @@
       "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
       "occurrences": 1,
       "id": "c4450630e11b3ef314e25b26"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketTokenFactory.sol"
-      ],
-      "summary": "StaticsBasketTokenFactory._deploy(bytes32,address,bytes) (src/liquidity/StaticsBasketTokenFactory.sol#214-224) uses assembly",
-      "rationale": "Reviewed StaticsBasketTokenFactory._deploy(bytes32,address,bytes) uses assembly: uses the reviewed storage-slot, transient-slot, code-copy, or existing arithmetic boundary; the reported assembly remains bounded by its surrounding caller and length checks.",
-      "occurrences": 1,
-      "id": "c9853c30c8b98881fdacfbca"
     },
     {
       "impact": "Informational",
@@ -14728,6 +14648,22 @@
       "check": "dead-code",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook._poolRegistration(PoolId) (src/liquidity/StaticsBasketHook.sol#885-887) is never used and should be removed",
+      "rationale": "Reviewed StaticsBasketHook._poolRegistration(PoolId) is never used and should be removed: retains an internal registration getter that the compiler removes when unused; it grants no external capability.",
+      "occurrences": 1,
+      "id": "1fb25b0015568a8d0d873607"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "dead-code",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -14737,22 +14673,6 @@
       "rationale": "DeployStaticsProtocol._phaseTwoProtocolCut is an internal pure deployment-plan wrapper retained alongside the phase-specific tooling. The current fresh deployment uses the cumulative phase plan; this unreachable wrapper exposes no protocol selector, authority path, or value transfer.",
       "occurrences": 1,
       "id": "8955dcf6d07f0bca13d69147"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "dead-code",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook._poolRegistration(PoolId) (src/liquidity/StaticsBasketHook.sol#868-870) is never used and should be removed",
-      "rationale": "Reviewed StaticsBasketHook._poolRegistration(PoolId) is never used and should be removed: retains an internal registration getter that the compiler removes when unused; it grants no external capability.",
-      "occurrences": 1,
-      "id": "9aacf7c8648528e9170ca186"
     },
     {
       "impact": "Informational",
@@ -15119,10 +15039,10 @@
         "src/facets/PublicHookPolicyFacet.sol",
         "src/liquidity/StaticsBasketHook.sol"
       ],
-      "summary": "StaticsBasketHook (src/liquidity/StaticsBasketHook.sol#38-901) should inherit from PublicHookBinding (src/facets/PublicHookPolicyFacet.sol#76-79)",
+      "summary": "StaticsBasketHook (src/liquidity/StaticsBasketHook.sol#37-918) should inherit from PublicHookBinding (src/facets/PublicHookPolicyFacet.sol#76-79)",
       "rationale": "Reviewed StaticsBasketHook should inherit from PublicHookBinding: exposes the required ABI without inheriting the structural interface; selector and integration tests exercise the actual callable signatures.",
       "occurrences": 1,
-      "id": "22897f1309baa2764836fedb"
+      "id": "4ddef3462880b334f525e0ea"
     },
     {
       "impact": "Informational",
@@ -15204,10 +15124,10 @@
         "src/facets/BasketPreparationFacet.sol",
         "src/interfaces/IStaticsBasketPreparation.sol"
       ],
-      "summary": "BasketPreparationFacet (src/facets/BasketPreparationFacet.sol#13-98) should inherit from IStaticsBasketPreparation (src/interfaces/IStaticsBasketPreparation.sol#6-31)",
+      "summary": "BasketPreparationFacet (src/facets/BasketPreparationFacet.sol#13-89) should inherit from IStaticsBasketPreparation (src/interfaces/IStaticsBasketPreparation.sol#6-22)",
       "rationale": "Reviewed BasketPreparationFacet should inherit from IStaticsBasketPreparation: exposes the required ABI without inheriting the structural interface; selector and integration tests exercise the actual callable signatures.",
       "occurrences": 1,
-      "id": "f0add1d422f5f7413cae2f6a"
+      "id": "e63a4170b08abe5a5e098198"
     },
     {
       "impact": "Informational",
@@ -15345,22 +15265,6 @@
       "check": "naming-convention",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/interfaces/IStaticsBasketHook.sol"
-      ],
-      "summary": "Function IStaticsBasketHook.VERSION() (src/interfaces/IStaticsBasketHook.sol#9) is not in mixedCase",
-      "rationale": "Reviewed Function IStaticsBasketHook.VERSION() is not in mixedCase: uses a stable public constant or compatibility identifier; the name has no authorization or accounting effect.",
-      "occurrences": 1,
-      "id": "7a49b3d5e989adc940733a49"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "naming-convention",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -15402,6 +15306,22 @@
       "rationale": "The external interface must preserve PositionManager's canonical WETH9() selector and spelling for binding validation.",
       "occurrences": 1,
       "id": "c11696042b29a2dc5dd47be6"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "naming-convention",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/interfaces/IStaticsBasketHook.sol"
+      ],
+      "summary": "Function IStaticsBasketHook.VERSION() (src/interfaces/IStaticsBasketHook.sol#8) is not in mixedCase",
+      "rationale": "Reviewed Function IStaticsBasketHook.VERSION() is not in mixedCase: uses a stable public constant or compatibility identifier; the name has no authorization or accounting effect.",
+      "occurrences": 1,
+      "id": "d8c561c6db5b6d650f36a744"
     },
     {
       "impact": "Informational",
@@ -15685,22 +15605,6 @@
       "rationale": "Reviewed StaticsPhaseOneVerifier.validateRuntimes(address) uses literals with too many digits:: uses exact runtime hashes, permission masks, or deterministic addresses as release/configuration data; decimal readability does not alter the comparison.",
       "occurrences": 1,
       "id": "2dfae302262f42f83e84e9a9"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsBasketTokenFactory.sol"
-      ],
-      "summary": "StaticsBasketTokenFactory.constructor(address,IPoolManager) (src/liquidity/StaticsBasketTokenFactory.sol#77-85) uses literals with too many digits:",
-      "rationale": "Reviewed StaticsBasketTokenFactory.constructor(address,IPoolManager) uses literals with too many digits:: uses exact runtime hashes, permission masks, or deterministic addresses as release/configuration data; decimal readability does not alter the comparison.",
-      "occurrences": 1,
-      "id": "32c71e737f2cf86e3f79e673"
     },
     {
       "impact": "Informational",
@@ -16348,6 +16252,22 @@
       "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsBasketTokenFactory.sol"
+      ],
+      "summary": "StaticsBasketTokenFactory.constructor(address,IPoolManager) (src/liquidity/StaticsBasketTokenFactory.sol#73-81) uses literals with too many digits:",
+      "rationale": "Reviewed StaticsBasketTokenFactory.constructor(address,IPoolManager) uses literals with too many digits:: uses exact runtime hashes, permission masks, or deterministic addresses as release/configuration data; decimal readability does not alter the comparison.",
+      "occurrences": 1,
+      "id": "ba4d2609fcc41443e91df135"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -16591,13 +16511,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/interfaces/IStaticsSwapFeeHook.sol",
+        "src/liquidity/StaticsBasketHook.sol"
+      ],
+      "summary": "StaticsBasketHook (src/liquidity/StaticsBasketHook.sol#37-918) does not implement functions:",
+      "rationale": "Reviewed StaticsBasketHook does not implement functions: it inherits Uniswap BaseHook defaults for disabled callbacks and intentionally exposes only the Basket allocation profile; permission and selector tests cover the callable surface.",
+      "occurrences": 1,
+      "id": "469a20195d86fec8d41ba9d5"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "unimplemented-functions",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsGeneralPoolHook.sol"
       ],
-      "summary": "StaticsGeneralPoolHook (src/liquidity/StaticsGeneralPoolHook.sol#35-734) does not implement functions:",
-      "rationale": "Reviewed StaticsGeneralPoolHook does not implement functions:: inherits Uniswap BaseHook defaults for disabled callbacks; getHookPermissions enables only callbacks implemented by this standalone hook.",
+      "summary": "StaticsGeneralPoolHook (src/liquidity/StaticsGeneralPoolHook.sol#34-704) does not implement functions:",
+      "rationale": "Reviewed StaticsGeneralPoolHook does not implement functions: it inherits Uniswap BaseHook defaults for disabled callbacks and intentionally exposes only the General allocation profile; permission and selector tests cover the callable surface.",
       "occurrences": 1,
-      "id": "469bcf207e051e7f0fcc27aa"
+      "id": "96a48be661d171a4fc987709"
     },
     {
       "impact": "Informational",
@@ -16615,23 +16550,6 @@
       "rationale": "Reviewed StaticsSwapFeeHook does not implement functions:: inherits Uniswap BaseHook defaults for disabled callbacks; getHookPermissions enables only callbacks implemented by this standalone hook.",
       "occurrences": 1,
       "id": "a506e888906c1d65cd81653c"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "unimplemented-functions",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/interfaces/IStaticsSwapFeeHook.sol",
-        "src/liquidity/StaticsBasketHook.sol"
-      ],
-      "summary": "StaticsBasketHook (src/liquidity/StaticsBasketHook.sol#38-901) does not implement functions:",
-      "rationale": "Reviewed StaticsBasketHook does not implement functions:: inherits Uniswap BaseHook defaults for disabled callbacks; getHookPermissions enables only callbacks implemented by this standalone hook.",
-      "occurrences": 1,
-      "id": "bdde93f59985764d60a59beb"
     },
     {
       "impact": "Informational",

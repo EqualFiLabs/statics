@@ -171,11 +171,11 @@ No high or medium occurrence group grows. No detector suppression, scope
 exclusion, or gate change is added. The seven `LibGlobalRewards` IR-generation
 limitations recorded above remain present in this artifact.
 
-## Standalone modular hooks candidate `7ca2796`
+## Standalone modular hooks candidate `a66768e`
 
-Slither 0.11.6 analyzes the remediated source with the repository Slither
+Slither 0.11.6 analyzes the simplified source with the repository Slither
 profile, Solidity 0.8.33, optimization 200, and no global IR. The fresh result
-contains 1,038 stable fingerprints: 70 high, 470 medium, 292 low, and 206
+contains 1,033 stable fingerprints: 70 high, 466 medium, 291 low, and 206
 informational. No detector family is suppressed, and the new, expanded, and
 unresolved gates remain enabled.
 
@@ -183,7 +183,7 @@ The focused Solidity audit reported three supported findings: a pending-basket
 liquidity authorization that trusted the PositionManager without authenticating
 its active locker, flash access to pending restricted baskets, and a sender-fee
 token path whose actual payer debit could exceed the mint maximum. Candidate
-`7ca2796` authenticates both the configured PositionManager and its Statics
+`a66768e` authenticates both the configured PositionManager and its Statics
 liquidity-manager locker, requires active restricted baskets for flash paths,
 and measures the payer balance around each custody pull. Regression tests cover
 each case and the audit remediation review found no remaining supported issue in
@@ -193,10 +193,17 @@ The payer-debit measurement adds one `reentrancy-balance` fingerprint. The
 balance reads deliberately bracket the custody pull; all reachable mint paths
 are protected by the Diamond-wide reentrancy guard, with the launch helper
 restricted to Diamond-self calls inside guarded finalization. A failed debit
-cap rolls back the transfer and reservation atomically. Six other fingerprints
-move only because the remediation changes source spans; their detector, subject,
-classification, and rationale remain unchanged. The baseline contains an
-individual decision for every current fingerprint.
+cap rolls back the transfer and reservation atomically.
+
+The standalone-hook cleanup removes the irrelevant allocation profile from each
+hook, deletes ordinary salt queues, and combines prepared-token reservation and
+deployment. Thirty-six fingerprints move only because those deletions change
+source spans; their detector, subject, classification, and rationale remain
+unchanged. Two informational `unimplemented-functions` fingerprints change
+because the hooks no longer inherit the broad legacy interface: each hook now
+exposes only its supported allocation profile while retaining the common ABI
+used by the Diamond. The baseline contains an individual decision for every
+current fingerprint.
 
 The audit also retained one design lead: basket full-range arithmetic uses the
 configured fixed tick spacing. This behavior predates the candidate and the
@@ -210,6 +217,6 @@ Focused runtime reward tests supplement this limitation; this run is not a
 formal proof. Symbolic proofs remain assigned to CI or the dedicated formal
 verification environment.
 
-Raw result SHA-256: `abeaf152b9325ae09796f1d4f27a914d6fe77fd6611b6af98ad6520db2c3ce62`.
+Raw result SHA-256: `c692ebc193832404b9af5b8e238f9d10c620947f1d06cbeb8102b6f71f524ade`.
 Local raw and normalized outputs remain in ignored Slither-results storage.
 Historical review sections above describe their own snapshots and are retained.
