@@ -35,15 +35,15 @@ contract ModularPublicHooksTest is RangeGaugeFeatureTestBase {
             IStaticsProtocolPools(address(diamond)).quotePool(_params(500));
         vm.expectPartialRevert(StaticsGeneralPoolHook.OnlyStaticsDiamond.selector);
         vm.prank(alice);
-        _localGeneralHook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, alice);
+        _localGeneralHook.registerPool(quote.key, StaticsGeneralPoolHook.PoolKind.General, alice);
         vm.prank(address(diamond));
-        _localGeneralHook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, alice);
+        _localGeneralHook.registerPool(quote.key, StaticsGeneralPoolHook.PoolKind.General, alice);
         vm.expectRevert();
         vm.prank(alice);
         IPoolManager(poolManager).initialize(quote.key, quote.sqrtPriceX96);
         vm.expectPartialRevert(StaticsGeneralPoolHook.PoolAlreadyRegistered.selector);
         vm.prank(address(diamond));
-        _localGeneralHook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, alice);
+        _localGeneralHook.registerPool(quote.key, StaticsGeneralPoolHook.PoolKind.General, alice);
     }
 
     function testDuplicateCompletePoolKeyIsRejected() public {
@@ -88,6 +88,12 @@ contract ModularPublicHooksTest is RangeGaugeFeatureTestBase {
         );
         assertEq(admin.generalFeeAllocation(address(_localGeneralHook)).staticsStakerShareBps, 4000);
         assertEq(legacy.generalFeeAllocation().staticsStakerShareBps, 3500);
+        (bool generalExposesBasket,) = address(_localGeneralHook)
+            .staticcall(abi.encodeWithSelector(IStaticsSwapFeeHook.basketFeeAllocation.selector));
+        assertFalse(generalExposesBasket);
+        (bool basketExposesGeneral,) = address(_localBasketHook)
+            .staticcall(abi.encodeWithSelector(IStaticsSwapFeeHook.generalFeeAllocation.selector));
+        assertFalse(basketExposesGeneral);
         vm.expectRevert(
             abi.encodeWithSelector(LibPublicHookPolicy.UnsupportedHookAllocation.selector, address(_localBasketHook))
         );

@@ -27,7 +27,6 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsBasketHook} from "../interfaces/IStaticsBasketHook.sol";
 import {IStaticsSwapCallback} from "../interfaces/IStaticsSwapCallback.sol";
-import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 
 interface IStaticsBasketSwapQuarantine {
@@ -38,6 +37,68 @@ interface IStaticsBasketSwapQuarantine {
 contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
+
+    enum PoolKind {
+        None,
+        BasketCanonical,
+        General
+    }
+
+    struct PoolRegistration {
+        Currency currency0;
+        Currency currency1;
+        PoolKind kind;
+        address creator;
+        bool registered;
+    }
+
+    struct PoolFeeRate {
+        uint16 inputFeePips;
+        uint16 outputFeePips;
+        bool overridden;
+    }
+
+    struct BasketFeeAllocation {
+        uint16 polShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
+        uint16 treasuryShareBps;
+    }
+
+    struct FeeDistribution {
+        uint256 basketStaker;
+        uint256 staticsStaker;
+        uint256 creator;
+        uint256 treasury;
+    }
+
+    event PoolRegistered(
+        PoolId indexed poolId, Currency indexed currency0, Currency indexed currency1, PoolKind kind, address creator
+    );
+    event SwapLegFeeAccrued(
+        PoolId indexed poolId,
+        Currency indexed currency,
+        bool indexed specifiedLeg,
+        uint256 realizedAmount,
+        uint256 chargedAmount,
+        uint256 polAmount,
+        uint256 basketStakerAmount,
+        uint256 staticsStakerAmount,
+        uint256 creatorAmount,
+        uint256 treasuryAmount
+    );
+    event PendingFeeDistributionReallocated(
+        PoolId indexed poolId, Currency indexed currency, uint256 basketStakerToPol, uint256 staticsStakerToTreasury
+    );
+    event ProtocolPolSettled(
+        PoolId indexed poolId, Currency indexed currency, address indexed receiver, uint256 amount
+    );
+    event PoolDecommissioned(PoolId indexed poolId);
+    event PoolFeeRateSet(PoolId indexed poolId, uint16 inputFeePips, uint16 outputFeePips, bool overridden);
+    event DefaultFeeRateSet(uint16 inputFeePips, uint16 outputFeePips);
+    event BasketFeeAllocationSet(
+        uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
+    );
 
     uint256 public constant VERSION = 1;
 
@@ -100,7 +161,6 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
     uint16 private defaultInputFeePips;
     uint16 private defaultOutputFeePips;
     BasketFeeAllocation private basketAllocation;
-    GeneralFeeAllocation private generalAllocation;
 
     mapping(PoolId poolId => PoolRegistration registration) private registrations;
     mapping(PoolId poolId => PoolFeeRate rate) private poolRates;
@@ -145,9 +205,6 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
             BasketFeeAllocation({
                 polShareBps: 1_500, basketStakerShareBps: 3_000, staticsStakerShareBps: 3_000, treasuryShareBps: 2_000
             })
-        );
-        _setGeneralFeeAllocation(
-            GeneralFeeAllocation({polShareBps: 4_000, staticsStakerShareBps: 3_500, treasuryShareBps: 2_000})
         );
         if (diamond == address(0) || diamond.code.length == 0) {
             revert InvalidPublicHookBinding();
@@ -229,18 +286,9 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
         return _basketFeeAllocation();
     }
 
-    function generalFeeAllocation() external view returns (GeneralFeeAllocation memory allocation) {
-        return _generalFeeAllocation();
-    }
-
     function setBasketFeeAllocation(BasketFeeAllocation calldata allocation) external {
         _enforceDiamond();
         _setBasketFeeAllocation(allocation);
-    }
-
-    function setGeneralFeeAllocation(GeneralFeeAllocation calldata allocation) external {
-        _enforceDiamond();
-        _setGeneralFeeAllocation(allocation);
     }
 
     // --- Registration and lifecycle ---
@@ -595,7 +643,7 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
         return shares.staticsStaker;
     }
 
-    /// @dev Carves the fixed creator share first, then applies the class allocation profile. Fallback
+    /// @dev Carves the fixed creator share first, then applies the Basket allocation profile. Fallback
     /// policy: an unavailable basket-staker share routes to POL; an unavailable Statics-staker share
     /// routes to treasury; the creator share never falls back.
     function _computeShares(PoolId poolId, Currency currency, uint256 charged)
@@ -603,27 +651,18 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
         view
         returns (AllocationShares memory shares)
     {
-        PoolKind kind = registrations[poolId].kind;
         shares.creator = Math.mulDiv(charged, CREATOR_SHARE_BPS, BPS);
         (bool polActivated, bool polOverridden, uint16 polOverrideBps) =
             IStaticsProtocolRevenue(staticsDiamond).protocolPolFundingConfig(poolId);
-        if (kind == PoolKind.BasketCanonical) {
-            BasketFeeAllocation memory a = _basketFeeAllocation();
-            uint16 polShareBps = _effectivePolShare(kind, polActivated, polOverridden, polOverrideBps);
-            shares.pol = Math.mulDiv(charged, polShareBps, BPS);
-            shares.basketStaker = Math.mulDiv(charged, a.basketStakerShareBps, BPS);
-            shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
-        } else {
-            GeneralFeeAllocation memory a = _generalFeeAllocation();
-            uint16 polShareBps = _effectivePolShare(kind, polActivated, polOverridden, polOverrideBps);
-            shares.pol = Math.mulDiv(charged, polShareBps, BPS);
-            shares.basketStaker = 0;
-            shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
-        }
+        BasketFeeAllocation memory a = _basketFeeAllocation();
+        uint16 polShareBps = _effectivePolShare(polActivated, polOverridden, polOverrideBps);
+        shares.pol = Math.mulDiv(charged, polShareBps, BPS);
+        shares.basketStaker = Math.mulDiv(charged, a.basketStakerShareBps, BPS);
+        shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
         shares.treasury = charged - shares.pol - shares.basketStaker - shares.staticsStaker - shares.creator;
 
         if (shares.basketStaker != 0 && !_canAccrueBasketRewards(poolId, currency)) {
-            if (_effectivePolShare(kind, polActivated, polOverridden, polOverrideBps) != 0) {
+            if (_effectivePolShare(polActivated, polOverridden, polOverrideBps) != 0) {
                 shares.pol += shares.basketStaker;
             } else {
                 shares.treasury += shares.basketStaker;
@@ -710,7 +749,6 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
     /// they become treasury revenue.
     function _canAccrueBasketRewards(PoolId poolId, Currency currency) internal view returns (bool) {
         if (!IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId)) return false;
-        if (registrations[poolId].kind != PoolKind.BasketCanonical) return true;
         uint256 basketId = IStaticsProtocolPools(staticsDiamond).protocolPool(poolId).basketId;
         IStaticsBasket.BasketView memory basket = IStaticsBasket(staticsDiamond).basket(basketId);
         address asset = currency.isAddressZero() ? weth : Currency.unwrap(currency);
@@ -728,7 +766,7 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
         if (pending.basketStaker != 0 && !_canAccrueBasketRewards(poolId, currency)) {
             (bool activated, bool overridden, uint16 overrideBps) =
                 IStaticsProtocolRevenue(staticsDiamond).protocolPolFundingConfig(poolId);
-            uint16 polShareBps = _effectivePolShare(registrations[poolId].kind, activated, overridden, overrideBps);
+            uint16 polShareBps = _effectivePolShare(activated, overridden, overrideBps);
             if (activated && polShareBps != 0) {
                 basketStakerToPol = pending.basketStaker;
                 polPending[poolId][currency] += basketStakerToPol;
@@ -747,22 +785,15 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
     /// reduce the POL-plus-Treasury bucket without iterating every pool, so cap the effective share
     /// at the bucket available under the current profile. This preserves swap liveness while the
     /// current global profile continues to fix every non-POL share.
-    function _effectivePolShare(PoolKind kind, bool activated, bool overridden, uint16 overrideBps)
+    function _effectivePolShare(bool activated, bool overridden, uint16 overrideBps)
         private
         view
         returns (uint16 shareBps)
     {
         if (!activated) return 0;
-        uint16 availableBps;
-        if (kind == PoolKind.BasketCanonical) {
-            BasketFeeAllocation memory allocation = _basketFeeAllocation();
-            if (!overridden) return allocation.polShareBps;
-            availableBps = allocation.polShareBps + allocation.treasuryShareBps;
-        } else {
-            GeneralFeeAllocation memory allocation = _generalFeeAllocation();
-            if (!overridden) return allocation.polShareBps;
-            availableBps = allocation.polShareBps + allocation.treasuryShareBps;
-        }
+        BasketFeeAllocation memory allocation = _basketFeeAllocation();
+        if (!overridden) return allocation.polShareBps;
+        uint16 availableBps = allocation.polShareBps + allocation.treasuryShareBps;
         return overrideBps < availableBps ? overrideBps : availableBps;
     }
 
@@ -826,16 +857,6 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
         );
     }
 
-    function _setGeneralFeeAllocation(GeneralFeeAllocation memory allocation) private {
-        if (!LibProtocolPoolFee.isValidConfigurableShares(
-                allocation.polShareBps, 0, allocation.staticsStakerShareBps, allocation.treasuryShareBps
-            )) revert InvalidAllocation();
-        generalAllocation = allocation;
-        emit GeneralFeeAllocationSet(
-            allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
-        );
-    }
-
     function _feeFromGross(uint256 amount, uint16 feePips) private pure returns (uint256) {
         return Math.mulDiv(amount, feePips, PIPS, Math.Rounding.Ceil);
     }
@@ -855,10 +876,6 @@ contract StaticsBasketHook is BaseHook, IStaticsBasketHook, IUnlockCallback {
 
     function _basketFeeAllocation() internal view returns (BasketFeeAllocation memory) {
         return basketAllocation;
-    }
-
-    function _generalFeeAllocation() internal view returns (GeneralFeeAllocation memory) {
-        return generalAllocation;
     }
 
     function _enforceRegistered(PoolId poolId) internal view {
