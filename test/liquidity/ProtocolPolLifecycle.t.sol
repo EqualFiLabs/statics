@@ -106,11 +106,13 @@ contract ProtocolPolLifecycleTest is GeneralPoolLifecycleTestBase {
         pools.setProtocolPoolPolShare(poolId, 6_000);
         assertEq(pools.protocolPool(poolId).polShareBps, 6_000);
 
-        pools.setGeneralFeeAllocation(
-            IStaticsProtocolPools.GeneralFeeAllocation({
-                polShareBps: 0, staticsStakerShareBps: 9_000, treasuryShareBps: 500
-            })
-        );
+        ProtocolPoolAdminFacet(address(diamond))
+            .setGeneralFeeAllocation(
+                address(key.hooks),
+                IStaticsProtocolPools.GeneralFeeAllocation({
+                    polShareBps: 0, staticsStakerShareBps: 9_000, treasuryShareBps: 500
+                })
+            );
         assertEq(pools.protocolPool(poolId).polShareBps, 500);
 
         _swapGeneralPool(key, trader, true, 0.2 ether);

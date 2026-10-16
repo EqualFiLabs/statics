@@ -21,6 +21,7 @@ import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol"
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
 import {LibBasketLiquidityMath} from "../../src/libraries/LibBasketLiquidityMath.sol";
+import {LibBasketMint} from "../../src/libraries/LibBasketMint.sol";
 import {MockERC20, MockSenderExtraFeeERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
@@ -197,10 +198,10 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         taxed.approve(address(diamond), expected.maximum);
         vm.expectRevert(
             abi.encodeWithSelector(
-                BasketLiquidityFacet.LaunchDebitExceedsMaximum.selector,
+                LibBasketMint.InputDebitExceedsMaximum.selector,
                 address(taxed),
-                expected.debit,
-                expected.maximum
+                params.bundleAmounts[0] + params.bundleAmounts[0] / 100,
+                params.bundleAmounts[0]
             )
         );
         baskets.createBasket{value: creationFeeAmount}(

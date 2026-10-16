@@ -314,4 +314,10 @@ jobs:
           normalize_artifact "Permit2.sol" "Permit2" "default" "uniswap-position-manager"
           normalize_artifact "PositionManager.sol" "PositionManager" "uniswap-position-manager" "default"
       - name: Test
-        run: forge test -vv
+        # The two largest setUps deploy the whole protocol in one synthetic EVM
+        # transaction. Give those setup transactions explicit headroom; the
+        # release rehearsal enforces the real per-transaction chain limits.
+        run: |
+          forge test -vv --gas-limit 4294967296 --match-contract '^DiamondGovernanceTest$'
+          forge test -vv --gas-limit 4294967296 --match-contract '^UnifiedProtocolInvariantTest$'
+          forge test -vv --no-match-contract '^(DiamondGovernanceTest|UnifiedProtocolInvariantTest)$'

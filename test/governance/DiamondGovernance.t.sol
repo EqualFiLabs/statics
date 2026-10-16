@@ -20,7 +20,6 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
-import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
@@ -29,8 +28,6 @@ import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol"
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsGeneralPoolHook} from "../../src/liquidity/StaticsGeneralPoolHook.sol";
-import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
@@ -511,45 +508,23 @@ contract DiamondGovernanceTest is BasketFactoryTestTools {
             "install basket liquidity manager"
         );
         basketFactory = _deployTestBasketFactory(address(diamond), poolManager, hook);
-        StaticsBasketHook publicHook = _deploySharedPublicHook(poolManager);
         _executeThroughTimelock(
             abi.encodeCall(
                 PublicHookPolicyFacet.installPublicHooks,
                 (
-                    _deployStandaloneGeneral(poolManager, address(diamond), address(1)),
-                    address(publicHook),
+                    address(_deployTestGeneralHook(poolManager, address(diamond), address(1))),
+                    address(_deployTestBasketHook(poolManager, address(diamond), address(1))),
                     address(basketFactory)
                 )
             ),
-            "install shared public hook architecture"
+            "install modular public hook architecture"
         );
         _ensureTestBasketSalts(basketFactory, 1);
-    }
-
-    function _deploySharedPublicHook(IPoolManager poolManager) private returns (StaticsBasketHook publicHook) {
-        uint160 publicFlags = REQUIRED_HOOK_FLAGS | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
-        bytes memory publicArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25), address(1));
-        (address expected, bytes32 salt) =
-            HookMiner.find(address(this), publicFlags, type(StaticsBasketHook).creationCode, publicArgs);
-        publicHook = new StaticsBasketHook{salt: salt}(poolManager, address(diamond), 25, 25, address(1));
-        assertEq(address(publicHook), expected);
     }
 
     function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {
         return IDiamondCut.FacetCut({
             facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
-    }
-
-    function _deployStandaloneGeneral(IPoolManager manager_, address diamond_, address weth_)
-        private
-        returns (address result)
-    {
-        bytes memory args_ = abi.encode(manager_, diamond_, uint16(25), uint16(25), weth_);
-        (address predicted_, bytes32 salt_) =
-            HookMiner.find(address(this), 0x10ec, type(StaticsGeneralPoolHook).creationCode, args_);
-        result = address(new StaticsGeneralPoolHook{salt: salt_}(manager_, diamond_, 25, 25, weth_));
-        assertEq(result, predicted_);
     }
 }

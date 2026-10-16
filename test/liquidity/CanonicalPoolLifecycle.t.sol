@@ -7,6 +7,7 @@ import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
+import {IStaticsPublicHookPolicy} from "../../src/interfaces/IStaticsPublicHookPolicy.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -115,8 +116,9 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         vm.expectRevert(BasketLiquidityFacet.LiquidityIntegrationAlreadyInstalled.selector);
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(swapFeeHook));
         (address configuredManager, address configuredHook, bool installed) = basketLiquidity.liquidityIntegration();
+        (,,, address legacyHook) = IStaticsPublicHookPolicy(address(diamond)).publicHookConfiguration();
         assertEq(configuredManager, address(poolManager));
-        assertEq(configuredHook, address(swapFeeHook));
+        assertEq(configuredHook, legacyHook);
         assertTrue(installed);
     }
 

@@ -95,9 +95,9 @@ requires the Diamond to expose the same copied policy immediately after the cut
 and again after the smoke lifecycle.
 Every contract referenced by the cut must be
 listed with its frozen artifact name, deployed address, exact constructor bytes,
-and direct creation transaction hash. The fixed role keys are `sharedHook`,
-`basketTokenFactory`, `manager`, `guard`, and `initializer`; facet keys may use their
-artifact names.
+and direct creation transaction hash. The fixed role keys are `generalHook`,
+`basketHook`, `basketTokenFactory`, `manager`, `guard`, and `initializer`; facet
+keys may use their artifact names.
 
 The following fragment shows the required shape; populate every value from the
 reviewed current-head reads:
@@ -117,8 +117,8 @@ same commit and release ID. `safeBatches` contains exact `to`, `value`, and `dat
 items executed atomically by the real Safe on the fork. `transactions` contains
 exact impersonated `from`, `to`, `value`, `data`, expected status, and optional
 revert bytes. `views` contains exact `eth_call` calldata and expected returned
-bytes. Its `entities` object binds the exact General and basket pool IDs, shared
-hook address, preparation ID, basket ID, and restricted basket token. These identities derive
+bytes. Its `entities` object binds the exact General and basket pool IDs, both
+standalone hook addresses, preparation ID, basket ID, and restricted basket token. These identities derive
 the mandatory call and view checks; the input cannot declare substitute targets
 or selectors. The required successful lifecycle cases are `general-create`,
 `general-swap`, `basket-prepare`, `basket-stage`, `basket-finalize`, `basket-mint`,
@@ -150,7 +150,8 @@ interface, and the continued absence of Phase 3 and Morpho interfaces.
   "generalPoolId": "0x...",
   "preparationId": "0x...",
   "basketPoolId": "0x...",
-  "sharedHook": "0x...",
+  "generalHook": "0x...",
+  "basketHook": "0x...",
   "basketId": 1,
   "basketToken": "0x..."
 }

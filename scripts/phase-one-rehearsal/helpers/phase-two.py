@@ -165,7 +165,7 @@ class PhaseTwo(Rehearsal):
                 self.swap("general-swap-out", key, False, -10**12)
         require(self.generals[0][0] != self.generals[1][0]
                 and self.generals[0][1][4].lower() == self.generals[1][1][4].lower(),
-                "general pools must have distinct PoolIds on the shared hook")
+                "general pools must have distinct PoolIds on the General hook")
 
         self.govern(None, "setPoolCreationFee(uint256)", 1)
         params = (ZERO, self.statics, 100, 1, Q96, (500, 500), self.alice, False, 9101, self.deadline())
@@ -254,7 +254,7 @@ class PhaseTwo(Rehearsal):
                 "canonicalPool(uint256,address)((bytes32,address,address,address,address,address,uint24,int24,int24))",
                 basket_id, asset)
             key = (view[3], view[4], int(view[6]), int(view[7]), view[5])
-            require(key[4].lower() == self.candidate["basketHook"].lower(), "canonical pool does not use shared hook")
+            require(key[4].lower() == self.candidate["basketHook"].lower(), "canonical pool does not use Basket hook")
             self.pools[view[0]] = key
             self.basket_keys.append(key)
         for asset in assets:

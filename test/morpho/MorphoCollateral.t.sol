@@ -22,6 +22,7 @@ import {LibMorpho} from "../../src/libraries/LibMorpho.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
 import {LibBasketRewards} from "../../src/libraries/LibBasketRewards.sol";
 import {LibPositionPortfolio} from "../../src/libraries/LibPositionPortfolio.sol";
+import {LibPublicHookPolicy} from "../../src/libraries/LibPublicHookPolicy.sol";
 import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsTestBase, StaticsTestDeployer} from "../helpers/StaticsTestBase.sol";
 import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
@@ -56,7 +57,13 @@ contract MorphoGenesisHarnessFacet {
             configured.redemptionFeeTiers.push(params.redemptionFeeTiers[i]);
         }
         bs.basketIds[token] = id + 1;
+        // This test-only fixture recreates a market launched before the public hooks were installed.
+        // Temporarily select the legacy launch path, then restore the installed policy atomically.
+        LibPublicHookPolicy.PolicyStorage storage ps = LibPublicHookPolicy.policyStorage();
+        bool publicHooksInstalled = ps.initialized;
+        ps.initialized = false;
         IStaticsBasketLaunchModule(address(this)).launchBasketPools(id, msg.sender, pools, maximums);
+        ps.initialized = publicHooksInstalled;
     }
 
     function seedGenesisIntegration(bool initialized, uint256 totalWeight) external {

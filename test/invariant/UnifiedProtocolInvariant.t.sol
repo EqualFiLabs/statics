@@ -39,12 +39,9 @@ import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsGeneralPoolHook} from "src/liquidity/StaticsGeneralPoolHook.sol";
-import {StaticsBasketHook} from "src/liquidity/StaticsBasketHook.sol";
 import {StaticsLiquidityManager} from "src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsBasketTokenFactory} from "src/liquidity/StaticsBasketTokenFactory.sol";
 import {PublicHookPolicyFacet} from "src/facets/PublicHookPolicyFacet.sol";
-import {IStaticsSwapFeeHook} from "src/interfaces/IStaticsSwapFeeHook.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
 import {BasketFactoryTestTools} from "test/helpers/BasketFactoryTestTools.sol";
 
@@ -954,38 +951,13 @@ contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
         basketFactory = _deployTestBasketFactory(deployment.diamond, poolManager, hook);
-        StaticsBasketHook publicHook = _deploySharedPublicHook(poolManager, deployment.diamond, deployment.weth);
         PublicHookPolicyFacet(deployment.diamond)
             .installPublicHooks(
-                _deployStandaloneGeneral(poolManager, deployment.diamond, deployment.weth),
-                address(publicHook),
+                address(_deployTestGeneralHook(poolManager, deployment.diamond, deployment.weth)),
+                address(_deployTestBasketHook(poolManager, deployment.diamond, deployment.weth)),
                 address(basketFactory)
             );
     }
 
-    function _deploySharedPublicHook(IPoolManager manager, address diamond, address weth)
-        private
-        returns (StaticsBasketHook publicHook)
-    {
-        uint160 publicFlags = REQUIRED_HOOK_FLAGS | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
-        bytes memory constructorArgs = abi.encode(manager, diamond, uint16(25), uint16(25), weth);
-        (address expected, bytes32 salt) =
-            HookMiner.find(address(this), publicFlags, type(StaticsBasketHook).creationCode, constructorArgs);
-        publicHook = new StaticsBasketHook{salt: salt}(manager, diamond, uint16(25), uint16(25), weth);
-        assertEq(address(publicHook), expected);
-    }
-
     receive() external payable {}
-
-    function _deployStandaloneGeneral(IPoolManager manager_, address diamond_, address weth_)
-        private
-        returns (address result)
-    {
-        bytes memory args_ = abi.encode(manager_, diamond_, uint16(25), uint16(25), weth_);
-        (address predicted_, bytes32 salt_) =
-            HookMiner.find(address(this), 0x10ec, type(StaticsGeneralPoolHook).creationCode, args_);
-        result = address(new StaticsGeneralPoolHook{salt: salt_}(manager_, diamond_, 25, 25, weth_));
-        assertEq(result, predicted_);
-    }
 }
