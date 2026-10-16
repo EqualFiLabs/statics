@@ -216,7 +216,7 @@ contract RestrictedSettlementInvariantHandler is Test {
 
     function settleOneHook(uint256 rawPool) public {
         uint256 selected = rawPool % hooks.length;
-        try protocol.harvest(hooks[selected], keys[selected]) {
+        try protocol.harvest(IStaticsSwapFeeHook(address(hooks[selected])), keys[selected]) {
             ++successfulSettlements;
         } catch {
             ++unexpectedFailures;
@@ -226,7 +226,7 @@ contract RestrictedSettlementInvariantHandler is Test {
     function setPolicy(uint256 rawInput, uint256 rawOutput) public {
         uint256 input = bound(rawInput, 1, 100);
         uint256 output = bound(rawOutput, 1, 200 - input);
-        protocol.setRate(hooks[0], input, output);
+        protocol.setRate(IStaticsSwapFeeHook(address(hooks[0])), input, output);
     }
 
     function distributorTransfer(uint256 rawToken, uint256 rawAmount, bool approveSender, bool approveReceiver) public {
@@ -401,6 +401,6 @@ contract RestrictedSettlementInvariantTest is StdInvariant, Test {
         assertEq(address(deployed), expected);
         key = PoolKey(c0, c1, 3000, 10, IHooks(deployed));
         vm.prank(address(protocol));
-        deployed.registerPool(key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, address(this));
+        deployed.registerPool(key, StaticsBasketHook.PoolKind.BasketCanonical, address(this));
     }
 }

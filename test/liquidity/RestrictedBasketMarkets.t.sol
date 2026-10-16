@@ -178,7 +178,7 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         assertEq(outbound, 0);
         assertGt(hook.claimLiability(Currency.wrap(address(token))), 0);
         uint256 beforeClaims = token.balanceOf(address(protocol));
-        protocol.harvest(hook, key);
+        protocol.harvest(IStaticsSwapFeeHook(address(hook)), key);
         assertGt(token.balanceOf(address(protocol)), beforeClaims);
         assertLe(
             hook.claimLiability(Currency.wrap(address(token))),
@@ -199,8 +199,8 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         assertGt(removed.amount0(), 0);
         assertGt(removed.amount1(), 0);
         protocol.lifecycle(key.toId(), uint256(LibBasketMarkets.Lifecycle.Decommissioned));
-        protocol.decommission(hook, key);
-        protocol.harvest(hook, key);
+        protocol.decommission(IStaticsSwapFeeHook(address(hook)), key);
+        protocol.harvest(IStaticsSwapFeeHook(address(hook)), key);
         assertEq(address(protocol.market(key.toId()).key.hooks), address(hook));
         vm.expectRevert();
         protocol.lifecycle(key.toId(), uint256(LibBasketMarkets.Lifecycle.Active));
@@ -212,7 +212,7 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         assertEq(address(protocol.market(key.toId()).key.hooks), address(hook));
         vm.expectRevert();
         vm.prank(address(protocol));
-        hook.registerPool(secondKey, IStaticsSwapFeeHook.PoolKind.BasketCanonical, address(this));
+        hook.registerPool(secondKey, StaticsBasketHook.PoolKind.BasketCanonical, address(this));
     }
 
     function testBothRestrictedCurrenciesAndLifecycleRelationships() public {
@@ -231,12 +231,12 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         vm.expectRevert();
         router.swap(bothKey, SwapParams(false, -int256(0.01 ether), TickMath.MAX_SQRT_PRICE - 1));
         router.modifyLiquidity(bothKey, _params(-int256(2 ether)));
-        protocol.harvest(hook, bothKey);
+        protocol.harvest(IStaticsSwapFeeHook(address(hook)), bothKey);
     }
 
     function testNoRebindingWrongPoolCallbackOrUnregisteredAuthority() public {
         vm.expectRevert();
-        hook.registerPool(key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, address(this));
+        hook.registerPool(key, StaticsBasketHook.PoolKind.BasketCanonical, address(this));
         vm.expectRevert();
         protocol.authorizeBasketPoolSettlement(key.toId(), BalanceDelta.wrap(0), 0);
         PoolKey memory different = key;
@@ -368,13 +368,13 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
     }
 
     function testHookLocalDefaultsAndPoolOverride() public {
-        protocol.setRate(hook, 10, 15);
-        IStaticsSwapFeeHook.PoolFeeRate memory rate = hook.poolFeeRate(key.toId());
+        protocol.setRate(IStaticsSwapFeeHook(address(hook)), 10, 15);
+        StaticsBasketHook.PoolFeeRate memory rate = hook.poolFeeRate(key.toId());
         assertEq(rate.inputFeePips, 10);
         assertEq(rate.outputFeePips, 15);
         assertFalse(rate.overridden);
-        protocol.feeRate(hook, key.toId(), 20, 30);
-        protocol.setRate(hook, 5, 5);
+        protocol.feeRate(IStaticsSwapFeeHook(address(hook)), key.toId(), 20, 30);
+        protocol.setRate(IStaticsSwapFeeHook(address(hook)), 5, 5);
         rate = hook.poolFeeRate(key.toId());
         assertEq(rate.inputFeePips, 20);
         assertEq(rate.outputFeePips, 30);
@@ -398,7 +398,7 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
     function _deployMarket(address first, address second) private returns (PoolKey memory poolKey) {
         poolKey = _marketKey(first, second, 3000);
         vm.prank(address(protocol));
-        hook.registerPool(poolKey, IStaticsSwapFeeHook.PoolKind.BasketCanonical, address(this));
+        hook.registerPool(poolKey, StaticsBasketHook.PoolKind.BasketCanonical, address(this));
     }
 
     function _marketKey(address first, address second, uint24 fee) private view returns (PoolKey memory poolKey) {

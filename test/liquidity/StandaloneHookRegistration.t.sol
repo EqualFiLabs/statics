@@ -8,7 +8,6 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsGeneralPoolHook} from "../../src/liquidity/StaticsGeneralPoolHook.sol";
 import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 
@@ -30,10 +29,10 @@ contract StandaloneHookRegistrationTest is Test {
     function testHooksRegisterMultiplePoolsWithIndependentRatesAndLifecycle() public {
         PoolKey memory first = _key(address(general), 3000);
         PoolKey memory second = _key(address(general), 500);
-        PoolId a = general.registerPool(first, IStaticsSwapFeeHook.PoolKind.General, address(this));
-        PoolId b = general.registerPool(second, IStaticsSwapFeeHook.PoolKind.General, address(this));
+        PoolId a = general.registerPool(first, StaticsGeneralPoolHook.PoolKind.General, address(this));
+        PoolId b = general.registerPool(second, StaticsGeneralPoolHook.PoolKind.General, address(this));
         PoolKey memory basketKey = _key(address(basket), 3000);
-        PoolId c = basket.registerPool(basketKey, IStaticsSwapFeeHook.PoolKind.BasketCanonical, address(this));
+        PoolId c = basket.registerPool(basketKey, StaticsBasketHook.PoolKind.BasketCanonical, address(this));
         general.setDefaultFeeRate(50, 60);
         general.setPoolFeeRate(a, 70, 80);
         basket.setDefaultFeeRate(90, 100);
@@ -45,20 +44,20 @@ contract StandaloneHookRegistrationTest is Test {
         assertFalse(general.poolDecommissioned(b));
         assertFalse(basket.poolDecommissioned(c));
         vm.expectRevert(StaticsGeneralPoolHook.PoolAlreadyRegistered.selector);
-        general.registerPool(first, IStaticsSwapFeeHook.PoolKind.General, address(this));
+        general.registerPool(first, StaticsGeneralPoolHook.PoolKind.General, address(this));
         vm.expectRevert(StaticsBasketHook.InvalidPoolKind.selector);
-        basket.registerPool(_key(address(basket), 500), IStaticsSwapFeeHook.PoolKind.General, address(this));
+        basket.registerPool(_key(address(basket), 500), StaticsBasketHook.PoolKind.General, address(this));
     }
 
     function testExternalCallerCannotRegisterInitializeOrGovernEitherHook() public {
         address outsider = address(0xBAD);
         PoolKey memory key = _key(address(general), 3000);
-        general.registerPool(key, IStaticsSwapFeeHook.PoolKind.General, address(this));
+        general.registerPool(key, StaticsGeneralPoolHook.PoolKind.General, address(this));
         vm.startPrank(outsider);
         vm.expectPartialRevert(StaticsGeneralPoolHook.OnlyStaticsDiamond.selector);
-        general.registerPool(_key(address(general), 500), IStaticsSwapFeeHook.PoolKind.General, outsider);
+        general.registerPool(_key(address(general), 500), StaticsGeneralPoolHook.PoolKind.General, outsider);
         vm.expectPartialRevert(StaticsBasketHook.OnlyStaticsDiamond.selector);
-        basket.registerPool(_key(address(basket), 500), IStaticsSwapFeeHook.PoolKind.BasketCanonical, outsider);
+        basket.registerPool(_key(address(basket), 500), StaticsBasketHook.PoolKind.BasketCanonical, outsider);
         vm.expectPartialRevert(StaticsGeneralPoolHook.OnlyStaticsDiamond.selector);
         general.setDefaultFeeRate(1, 1);
         vm.expectPartialRevert(StaticsBasketHook.OnlyStaticsDiamond.selector);
