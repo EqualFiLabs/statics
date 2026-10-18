@@ -3,30 +3,24 @@ pragma solidity ^0.8.28;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import {Test} from "forge-std/Test.sol";
+import {RobinhoodDollarFork} from "test/dollar/helpers/RobinhoodDollarFork.sol";
 
-import {
-    CoreBootstrapConfig,
-    CoreBootstrapDeployment,
-    DeployCoreBootstrap
-} from "script/dollar/DeployCoreBootstrap.s.sol";
+import {StaticsDollarStackDeployment} from "script/dollar/DeployStaticsDollar.s.sol";
+import {ChainlinkUsdOracle} from "src/dollar/ChainlinkUsdOracle.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
 import {CoreGovernanceFacet} from "src/dollar/core/facets/CoreGovernanceFacet.sol";
 import {IStaticsDollarCore} from "src/dollar/core/interfaces/IStaticsDollarCore.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
 import {IStaticsDollarGateway} from "src/dollar/interfaces/IStaticsDollarGateway.sol";
-import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
-import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 
 interface IRobinhoodUSDG is IERC20Metadata, IERC20Permit {
     function PERMIT_TYPEHASH() external view returns (bytes32);
 }
 
-contract RobinhoodUSDGPermitForkTest is Test {
+contract RobinhoodUSDGPermitForkTest is RobinhoodDollarFork {
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
     bytes32 private constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    uint256 private constant MAX_STALENESS = 1 hours;
 
     string private manifest;
     IRobinhoodUSDG private usdg;
@@ -38,30 +32,20 @@ contract RobinhoodUSDGPermitForkTest is Test {
     uint256 private aliceKey;
     address private alice;
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         manifest = vm.readFile(MANIFEST_PATH);
-        _selectFork();
-        owner = makeAddr("owner");
+        owner = makeAddr("robinhoodProductionOwner");
         (alice, aliceKey) = makeAddrAndKey("alice");
-        usdg = IRobinhoodUSDG(vm.parseJsonAddress(manifest, ".contracts.usdg.address"));
+        usdg = IRobinhoodUSDG(RH_USDG);
 
-        CanonicalWETH9 weth = new CanonicalWETH9();
-        MockETHUSDOracle wethOracle = new MockETHUSDOracle(2_500e18, MAX_STALENESS);
-        CoreBootstrapConfig memory config;
-        config.owner = owner;
-        config.profileGuardian = owner;
-        config.stakingToken = address(usdg);
-        config.initialOracle = address(wethOracle);
-        config.weth = address(weth);
-        config.collateralRatioBps = 15_000;
-        config.priceBandBps = 15_000;
-        config.debtCeiling = type(uint256).max;
-        CoreBootstrapDeployment memory deployment = new DeployCoreBootstrap().deploy(config);
+        StaticsDollarStackDeployment memory deployment = deployProduction(_productionConfig());
         core = IStaticsDollarCore(deployment.core);
         gateway = IStaticsDollarGateway(deployment.diamond);
         staticsDollar = StaticsDollar(deployment.staticsDollar);
 
-        MockETHUSDOracle pegOracle = new MockETHUSDOracle(1e18, MAX_STALENESS);
+        ChainlinkUsdOracle pegOracle =
+            new ChainlinkUsdOracle(RH_USDG_USD, FEED_MAX_AGE, 0.9e18, 1.1e18, RH_SEQUENCER, SEQUENCER_GRACE);
         vm.prank(owner);
         profileId = CoreGovernanceFacet(address(core))
             .createPeggedCollateralProfile(address(usdg), address(pegOracle), 0.995e18, 1.005e18, 5, 7, 1_000_000e18);
@@ -72,6 +56,7 @@ contract RobinhoodUSDGPermitForkTest is Test {
     function testCanonicalUSDGCodeAndPermitMetadataMatchManifest() public view {
         bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.usdg.runtimeCodeHash");
 
+        assertEq(address(usdg), vm.parseJsonAddress(manifest, ".contracts.usdg.address"));
         assertEq(block.chainid, vm.parseJsonUint(manifest, ".chainId"));
         assertEq(address(usdg).codehash, expectedCodeHash);
         assertEq(usdg.name(), "Global Dollar");
@@ -82,6 +67,13 @@ contract RobinhoodUSDGPermitForkTest is Test {
     }
 
     function testLiveUSDGReusablePermitMintsAndRedeemsThroughStatics() public {
+        // The pinned USDG price is just below $1; back the mint through the real top-up rail.
+        deal(address(usdg), alice, 1e6, false);
+        vm.startPrank(alice);
+        usdg.approve(address(core), 1e6);
+        core.topUpInsurance(profileId, 1e6);
+        vm.stopPrank();
+
         uint256 staticsDollarAmount = 100e18;
         IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview =
             core.previewPeggedMint(profileId, staticsDollarAmount);
@@ -115,25 +107,6 @@ contract RobinhoodUSDGPermitForkTest is Test {
         assertGe(staticsDollar.allowance(alice, address(gateway)), type(uint256).max - staticsDollarAmount);
         assertEq(staticsDollar.balanceOf(alice), 0);
         assertEq(usdg.balanceOf(alice), redemptionPreview.collateralOut);
-    }
-
-    function _selectFork() private {
-        uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
-        if (block.chainid == vm.parseJsonUint(manifest, ".chainId")) {
-            assertEq(block.number, forkBlock, "selected fork is not pinned");
-            return;
-        }
-
-        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
-            vm.skip(true, "ROBINHOOD_MAINNET is not configured");
-            return;
-        }
-
-        vm.createSelectFork(rpcUrl, forkBlock);
-        assertEq(block.chainid, vm.parseJsonUint(manifest, ".chainId"));
-        assertEq(block.number, forkBlock);
     }
 
     function _signPermit(IERC20Permit token, uint256 amount, uint256 deadline)

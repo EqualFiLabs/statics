@@ -10,7 +10,7 @@ import {LibIndexMath} from "./LibIndexMath.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 
 library LibBasketRewards {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.basket.rewards.v2");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.basket.rewards");
     uint256 internal constant RAY = 1e27;
     uint256 internal constant REWARD_ELIGIBILITY_DELAY = 24 hours;
     uint256 internal constant REWARD_BUCKET_SIZE = 1 hours;

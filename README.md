@@ -43,16 +43,59 @@ for the canonical machine-readable integration-beta state.
 | **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,000 STATICS each plus, after the immutable Genesis Epoch, a 1/5,555 share of a permanent native ETH reserve; STATICS backing stays exact and Diamond-independent while the reserve grows from protocol revenue and donations and can never be withdrawn. |
 | **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; fees earned by its launch positions route 5% to the Doppler/Airlock owner and 95% to permanent Statics fee ingress. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
-| **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
+| **Static baskets** | Each permit-enabled BasketToken represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. Basket tokens restrict transfers through distributor permissions, exact protocol actions and budgeted v4 settlement. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
 | **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, and selected global rewards. |
 | **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket vectors or individual Diamond-held assets can be borrowed through dedicated typed callbacks while nested flash loans remain blocked. |
-| **Canonical v4 liquidity** | Basket creators choose each constituent pool's static native LP fee, tick spacing, price, and seed while the mandatory Statics hook charges governed bilateral input/output fees. |
-| **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s or native ETH and an ERC-20, gated by an independent creation fee and EIP-712 creator authorization, selecting the native LP fee, tick spacing, and initial price, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
+| **Canonical v4 liquidity** | Basket creators choose each constituent pool's static native LP fee, tick spacing, price, optional paid POL activation and optional seed while the mandatory Statics hook charges governed bilateral input/output fees. |
+| **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s or native ETH and an ERC-20, gated by an independent creation fee, EIP-712 creator authorization, selecting the native LP fee, tick spacing, and initial price, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
 | **Managed protocol liquidity** | Settled POL inventory funds PoolId-bound PositionManager NFT portfolios; strategy can manage explicit ranges but cannot redirect protocol principal, refunds, or NFTs. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
+
+### Restricted basket creation
+
+New baskets use a Diamond-controlled `StaticsBasketTokenFactory` wrapping pinned
+CreateX v1.0.0 CREATE3. Phase 2 installs that token factory and one standalone
+immutable `StaticsBasketHook` for basket pools. Existing and new General pools
+use the deployed `StaticsSwapFeeHook`. Both hooks serve multiple pools,
+with independent governed defaults and PoolId-local accounting and lifecycle
+state. Existing pools retain their original hooks and PoolKeys. An identical pair,
+native LP fee, tick spacing and hook forms one complete v4 PoolKey and cannot be
+initialized twice.
+
+For prepared creation, read `basketCreationConfigurationHash`, choose a token
+nonce, check the resulting `preparedSaltFor(intent, nonce)` with `saltAvailable`,
+then call `prepareBasketToken` and `createBasketPrepared` with the same configuration
+and preparation ID. Preparation reserves and deploys the zero-supply token in one
+transaction. A reserved token identity does
+not depend on the next basket ID. Configuration or implementation changes
+invalidate the prepared intent. The unchanged `createBasket` selector consumes
+the factory's next deterministic automatic nonce. No production contract searches
+for salts onchain. Prepared salts bind the full intent and occupy the high-bit
+namespace; automatic salts use the lower namespace and cannot preempt prepared identities.
+
+`createBasketMarket` creates additional restricted markets directly against the
+Basket hook, including BasketToken/BasketToken markets, without changing canonical pointers.
+Creator attribution comes from the first restricted currency in the sorted PoolKey,
+so the matching basket creator retains creator rights regardless of caller or input order.
+General and incompatible permissioned paths reject registered restricted tokens.
+Approvals and permit set allowance; ordinary transfers additionally require an
+approved sender or recipient in the Diamond's shared distributor registry, or
+an exact protocol transfer authorization. The Diamond owner manages approvals
+with `setBasketDistributor(account, allowed)`; ownership grants no exemption.
+PoolManager settlement restrictions take precedence over distributor approvals.
+The restriction covers actual PoolManager ERC-20 boundary movement, not every
+internally netted unregistered-pool operation. Exit-only baskets retain liquidity
+removal, collection, historical claims, redemption, and POL recovery.
+Use `unwindBasketMarket(poolId)` for terminal recovery from an independent pool
+after either restricted currency exits and all managed POL positions are closed.
+For NAV routes containing restricted constituents, use the immutable receiver
+returned by `deployBasketArbitrageReceiver`. Approve the Diamond for restricted
+mint top-ups and the receiver for ordinary ERC-20 top-ups. Settlement is scoped
+to that receiver's current route, executor, quote and starting balances; it is
+not a permanent transfer exemption.
 
 ---
 
@@ -85,8 +128,8 @@ for the canonical machine-readable integration-beta state.
                                ▼
                  Uniswap v4 PoolManager + PositionManager
                                │
-                 StaticsSwapFeeHook + LiquidityManager
-                 bilateral fees + permanent full-range POL
+                 StaticsBasketHook + LiquidityManager
+                 bilateral fees + optional managed POL
 ```
 
 `StaticsDiamond` is the normal integration address, but the Dollar Core remains a separate custody and solvency boundary. Both Diamonds are owned by the same `StaticsTimelock`. Each basket has its own transferable ERC-20 token; module accounting and physical-token reservations remain isolated inside the Diamond.
@@ -227,6 +270,20 @@ Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`; testnet fork tests read
 `ROBINHOOD_TESTNET` or `ROBINHOOD_TESTNET_RPC_URL`. A missing RPC causes
 environment-gated tests to skip unless the matching `REQUIRE_*` flag is
 enabled.
+
+Robinhood fork pins refer to L2 RPC block numbers and hashes. Nitro's EVM
+`NUMBER` opcode reports the parent L1 height; pinned tests check that value
+against the header's `l1BlockNumber` separately.
+
+Dollar oracle and USDG permit fork tests use the dedicated Robinhood mainnet
+snapshot at block `90,883,652`, after the deployed Statics sequencer signal's
+recovery grace period. Both suites use actual Robinhood WETH, USDG, Chainlink
+price feeds, and the Statics sequencer signal, with 24-hour price freshness and
+one-hour sequencer recovery grace. The required Robinhood fork CI job runs both.
+
+The historical TPA1 arbitrage replay uses the source-pinned receiver artifact
+in `test/fixtures/tpa1-arbitrage-receiver.json` for its archived Diamond ABI.
+Current receiver settlement is covered by the current-Diamond arbitrage suites.
 
 The standalone Genesis release has a current-network integration proof for the
 official Robinhood Doppler modules:
@@ -829,6 +886,13 @@ POL inventory is settled permissionlessly from PoolManager claims into a PoolId-
 
 Beyond basket canonical pools, anyone can create a **general pool**, a Statics-hook Uniswap v4 pool between two compatible ERC-20s or native ETH and an ERC-20 with no basket association, once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a static native LP fee below 100%, valid tick spacing, initial price, and an initial bilateral hook-fee rate subject to the governed per-leg floor and combined ceiling; Statics fixes the installed hook. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
 
+Nonzero-fee creation also requires a creator-bound commitment in an earlier block.
+Commit `keccak256(abi.encode(quote.authorizationDigest))` with
+`commitPoolCreation(creator, commitment)`, then reveal the same parameters. The
+commitment can be submitted by any account, cannot be delayed by resubmission,
+and is consumed by a successful reveal. This prevents a copied pending transaction
+from changing creator attribution while retaining EOA and ERC-1271 relaying.
+
 Creator attribution uses EIP-712 authorization version 5 (domain `"Statics Protocol Pools"`) validated for EOA and ERC-1271 signers, binding the PoolId, normalized price, both initial hook-fee legs, managed-POL activation choice, creator, an unordered nonce, and a deadline. PoolId commits to the pair, native LP fee, tick spacing, and hook. When permissionless creation is enabled, a direct creator needs no signature; relayed authorization does not bind `msg.sender`, so front-running cannot steal creator identity, and unused nonces can be cancelled with `invalidatePoolCreationNonce`. General pools require no mandatory liquidity seed. Managed POL is disabled by default, routes its would-be share to treasury without accumulating dormant inventory, and can be permanently activated by the creator through an exact governed native fee. Activation enables only future funding. An authorized operator may manage any number of explicit PoolId-bound positions but cannot redirect principal, refunds, or NFTs. A different native LP fee or tick spacing creates a distinct PoolId; price or hook fee alone does not. The immutable creator earns a fixed 500-bps perpetual share, claimed pull-based through `claimCreatorRevenue`. General pools never gain basket backing, collateral, or lending status, and a pool's price is never a Statics solvency input. Owner-only decommissioning is staged: begin stops swaps and the gauge, explicit bounded transactions close POL positions, and finalization requires none remain. Accrued creator credits and user LP principal are preserved. General pools carry no privacy guarantees: the immutable creator address, creation events, nonces, every swap and LP action, and every revenue claim are permanently public and linkable onchain, so use a fresh creator address per pool where identity separation matters.
 
 ### Statics Dollar profiles
@@ -951,7 +1015,11 @@ IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.Cre
 // Deterministic preview: sorted PoolKey, PoolId, normalized price, fee, and EIP-712 digest.
 IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
 
-// A direct creator (creator == msg.sender) passes empty authorization and consumes no nonce.
+// Submit this transaction first, then wait for a later block before revealing.
+bytes32 commitment = keccak256(abi.encode(quote.authorizationDigest));
+pools.commitPoolCreation(params.creator, commitment);
+
+// In a later block, a direct creator passes empty authorization and consumes no nonce.
 PoolId poolId = pools.createPool{value: quote.creationFee}(params, "");
 
 // Later, the immutable creator pulls accrued revenue.

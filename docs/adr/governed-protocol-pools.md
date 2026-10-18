@@ -172,18 +172,17 @@ struct ProtocolPoolView {
 }
 ```
 
-Resolution follows these rules:
+Resolution follows these rules (updated by Phase 2's standalone Basket-hook design):
 
-1. If the existing `poolAssociations[poolId]` entry is associated, the pool is
-   `BasketCanonical` and its PoolKey comes from the existing canonical mapping.
-2. Otherwise, if the governance-pool registry contains the PoolId, the pool is
-   `Governance` and its PoolKey comes from that registry.
-3. Otherwise, the PoolId is not a Statics protocol pool.
+1. A permanent `LibBasketMarkets` record resolves canonical and additional Basket
+   markets, including historical settlement after decommissioning.
+2. Otherwise, the General pool registry resolves deployed and new General pools.
+3. Otherwise, the permissioned pool registry resolves permissioned General pools.
+4. Otherwise, the PoolId is not a Statics protocol pool.
 
-A PoolId may belong to exactly one class. Both basket pool creation and
-governance pool creation must reject a PoolId already claimed by either class.
-This virtual registry avoids copying or migrating existing canonical-pool
-storage and gives every new consumer one normalized lookup surface.
+A PoolId may belong to exactly one class. Pool creation rejects an identity
+already registered in any class. The canonical mapping remains the lookup from
+basket and constituent to its launch pool; it is not a second registration path.
 
 ## Fixed PoolKey policy
 

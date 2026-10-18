@@ -10,6 +10,7 @@ import {IStaticsDollarCoreTypes} from "../src/dollar/interfaces/IStaticsDollarCo
 import {IStaticsDollarGateway} from "../src/dollar/interfaces/IStaticsDollarGateway.sol";
 import {IMorphoBlue, MorphoMarket, MorphoMarketId, MorphoMarketParams} from "../src/interfaces/IMorphoBlue.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
+import {IStaticsBasketAdmin} from "../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsMorpho} from "../src/interfaces/IStaticsMorpho.sol";
 import {TestnetMorphoOracle} from "../src/testnet/TestnetMorphoOracle.sol";
 
@@ -159,6 +160,7 @@ contract ConfigureStaticsMorpho is Script {
         if (
             integration.morpho() != config.morpho || integration.morphoUsdStx() != config.usdStx
                 || integration.morphoSyncBountyBps() != config.syncBountyBps
+                || !IStaticsBasketAdmin(diamond).isBasketDistributor(config.morpho)
         ) revert MorphoConfigurationFailed();
         _validateRegisteredMarket(integration, marketId(staticsMarketParams(config)), config, false);
         _validateRegisteredMarket(integration, marketId(basketMarketParams(config)), config, true);
@@ -169,12 +171,13 @@ contract ConfigureStaticsMorpho is Script {
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        targets = new address[](3);
-        values = new uint256[](3);
-        payloads = new bytes[](3);
+        targets = new address[](4);
+        values = new uint256[](4);
+        payloads = new bytes[](4);
         targets[0] = diamond;
         targets[1] = diamond;
         targets[2] = diamond;
+        targets[3] = diamond;
         payloads[0] = abi.encodeCall(
             IStaticsMorpho.initializeMorphoIntegration, (config.morpho, config.usdStx, config.syncBountyBps)
         );
@@ -196,6 +199,7 @@ contract ConfigureStaticsMorpho is Script {
                 IStaticsMorpho.MarketMode.Active
             )
         );
+        payloads[3] = abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.morpho, true));
     }
 
     function staticsMarketParams(StaticsMorphoConfig memory config) public pure returns (MorphoMarketParams memory) {

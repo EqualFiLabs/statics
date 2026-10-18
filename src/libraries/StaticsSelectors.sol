@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IStaticsPublicHookPolicy} from "../interfaces/IStaticsPublicHookPolicy.sol";
+import {IStaticsSwapRewardFunding} from "../interfaces/IStaticsSwapRewardFunding.sol";
+
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
@@ -8,6 +11,11 @@ import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
+import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
+import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
@@ -48,7 +56,51 @@ import {PairingVaultFacet} from "../dollar/periphery/facets/PairingVaultFacet.so
 import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
+import {IStaticsHookAdministration} from "../interfaces/IStaticsHookAdministration.sol";
+
 library StaticsSelectors {
+    function publicHookPolicy() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsPublicHookPolicy.installBasketHook.selector;
+        selectors[1] = IStaticsPublicHookPolicy.basketHookConfiguration.selector;
+    }
+
+    function swapRewardFunding() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsSwapRewardFunding.fundPublicSwapRewards.selector;
+    }
+
+    function basketPreparation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
+        selectors[1] = IStaticsBasketPreparation.prepareBasketToken.selector;
+        selectors[2] = IStaticsBasketPreparation.preparedBasketContracts.selector;
+    }
+
+    function basketSettlement() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](10);
+        selectors[0] = IStaticsBasketSettlement.validateBasketPool.selector;
+        selectors[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
+        selectors[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
+        selectors[3] = IStaticsBasketSettlement.isBasketToken.selector;
+        selectors[4] = IStaticsBasketSettlement.settleBasketManagerDelivery.selector;
+        selectors[5] = IStaticsBasketArbitrage.beginBasketArbitrage.selector;
+        selectors[6] = IStaticsBasketArbitrage.settleBasketArbitrageInput.selector;
+        selectors[7] = IStaticsBasketArbitrage.settleBasketArbitrageOutput.selector;
+        selectors[8] = IStaticsBasketArbitrage.endBasketArbitrage.selector;
+        selectors[9] = IStaticsBasketSettlement.canAccrueBasketCurrencyRewards.selector;
+    }
+
+    function basketArbitrageDeployment() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsBasketArbitrage.deployBasketArbitrageReceiver.selector;
+    }
+
+    function basketMarkets() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsBasketMarkets.createBasketMarket.selector;
+    }
+
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](5);
         selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
@@ -130,6 +182,20 @@ library StaticsSelectors {
         selectors[7] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
         selectors[8] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
         selectors[9] = IStaticsGaugeIncentives.forfeitGaugeAllocatorReward.selector;
+    }
+
+    function gaugeRoutingActions() internal pure returns (bytes4[] memory selectors) {
+        bytes4[] memory all = gaugeIncentiveActions();
+        selectors = new bytes4[](8);
+        for (uint256 i; i < 8; ++i) {
+            selectors[i] = all[i];
+        }
+    }
+
+    function gaugeAllocatorRewards() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        selectors[1] = IStaticsGaugeIncentives.forfeitGaugeAllocatorReward.selector;
     }
 
     function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
@@ -312,21 +378,21 @@ library StaticsSelectors {
     }
 
     function morphoActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsMorpho.deployMorphoCollateral.selector;
         selectors[1] = IStaticsMorpho.recallMorphoCollateral.selector;
         selectors[2] = IStaticsMorpho.borrowMorphoUsd.selector;
         selectors[3] = IStaticsMorpho.repayMorphoUsd.selector;
-        selectors[4] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoSettlement() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsMorpho.claimMorphoSyncBounties.selector;
         selectors[1] = IStaticsMorpho.routeMorphoPerformanceFee.selector;
         selectors[2] = IStaticsMorpho.recoverMorphoAccountToken.selector;
         selectors[3] = IStaticsMorpho.syncMorpho.selector;
         selectors[4] = IStaticsMorpho.syncMorphoForModule.selector;
+        selectors[5] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoRecovery() internal pure returns (bytes4[] memory selectors) {
@@ -385,16 +451,22 @@ library StaticsSelectors {
     }
 
     function basketCreation() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsBasket.createBasket.selector;
+        selectors[1] = IStaticsBasket.createBasketPrepared.selector;
+        selectors[2] = IStaticsBasketStaging.createBasketStaged.selector;
+        selectors[3] = IStaticsBasketStaging.continueBasketLaunch.selector;
+        selectors[4] = IStaticsBasketStaging.cancelBasketLaunch.selector;
+        selectors[5] = IStaticsBasketStaging.basketLaunchProgress.selector;
     }
 
     function basketMint() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsBasket.mint.selector;
         selectors[1] = IStaticsBasket.quoteMint.selector;
         selectors[2] = IStaticsBasketCollateral.createAndMintBasketCollateral.selector;
         selectors[3] = IStaticsBasketCollateral.mintBasketCollateral.selector;
+        selectors[4] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
     }
 
     function basketRedemption() internal pure returns (bytes4[] memory selectors) {
@@ -503,11 +575,13 @@ library StaticsSelectors {
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsBasketAdmin.setCreationFee.selector;
         selectors[1] = IStaticsBasketAdmin.setTreasury.selector;
         selectors[2] = IStaticsBasketAdmin.creationFee.selector;
         selectors[3] = IStaticsBasketAdmin.treasury.selector;
+        selectors[4] = IStaticsBasketAdmin.setBasketDistributor.selector;
+        selectors[5] = IStaticsBasketAdmin.isBasketDistributor.selector;
     }
 
     function phaseOneTreasuryAdmin() internal pure returns (bytes4[] memory selectors) {
@@ -517,9 +591,11 @@ library StaticsSelectors {
     }
 
     function phaseTwoBasketAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsBasketAdmin.setCreationFee.selector;
         selectors[1] = IStaticsBasketAdmin.creationFee.selector;
+        selectors[2] = IStaticsBasketAdmin.setBasketDistributor.selector;
+        selectors[3] = IStaticsBasketAdmin.isBasketDistributor.selector;
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
@@ -527,13 +603,13 @@ library StaticsSelectors {
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[4] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[5] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[6] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
-        selectors[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        selectors[3] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[4] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[5] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[6] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[7] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[8] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        selectors[9] = IStaticsBasketLaunchModule.launchBasketPoolBatch.selector;
     }
 
     function phaseOneLiquidityIntegration() internal pure returns (bytes4[] memory selectors) {
@@ -549,17 +625,25 @@ library StaticsSelectors {
     function phaseTwoBasketLiquidity() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](4);
         selectors[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        selectors[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[2] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[1] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[2] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[3] = IStaticsBasketLaunchModule.launchBasketPoolBatch.selector;
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](2);
         selectors[0] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
+        selectors[1] = IStaticsBasketLiquidity.unwindBasketMarket.selector;
     }
 
     function protocolPoolCreation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsProtocolPools.quotePool.selector;
+        selectors[1] = IStaticsProtocolPools.createPool.selector;
+        selectors[2] = IStaticsProtocolPools.invalidatePoolCreationNonce.selector;
+    }
+
+    function phaseOneProtocolPoolCreation() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](3);
         selectors[0] = IStaticsProtocolPools.quotePool.selector;
         selectors[1] = IStaticsProtocolPools.createPool.selector;
@@ -592,7 +676,7 @@ library StaticsSelectors {
     }
 
     function protocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](12);
         selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
         selectors[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
         selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
@@ -602,6 +686,9 @@ library StaticsSelectors {
         selectors[6] = IStaticsProtocolPools.beginGeneralPoolDecommission.selector;
         selectors[7] = IStaticsProtocolPools.finalizeGeneralPoolDecommission.selector;
         selectors[8] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        selectors[9] = IStaticsHookAdministration.setDefaultProtocolPoolFeeRate.selector;
+        selectors[10] = IStaticsHookAdministration.setBasketFeeAllocation.selector;
+        selectors[11] = IStaticsHookAdministration.setGeneralFeeAllocation.selector;
     }
 
     function phaseOneProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
@@ -617,8 +704,11 @@ library StaticsSelectors {
     }
 
     function phaseTwoProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
+        selectors[1] = IStaticsHookAdministration.setDefaultProtocolPoolFeeRate.selector;
+        selectors[2] = IStaticsHookAdministration.setBasketFeeAllocation.selector;
+        selectors[3] = IStaticsHookAdministration.setGeneralFeeAllocation.selector;
     }
 
     function protocolPoolMaintenance() internal pure returns (bytes4[] memory selectors) {
@@ -644,7 +734,7 @@ library StaticsSelectors {
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](14);
+        selectors = new bytes4[](17);
         selectors[0] = IStaticsProtocolPools.protocolPool.selector;
         selectors[1] = IStaticsProtocolPools.isProtocolPool.selector;
         selectors[2] = IStaticsProtocolPools.poolCreationFee.selector;
@@ -659,6 +749,9 @@ library StaticsSelectors {
         selectors[11] = IStaticsProtocolPools.protocolPolOperator.selector;
         selectors[12] = IStaticsProtocolPools.protocolPolPosition.selector;
         selectors[13] = IStaticsProtocolPools.protocolPolPositionIds.selector;
+        selectors[14] = IStaticsHookAdministration.defaultProtocolPoolFeeRate.selector;
+        selectors[15] = IStaticsHookAdministration.basketFeeAllocation.selector;
+        selectors[16] = IStaticsHookAdministration.generalFeeAllocation.selector;
     }
 
     function phaseOneProtocolPoolView() internal pure returns (bytes4[] memory selectors) {
@@ -679,8 +772,11 @@ library StaticsSelectors {
     }
 
     function phaseTwoProtocolPoolView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsProtocolPools.basketFeeAllocation.selector;
+        selectors[1] = IStaticsHookAdministration.defaultProtocolPoolFeeRate.selector;
+        selectors[2] = IStaticsHookAdministration.basketFeeAllocation.selector;
+        selectors[3] = IStaticsHookAdministration.generalFeeAllocation.selector;
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {

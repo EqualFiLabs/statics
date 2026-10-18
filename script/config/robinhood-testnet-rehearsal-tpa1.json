@@ -55,5 +55,10 @@
     500250000000000000
   ],
   "expectedBasketId": 0,
-  "launchDeadline": 1893456000
+  "launchDeadline": 1893456000,
+  "activateManagedPol": [
+    true,
+    true,
+    true
+  ]
 }

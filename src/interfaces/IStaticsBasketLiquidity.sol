@@ -27,9 +27,6 @@ interface IStaticsBasketLiquidity {
         uint160 sqrtPriceX96,
         int24 tick
     );
-    event CanonicalPoolSyncedToManager(
-        uint256 indexed basketId, address indexed asset, PoolId indexed poolId, address manager
-    );
     event ProtocolPolTreasuryAccrued(
         uint256 indexed basketId, address indexed sourcePoolAsset, address indexed rewardAsset, uint256 amount
     );
@@ -46,6 +43,7 @@ interface IStaticsBasketLiquidity {
         external;
     function installLiquidityManager(address manager) external;
     function unwindBasketLiquidity(uint256 basketId, address asset) external;
+    function unwindBasketMarket(PoolId poolId) external;
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed);
     function permissionedLiquidityIntegration()

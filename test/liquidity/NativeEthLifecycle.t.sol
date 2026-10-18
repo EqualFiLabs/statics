@@ -10,6 +10,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {IStaticsSwapRewardFunding} from "../../src/interfaces/IStaticsSwapRewardFunding.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
@@ -75,6 +76,65 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
         nativeKey = _poolKey(nativePool);
         vm.deal(alice, 1_000 ether);
         pools.setProtocolPolOperator(address(this));
+    }
+
+    function testRewardFundingCapabilityRejectsExternalCallers() public {
+        vm.expectRevert("Statics: only self");
+        IStaticsSwapRewardFunding(address(diamond)).fundPublicSwapRewards(address(wrappedNative), 1);
+    }
+
+    function testPartialFundingCoalescesPendingSourcesAndRequeuesConsumedSources() public {
+        _stakeWeth();
+        vm.warp(block.timestamp + 25 hours);
+        _provide(_createPosition(alice), nativePool, alice);
+        PoolId second = _createNativePool(address(assetB), 3_000);
+        _provide(_createPosition(alice), second, alice);
+
+        address reward = address(wrappedNative);
+        _swap(nativeKey, true, -int256(0.1 ether));
+        uint256 firstPending = globalRewards.unfundedSwapRewards(reward);
+        _swap(_poolKey(second), true, -int256(0.1 ether));
+        uint256 secondPending = globalRewards.unfundedSwapRewards(reward) - firstPending;
+        assertGt(firstPending, 0);
+        assertGt(secondPending, 0);
+
+        uint256 partialAmount = firstPending / 2;
+        assertEq(globalRewards.settlePublicSwapRewards(reward, partialAmount), partialAmount);
+        uint256 beforeAccrual = globalRewards.unfundedSwapRewards(reward);
+        _swap(nativeKey, true, -int256(0.1 ether));
+        uint256 added = globalRewards.unfundedSwapRewards(reward) - beforeAccrual;
+        uint256 firstRemaining = firstPending - partialAmount + added;
+        assertEq(globalRewards.settlePublicSwapRewards(reward, firstRemaining), firstRemaining);
+        assertEq(globalRewards.unfundedSwapRewards(reward), secondPending);
+
+        _swap(nativeKey, true, -int256(0.1 ether));
+        uint256 requeued = globalRewards.unfundedSwapRewards(reward) - secondPending;
+        assertGt(requeued, 0);
+        assertEq(globalRewards.settlePublicSwapRewards(reward, secondPending), secondPending);
+        assertEq(globalRewards.unfundedSwapRewards(reward), requeued);
+        assertEq(globalRewards.settlePublicSwapRewards(reward, type(uint256).max), requeued);
+        assertEq(globalRewards.unfundedSwapRewards(reward), 0);
+        assertEq(IStaticsSwapFeeHook(address(nativeKey.hooks)).pendingStakerRewards(nativeKey.currency0), 0);
+    }
+
+    function testMoreThanThirtyTwoSharedHookSourcesRequireBoundedRepeatedFunding() public {
+        _stakeWeth();
+        vm.warp(block.timestamp + 25 hours);
+        for (uint256 i; i < 33; ++i) {
+            MockERC20 paired = new MockERC20("Bounded Source", "SOURCE", 18);
+            PoolId poolId = _createNativePool(address(paired), 3_000);
+            _provide(_createPosition(alice), poolId, alice);
+            _swap(_poolKey(poolId), true, -int256(0.01 ether));
+        }
+
+        uint256 unfunded = globalRewards.unfundedSwapRewards(address(wrappedNative));
+        assertGt(unfunded, 0);
+        uint256 first = globalRewards.settlePublicSwapRewards(address(wrappedNative), type(uint256).max);
+        uint256 remaining = globalRewards.unfundedSwapRewards(address(wrappedNative));
+        assertGt(first, 0);
+        assertGt(remaining, 0);
+        assertEq(globalRewards.settlePublicSwapRewards(address(wrappedNative), type(uint256).max), remaining);
+        assertEq(globalRewards.unfundedSwapRewards(address(wrappedNative)), 0);
     }
 
     function testNativeManagedLifecycleRefundFeesRebalanceAndExit() public {
@@ -167,7 +227,7 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
         _provide(_createPosition(alice), poolId, alice);
         _swap(key, true, -int256(0.1 ether));
         _swap(key, false, int256(0.01 ether));
-        assertGt(swapFeeHook.claimLiability(key.currency0), 0);
+        assertGt(IStaticsSwapFeeHook(address(key.hooks)).claimLiability(key.currency0), 0);
     }
 
     function testNativeAndWethFeesShareOneOptInAndLazyRewardBook() public {
@@ -199,17 +259,21 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
                     : TickMath.MAX_SQRT_PRICE - 1
             )
         );
-        uint256 wethPending = swapFeeHook.pendingStakerRewards(Currency.wrap(address(wrappedNative)));
+        uint256 wethPending =
+            IStaticsSwapFeeHook(address(wethKey.hooks)).pendingStakerRewards(Currency.wrap(address(wrappedNative)));
         assertGt(wethPending, 0);
         uint256 combined = nativePending + wethPending;
         assertEq(globalRewards.unfundedSwapRewards(address(wrappedNative)), combined);
-        // Partial funding consumes the actual WETH source first, then exactly the native remainder.
+        // New accruals retain their original currency and fund in source arrival order.
+        // Both source claims still back the same unchanged WETH reward entitlement.
+        uint256 requested = wethPending + nativePending / 2;
+        assertEq(globalRewards.settlePublicSwapRewards(address(wrappedNative), requested), requested);
+        uint256 nativeFunded = requested < nativePending ? requested : nativePending;
+        assertEq(swapFeeHook.pendingStakerRewards(nativeKey.currency0), nativePending - nativeFunded);
         assertEq(
-            globalRewards.settlePublicSwapRewards(address(wrappedNative), wethPending + nativePending / 2),
-            wethPending + nativePending / 2
+            IStaticsSwapFeeHook(address(wethKey.hooks)).pendingStakerRewards(Currency.wrap(address(wrappedNative))),
+            wethPending - (requested - nativeFunded)
         );
-        assertEq(swapFeeHook.pendingStakerRewards(Currency.wrap(address(wrappedNative))), 0);
-        assertEq(swapFeeHook.pendingStakerRewards(nativeKey.currency0), nativePending - nativePending / 2);
         globalRewards.settlePublicSwapRewards(address(wrappedNative), type(uint256).max);
         address[] memory assets = new address[](1);
         assets[0] = address(wrappedNative);
@@ -538,7 +602,8 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
         v4Router.swap(key, SwapParams(false, -int256(0.1 ether), TickMath.MAX_SQRT_PRICE - 1));
         assertEq(
             globalRewards.unfundedSwapRewards(address(wrappedNative)),
-            swapFeeHook.pendingStakerRewards(key.currency0) + swapFeeHook.pendingStakerRewards(key.currency1)
+            IStaticsSwapFeeHook(address(key.hooks)).pendingStakerRewards(key.currency0)
+                + IStaticsSwapFeeHook(address(key.hooks)).pendingStakerRewards(key.currency1)
         );
         _settlePol(poolId, key);
         uint256 polId = _openPol(poolId, key, 1e15);
@@ -585,22 +650,23 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
         );
     }
 
+    function _prepareNativePool(IStaticsProtocolPools.CreatePoolParams memory) internal virtual {}
+
     function _createNativePool(address paired, uint24 fee) private returns (PoolId poolId) {
-        poolId = pools.createPool(
-            IStaticsProtocolPools.CreatePoolParams(
-                address(0),
-                paired,
-                fee,
-                10,
-                SQRT_PRICE_1_1,
-                IStaticsProtocolPools.PoolSwapFeeRate(2_500, 2_500),
-                alice,
-                false,
-                0,
-                block.timestamp + 1 hours
-            ),
-            ""
+        IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams(
+            address(0),
+            paired,
+            fee,
+            10,
+            SQRT_PRICE_1_1,
+            IStaticsProtocolPools.PoolSwapFeeRate(2_500, 2_500),
+            alice,
+            false,
+            0,
+            block.timestamp + 1 hours
         );
+        _prepareNativePool(params);
+        poolId = pools.createPool(params, "");
     }
 
     function _provideParams(PoolId poolId, int24 lower, int24 upper)

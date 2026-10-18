@@ -226,6 +226,11 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
 
     function _enforceValidAsset(address asset) private view {
         if (asset == address(0) || asset == address(this) || asset.code.length == 0) revert InvalidAsset(asset);
+        uint256 basketIdPlusOne = LibBasket.basketStorage().basketIds[asset];
+        if (basketIdPlusOne != 0) {
+            uint256 basketId = basketIdPlusOne - 1;
+            LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
+        }
     }
 
     function _enforceValidReceiver(address receiver) private view {

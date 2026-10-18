@@ -466,6 +466,28 @@ contract BasketLifecycleTest is StaticsTestBase {
         _assertSenderTaxIsolation(firstBasket, secondBasket, address(taxed), firstToken, snapshot);
     }
 
+    function testMintMaximumCapsThePayersActualDebit() public {
+        MockSenderExtraFeeERC20 taxed = new MockSenderExtraFeeERC20();
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.assets[0] = address(taxed);
+        (uint256 basketId,) = _launch(params, alice, 1 ether);
+        uint256[] memory maximums = baskets.quoteMint(basketId, 1 ether);
+        taxed.mint(alice, maximums[0] * 2);
+        assetB.mint(alice, maximums[1]);
+        vm.startPrank(alice);
+        taxed.approve(address(diamond), type(uint256).max);
+        assetB.approve(address(diamond), type(uint256).max);
+        taxed.setTaxedSender(alice);
+        uint256 actualDebit = maximums[0] + maximums[0] / 100;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBasketMint.InputDebitExceedsMaximum.selector, address(taxed), actualDebit, maximums[0]
+            )
+        );
+        baskets.mint(basketId, 1 ether, alice, maximums);
+        vm.stopPrank();
+    }
+
     function testRedemptionCannotClearBackingToDiamondReceiver() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         _fundAndApprove(alice, 2 ether, 5 ether);

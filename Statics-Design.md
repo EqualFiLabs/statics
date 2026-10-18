@@ -1181,6 +1181,19 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
+Restricted BasketTokens share an owner-governed distributor registry in the
+Diamond. Ordinary transfers require an approved endpoint or an exact protocol
+ticket; spender approval alone does not authorize the endpoints. PoolManager
+settlement checks run before distributor approval. Phase 2 installs the registry
+empty. The later Morpho configuration batch explicitly approves Morpho, replacing
+per-token bindings and ingress tickets without adding special revocation guards.
+Direct Morpho top-ups count toward Morpho health without increasing tracked
+collateral or Statics stake. Only collateral above the tracked amount is untracked
+surplus. Loss recognition compares the current balance with tracked collateral,
+so replenishment before synchronization can offset a deficit and its reward
+forfeiture. Existing authorized surplus recovery and empty-account closure
+requirements remain unchanged.
+
 Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; later phases retain
 that Diamond and add selectors through reviewed timelocked cuts. The fresh full
 stack reference uses the same timelock ownership model for both Diamonds. The

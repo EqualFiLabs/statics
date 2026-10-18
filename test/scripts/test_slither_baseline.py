@@ -279,6 +279,19 @@ class SlitherBaselineTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "schema 2"):
                 slither_baseline.command_check(args)
 
+    def test_check_rejects_unsuccessful_slither_json(self) -> None:
+        raw = {"success": False, "error": "compiler failed", "results": {"detectors": []}}
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            raw_path = directory_path / "raw.json"
+            baseline_path = directory_path / "baseline.json"
+            raw_path.write_text(json.dumps(raw), encoding="utf-8")
+            baseline_path.write_text(json.dumps({"schema": 2, "findings": []}), encoding="utf-8")
+            args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
+
+            with self.assertRaisesRegex(ValueError, "unsuccessful analysis"):
+                slither_baseline.command_check(args)
+
 
 if __name__ == "__main__":
     unittest.main()

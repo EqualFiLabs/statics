@@ -4,9 +4,9 @@ pragma solidity 0.8.33;
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
-import {LibBasket} from "./LibBasket.sol";
-import {LibBasketLiquidity} from "./LibBasketLiquidity.sol";
+import {LibDiamond} from "./LibDiamond.sol";
 import {LibPermissionedPools} from "./LibPermissionedPools.sol";
+import {LibBasketMarkets} from "./LibBasketMarkets.sol";
 
 /// @notice Normalized protocol-pool registry resolving both basket canonical and general pools.
 /// @dev Uses a fresh namespaced storage version so the layout cannot be confused with the replaced
@@ -14,6 +14,14 @@ import {LibPermissionedPools} from "./LibPermissionedPools.sol";
 /// library stores only general-pool identity, creator attribution, creation nonces, and the creation
 /// fee.
 library LibProtocolPools {
+    error PermissionlessPoolCreationDisabled();
+
+    function enforcePoolCreationAllowed(address caller) internal view {
+        if (protocolPoolStorage().poolCreationFeeAmount == 0 && caller != LibDiamond.contractOwner()) {
+            revert PermissionlessPoolCreationDisabled();
+        }
+    }
+
     using PoolIdLibrary for PoolKey;
 
     bytes32 internal constant PROTOCOL_POOL_STORAGE_POSITION = keccak256("statics.storage.protocol.pools.v2");
@@ -71,21 +79,16 @@ library LibProtocolPools {
         view
         returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
     {
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        LibBasketLiquidity.PoolAssociation storage association = ls.poolAssociations[poolId];
-        if (association.associated) {
-            LibBasketLiquidity.CanonicalPool storage canonical =
-                ls.canonicalPools[association.basketId][association.asset];
-            if (PoolId.unwrap(canonical.key.toId()) == PoolId.unwrap(poolId)) {
-                return (
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) {
+            return
+                (
                     IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical,
-                    canonical.key,
-                    association.basketId,
-                    association.asset
+                    market.key,
+                    market.basketId,
+                    market.basketAsset
                 );
-            }
         }
-
         GeneralPool storage general = protocolPoolStorage().generalPools[poolId];
         if (general.registered && PoolId.unwrap(general.key.toId()) == PoolId.unwrap(poolId)) {
             return (IStaticsProtocolPools.ProtocolPoolKind.General, general.key, 0, address(0));
@@ -101,10 +104,9 @@ library LibProtocolPools {
     /// stored general-pool creator. Downstream fee routing consumes this rather than duplicating
     /// pool-class-specific lookups.
     function creatorOf(PoolId poolId) internal view returns (address creator) {
-        (IStaticsProtocolPools.ProtocolPoolKind kind,, uint256 basketId,) = resolve(poolId);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
-            return LibBasket.basketStorage().baskets[basketId].creator;
-        }
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) return market.creator;
+        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = resolve(poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.General) {
             return protocolPoolStorage().generalPools[poolId].creator;
         }

@@ -18,6 +18,12 @@ import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsRewardSelectionTiming} from "../interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
+import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
+import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
+import {IStaticsHookAdministration} from "../interfaces/IStaticsHookAdministration.sol";
+import {IStaticsPublicHookPolicy} from "../interfaces/IStaticsPublicHookPolicy.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
@@ -100,6 +106,12 @@ library LibDeploymentPhases {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketStaging).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsHookAdministration).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsPublicHookPolicy).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketArbitrage).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;

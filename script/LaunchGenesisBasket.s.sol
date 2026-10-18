@@ -98,7 +98,7 @@ contract LaunchGenesisBasket is Script {
 
     function buildBatch(address diamond, GenesisBasketLaunchConfig memory config)
         public
-        pure
+        view
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
         _validateShape(config);
@@ -113,6 +113,10 @@ contract LaunchGenesisBasket is Script {
             payloads[i] = abi.encodeCall(IERC20.approve, (diamond, config.maxAmountsIn[i]));
         }
 
+        uint256 activationFee = IStaticsProtocolPools(diamond).protocolPolActivationFee();
+        for (uint256 i; i < assetCount; ++i) {
+            if (config.pools[i].activateManagedPol) values[assetCount] += activationFee;
+        }
         targets[assetCount] = diamond;
         payloads[assetCount] = abi.encodeCall(
             IStaticsBasket.createBasket, (config.basket, config.pools, config.maxAmountsIn, config.launchDeadline)
@@ -147,6 +151,11 @@ contract LaunchGenesisBasket is Script {
             loanDuration: _uint40(json, ".loanDuration")
         });
         config.pools = _poolParams(lpFees, tickSpacings, sqrtPrices, pairedAmounts);
+        bool[] memory activate = vm.parseJsonBoolArray(json, ".activateManagedPol");
+        if (activate.length != config.pools.length) revert InvalidLaunchConfiguration();
+        for (uint256 i; i < activate.length; ++i) {
+            config.pools[i].activateManagedPol = activate[i];
+        }
         config.maxAmountsIn = vm.parseJsonUintArray(json, ".maxAmountsIn");
         config.expectedBasketId = vm.parseJsonUint(json, ".expectedBasketId");
         config.launchDeadline = vm.parseJsonUint(json, ".launchDeadline");
@@ -182,11 +191,11 @@ contract LaunchGenesisBasket is Script {
         if (baskets.basketCount() != basketId + 1) revert GenesisLaunchFailed(basketId);
         IStaticsBasket.BasketView memory launched = baskets.basket(basketId);
         if (
-            launched.creator != timelock || launched.token.code.length == 0 || IERC20(launched.token).totalSupply() == 0
+            launched.creator != timelock || launched.token.code.length == 0
                 || launched.assets.length != config.basket.assets.length
         ) revert GenesisLaunchFailed(basketId);
 
-        (, address hook, bool integrationInstalled) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
+        (,, bool integrationInstalled) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
         (, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         if (!integrationInstalled || !managerInstalled) revert GenesisLaunchFailed(basketId);
 
@@ -199,8 +208,10 @@ contract LaunchGenesisBasket is Script {
                 IStaticsProtocolPools(diamond).protocolPool(pool.poolId);
             if (
                 launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i]
-                    || baskets.vaultBalance(basketId, asset) == 0 || pool.asset != asset
-                    || pool.basketToken != launched.token || pool.hook != hook || protocolPool.activePolPositions == 0
+                    || pool.asset != asset || pool.basketToken != launched.token || pool.hook.code.length == 0
+                    || address(protocolPool.key.hooks) != pool.hook
+                    || protocolPool.polActivated != config.pools[i].activateManagedPol
+                    || protocolPool.activePolPositions != (config.pools[i].pairedAssetAmount == 0 ? 0 : 1)
                     || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
                     || protocolPool.basketId != basketId || protocolPool.basketAsset != asset
                     || protocolPool.decommissioned
@@ -256,7 +267,8 @@ contract LaunchGenesisBasket is Script {
                 lpFee: uint24(lpFee),
                 tickSpacing: int24(uint24(tickSpacing)),
                 sqrtPriceAssetPerBasketX96: uint160(sqrtPrice),
-                pairedAssetAmount: pairedAmounts[i]
+                pairedAssetAmount: pairedAmounts[i],
+                activateManagedPol: false
             });
         }
     }

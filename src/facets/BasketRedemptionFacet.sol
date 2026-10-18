@@ -46,6 +46,7 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         if (receiver == address(0)) revert InvalidReceiver();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        if (configured.status == IStaticsBasket.BasketStatus.Pending) LibBasket.enforceActive(configured, basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
             _enforceNotPaused(LibGovernance.PAUSE_REDEEM);
         }
@@ -79,6 +80,7 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        if (configured.status == IStaticsBasket.BasketStatus.Pending) LibBasket.enforceActive(configured, basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
             _enforceNotPaused(LibGovernance.PAUSE_REDEEM);
         }

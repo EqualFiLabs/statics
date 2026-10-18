@@ -15,7 +15,6 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
@@ -201,12 +200,11 @@ contract RangeGaugeFacet is ReentrancyGuard {
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
 
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (address(key.hooks) != ls.hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        address hook = address(key.hooks);
         LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
         if (!gauge.initialized) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         if (gauge.stopped) revert IStaticsRangeGauge.GaugeStopped(poolId);
-        if (IStaticsSwapFeeHook(ls.hook).poolDecommissioned(poolId)) {
+        if (IStaticsSwapFeeHook(hook).poolDecommissioned(poolId)) {
             revert IStaticsRangeGauge.PublicPoolDecommissioned(poolId);
         }
     }

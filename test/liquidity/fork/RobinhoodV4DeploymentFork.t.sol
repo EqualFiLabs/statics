@@ -87,6 +87,7 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
 
     Deployment private deployment;
     string private manifest;
+    uint256 private pinnedEvmBlockNumber;
 
     function setUp() public {
         manifest = vm.readFile(MANIFEST_PATH);
@@ -97,7 +98,7 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
 
     function test_deploymentCodeAndBindingsMatchManifest() public view {
         assertEq(block.chainid, deployment.chainId);
-        assertEq(block.number, deployment.forkBlock);
+        assertEq(vm.getBlockNumber(), pinnedEvmBlockNumber);
 
         _assertCodeHash("poolManager", deployment.poolManager);
         _assertCodeHash("positionManager", deployment.positionManager);
@@ -193,8 +194,8 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
         (uint256 quoteOut,) = IV4Quoter(deployment.quoter)
             .quoteExactInputSingle(
                 IV4Quoter.QuoteExactSingleParams({
-                poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
-            })
+                    poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
+                })
             );
         assertGt(quoteOut, 0);
 
@@ -208,11 +209,6 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
         uint256 requestedBlock = vm.envOr("ROBINHOOD_FORK_BLOCK", deployment.forkBlock);
         assertEq(requestedBlock, deployment.forkBlock, "fork block differs from manifest");
 
-        if (block.chainid == deployment.chainId) {
-            assertEq(block.number, deployment.forkBlock, "selected fork is not pinned");
-            return;
-        }
-
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
@@ -220,9 +216,16 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
             return;
         }
 
+        bytes32 expectedHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
+        string memory header =
+            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(expectedHash), "\",false]"));
+        assertEq(vm.parseJsonBytes32(header, ".hash"), expectedHash, "fork block hash drift");
+        assertEq(vm.parseJsonUint(header, ".number"), deployment.forkBlock);
+        // Nitro's NUMBER opcode reports the parent L1 height, not the pinned L2 height.
+        pinnedEvmBlockNumber = vm.parseJsonUint(header, ".l1BlockNumber");
         vm.createSelectFork(rpcUrl, deployment.forkBlock);
-        assertEq(block.chainid, deployment.chainId);
-        assertEq(block.number, deployment.forkBlock);
+        assertEq(vm.getChainId(), deployment.chainId);
+        assertEq(vm.getBlockNumber(), pinnedEvmBlockNumber);
     }
 
     function _readDeployment(string memory json) private pure returns (Deployment memory config) {
