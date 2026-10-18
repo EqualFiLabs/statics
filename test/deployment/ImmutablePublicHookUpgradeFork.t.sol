@@ -56,7 +56,7 @@ contract ImmutablePublicHookUpgradeForkTest is CanonicalPoolTestBase {
     string private fixture;
     string private evidenceOutput;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         if (!vm.envOr("STATICS_PUBLIC_HOOK_FORK", false)) {
             vm.skip(true);
             return;
@@ -125,7 +125,7 @@ contract ImmutablePublicHookUpgradeForkTest is CanonicalPoolTestBase {
         assertEq(address(basketHook), expectedHook);
     }
 
-    function _upgrade() private {
+    function _upgrade() internal returns (StaticsProtocolParts memory parts) {
         _deployStandaloneHooks();
         bytes memory hookArgs = abi.encode(poolManager, DIAMOND, uint16(0), uint16(0), swapFeeHook.weth());
         _localBasketFactory = new StaticsBasketTokenFactory(DIAMOND, poolManager);
@@ -133,7 +133,7 @@ contract ImmutablePublicHookUpgradeForkTest is CanonicalPoolTestBase {
         IStaticsLiquidityManager old = IStaticsLiquidityManager(previous);
         address manager =
             address(new StaticsLiquidityManager(DIAMOND, old.positionManager(), address(poolManager), old.permit2()));
-        StaticsProtocolParts memory parts = new PublicHookCandidateDeployer().deployParts();
+        parts = new PublicHookCandidateDeployer().deployParts();
         PrepareStaticsPublicHookUpgrade.Configuration memory config = PrepareStaticsPublicHookUpgrade.Configuration(
             DIAMOND,
             address(new StaticsPublicHookReleaseInit()),

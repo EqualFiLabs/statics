@@ -246,6 +246,8 @@ jobs:
         run: git diff --check
       - name: Test fork rehearsal evidence guards
         run: python3 -m unittest discover -s test/rehearsal -v
+      - name: Test conversion evidence gate
+        run: python3 -m unittest discover -s scripts/basket-conversion -v
 
   solidity:
     name: Solidity / test
