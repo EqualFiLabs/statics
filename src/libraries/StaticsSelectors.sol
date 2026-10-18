@@ -11,6 +11,7 @@ import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
@@ -245,7 +246,7 @@ library StaticsSelectors {
     }
 
     function governance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](18);
+        selectors = new bytes4[](19);
         selectors[0] = IStaticsGovernance.guardian.selector;
         selectors[1] = IStaticsGovernance.pausedActions.selector;
         selectors[2] = IStaticsGovernance.isPaused.selector;
@@ -264,6 +265,7 @@ library StaticsSelectors {
         selectors[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
         selectors[16] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
         selectors[17] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
+        selectors[18] = IStaticsBasketImpairment.markBasketAssetImpaired.selector;
     }
 
     function phaseOneGovernance() internal pure returns (bytes4[] memory selectors) {
@@ -286,10 +288,11 @@ library StaticsSelectors {
     }
 
     function phaseTwoGovernance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsGovernance.quarantineBasket.selector;
         selectors[1] = IStaticsGovernance.releaseBasketQuarantine.selector;
         selectors[2] = IStaticsGovernance.decommissionBasket.selector;
+        selectors[3] = IStaticsBasketImpairment.markBasketAssetImpaired.selector;
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
@@ -470,20 +473,24 @@ library StaticsSelectors {
     }
 
     function basketRedemption() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsBasket.redeem.selector;
         selectors[1] = IStaticsBasket.quoteRedeem.selector;
         selectors[2] = IStaticsBasketCollateral.redeemBasketCollateral.selector;
+        selectors[3] = IStaticsBasketImpairment.redeemImpaired.selector;
+        selectors[4] = IStaticsBasketImpairment.redeemImpairedBasketCollateral.selector;
+        selectors[5] = IStaticsBasketImpairment.quoteRedeemImpaired.selector;
     }
 
     function basketView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsBasket.basket.selector;
         selectors[1] = IStaticsBasket.basketCount.selector;
         selectors[2] = IStaticsBasket.basketIdOf.selector;
         selectors[3] = IStaticsBasket.vaultBalance.selector;
         selectors[4] = IStaticsBasket.feeSharesFor.selector;
         selectors[5] = IStaticsBasket.basketStatus.selector;
+        selectors[6] = IStaticsBasketImpairment.isBasketAssetImpaired.selector;
     }
 
     function basketCollateral() internal pure returns (bytes4[] memory selectors) {

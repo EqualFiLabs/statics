@@ -10,6 +10,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
@@ -42,10 +43,29 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         nonReentrant
         returns (uint256[] memory amountsOut)
     {
+        return _redeem(basketId, shares, receiver, minAmountsOut, false);
+    }
+
+    function redeemImpaired(uint256 basketId, uint256 shares, address receiver, uint256[] calldata minAmountsOut)
+        external
+        nonReentrant
+        returns (uint256[] memory amountsOut)
+    {
+        return _redeem(basketId, shares, receiver, minAmountsOut, true);
+    }
+
+    function _redeem(
+        uint256 basketId,
+        uint256 shares,
+        address receiver,
+        uint256[] calldata minAmountsOut,
+        bool impaired
+    ) private returns (uint256[] memory amountsOut) {
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        _enforceRedemptionMode(bs, basketId, impaired);
         if (configured.status == IStaticsBasket.BasketStatus.Pending) LibBasket.enforceActive(configured, basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
             _enforceNotPaused(LibGovernance.PAUSE_REDEEM);
@@ -65,6 +85,7 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         });
         _settleRedemption(bs, configured, settlement, minAmountsOut, amountsOut);
         emit IStaticsBasket.BasketRedeemed(basketId, msg.sender, receiver, shares);
+        if (impaired) emit IStaticsBasketImpairment.BasketImpairedRedeemed(basketId, msg.sender, receiver, shares);
     }
 
     function redeemBasketCollateral(
@@ -74,12 +95,34 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         address receiver,
         uint256[] calldata minAmountsOut
     ) external nonReentrant returns (uint256[] memory amountsOut) {
+        return _redeemCollateral(positionId, basketId, shares, receiver, minAmountsOut, false);
+    }
+
+    function redeemImpairedBasketCollateral(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 shares,
+        address receiver,
+        uint256[] calldata minAmountsOut
+    ) external nonReentrant returns (uint256[] memory amountsOut) {
+        return _redeemCollateral(positionId, basketId, shares, receiver, minAmountsOut, true);
+    }
+
+    function _redeemCollateral(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 shares,
+        address receiver,
+        uint256[] calldata minAmountsOut,
+        bool impaired
+    ) private returns (uint256[] memory amountsOut) {
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        _enforceRedemptionMode(bs, basketId, impaired);
         if (configured.status == IStaticsBasket.BasketStatus.Pending) LibBasket.enforceActive(configured, basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
             _enforceNotPaused(LibGovernance.PAUSE_REDEEM);
@@ -102,12 +145,27 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         LibBasketRewards.deactivateIfEmpty(positionId, basketId);
         emit IStaticsBasket.BasketRedeemed(basketId, address(this), receiver, shares);
         emit IStaticsBasketCollateral.BasketCollateralRedeemed(positionId, basketId, receiver, shares);
+        if (impaired) emit IStaticsBasketImpairment.BasketImpairedRedeemed(basketId, address(this), receiver, shares);
     }
 
     function quoteRedeem(uint256 basketId, uint256 shares) external view returns (uint256[] memory amountsOut) {
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        _enforceRedemptionMode(bs, basketId, false);
         amountsOut = _quoteRedeem(bs, configured, basketId, shares, IERC20(configured.token).totalSupply());
+    }
+
+    function quoteRedeemImpaired(uint256 basketId, uint256 shares) external view returns (uint256[] memory amountsOut) {
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        _enforceRedemptionMode(bs, basketId, true);
+        return _quoteRedeem(bs, configured, basketId, shares, IERC20(configured.token).totalSupply());
+    }
+
+    function _enforceRedemptionMode(LibBasket.BasketStorage storage bs, uint256 basketId, bool impaired) private view {
+        bool marked = bs.impairedAssets[basketId] != 0;
+        if (impaired && !marked) revert IStaticsBasketImpairment.BasketNotImpaired(basketId);
+        if (!impaired && marked) revert IStaticsBasketImpairment.ImpairedRedemptionRequired(basketId);
     }
 
     function _settleRedemption(
@@ -118,7 +176,12 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         uint256[] memory amountsOut
     ) private {
         uint256 length = configured.assets.length;
+        uint256 impairedMask = bs.impairedAssets[settlement.basketId];
         for (uint256 i; i < length; ++i) {
+            if (impairedMask & (uint256(1) << i) != 0) {
+                if (minAmountsOut[i] != 0) revert MinimumOutputNotMet(configured.assets[i], 0, minAmountsOut[i]);
+                continue;
+            }
             _redeemAsset(bs, configured, settlement, i, minAmountsOut[i], amountsOut[i]);
         }
     }
@@ -157,7 +220,9 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         uint256 length = configured.assets.length;
         uint256 feeShares = LibBasket.selectFeeShares(configured.redemptionFeeTiers, shares);
         amountsOut = new uint256[](length);
+        uint256 impairedMask = bs.impairedAssets[basketId];
         for (uint256 i; i < length; ++i) {
+            if (impairedMask & (uint256(1) << i) != 0) continue;
             address asset = configured.assets[i];
             uint256 bundleAmount = configured.bundleAmounts[i];
             uint256 baseOut = LibBasket.backingReduction(bundleAmount, supply, shares);

@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketToken} from "../interfaces/IStaticsBasketToken.sol";
 
 library LibBasket {
@@ -36,6 +37,15 @@ library LibBasket {
         uint256 creationFeeAmount;
         address treasury;
         mapping(address account => bool allowed) distributors;
+        // Constituent ordering is immutable; one bit per configured asset (maximum 16).
+        mapping(uint256 basketId => uint256 mask) impairedAssets;
+    }
+
+    function assetIndex(Basket storage configured, uint256 basketId, address asset) internal view returns (uint256) {
+        for (uint256 i; i < configured.assets.length; ++i) {
+            if (configured.assets[i] == asset) return i;
+        }
+        revert IStaticsBasketImpairment.AssetNotInBasket(basketId, asset);
     }
 
     error BasketTokenAlreadyRegistered(address token);

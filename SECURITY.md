@@ -46,6 +46,13 @@ boundary; native LP and POL principal remain ETH. Forced ETH stays unallocated.
 Native transfers use exact value accounting and failure-reverting calls inside
 shared reentrancy guards. See [native ETH Phase 1](docs/adr/native-eth-phase-one.md).
 
+Owner-marked impaired basket constituents have a separate explicit
+healthy-asset redemption path. Burning permanently forfeits impaired backing;
+there are no recovery claims. Residual assets stay reserved to that basket,
+without treasury reclassification. Basket reward claims pay healthy currencies
+and permanently forfeit impaired-constituent entitlements without calling those
+tokens; forfeited rewards remain reserved in the fee account. See [basket impairment](docs/adr/basket-impairment.md).
+
 ## Custody and execution
 
 Statics Dollar Core collateral remains physically held by

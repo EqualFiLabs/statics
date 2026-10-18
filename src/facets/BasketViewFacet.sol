@@ -30,6 +30,12 @@ contract BasketViewFacet {
         result.loanDuration = configured.loanDuration;
     }
 
+    function isBasketAssetImpaired(uint256 basketId, address asset) external view returns (bool) {
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        LibBasket.Basket storage configured = _getBasket(bs, basketId);
+        return bs.impairedAssets[basketId] & (uint256(1) << LibBasket.assetIndex(configured, basketId, asset)) != 0;
+    }
+
     function basketStatus(uint256 basketId) external view returns (IStaticsBasket.BasketStatus) {
         return _getBasket(LibBasket.basketStorage(), basketId).status;
     }

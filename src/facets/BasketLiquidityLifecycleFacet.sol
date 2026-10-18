@@ -37,7 +37,6 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     using StateLibrary for IPoolManager;
 
     error BasketNotFound(uint256 basketId);
-    error AssetNotInBasket(uint256 basketId, address asset);
     error CanonicalPoolNotConfigured(uint256 basketId, address asset);
     error BasketNotExitOnly(uint256 basketId, IStaticsBasket.BasketStatus status);
     error BasketLiquidityAlreadyUnwound(uint256 basketId, address asset);
@@ -73,7 +72,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
             revert BasketNotExitOnly(basketId, configured.status);
         }
-        _enforceConstituent(configured, basketId, asset);
+        LibBasket.assetIndex(configured, basketId, asset);
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         address basketToken = configured.token;
@@ -209,6 +208,8 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         TreasuryAccrual memory accrual,
         uint256 index
     ) private {
+        // Impaired backing stays reserved to the basket, including after protocol-owned burns.
+        if (bs.impairedAssets[accrual.basketId] & (uint256(1) << index) != 0) return;
         address rewardAsset = configured.assets[index];
         uint256 amount = LibBasket.backingReduction(configured.bundleAmounts[index], accrual.supply, accrual.shares);
         uint256 available = bs.vaultBalances[accrual.basketId][rewardAsset];
@@ -242,14 +243,6 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {
         configured = LibBasket.basketStorage().baskets[basketId];
         if (configured.token == address(0)) revert BasketNotFound(basketId);
-    }
-
-    function _enforceConstituent(LibBasket.Basket storage configured, uint256 basketId, address asset) private view {
-        uint256 length = configured.assets.length;
-        for (uint256 i; i < length; ++i) {
-            if (configured.assets[i] == asset) return;
-        }
-        revert AssetNotInBasket(basketId, asset);
     }
 
     function _enforceReleased(address token, uint256 beforeBalance, uint256 reported) private view {

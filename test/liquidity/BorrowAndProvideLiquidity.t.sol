@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
@@ -154,6 +155,18 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         );
         params = _poolParams(20 ether);
         _expectAtomicRevert(BorrowLiquidityFacet.InsufficientPrincipal.selector, params, supplyBefore, beforePosition);
+    }
+
+    function testBorrowLiquidityRejectsNonConstituentWithExactError() public {
+        _createReadyBasket(1);
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        params[0].asset = address(0);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(IStaticsBasketImpairment.AssetNotInBasket.selector, basketId, address(0))
+        );
+        borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, bob);
     }
 
     function testBorrowMintAndLiquidityPausesEachBlockTheCombinedPath() public {

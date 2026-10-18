@@ -11,6 +11,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -81,6 +82,16 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         assertLt(IERC20(basketToken).totalSupply(), supplyBefore);
         assertLt(baskets.vaultBalance(basketId, constituent), vaultBefore);
         assertGt(globalRewards.treasuryAccrued(constituent), treasuryBefore);
+    }
+
+    function testUnwindRejectsNonConstituentWithExactError() public {
+        governance.decommissionBasket(basketId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IStaticsBasketImpairment.AssetNotInBasket.selector, basketId, address(0))
+        );
+        basketLiquidity.unwindBasketLiquidity(basketId, address(0));
+        assertFalse(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
     }
 
     function testPoolCannotUnwindEarlyOrSwapAfterDecommission() public {

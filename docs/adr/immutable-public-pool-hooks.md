@@ -151,4 +151,9 @@ The release freezes a committed candidate and preserves historical artifacts and
 the original pre-upgrade fixture. Local tests, pinned-fork execution, bytecode
 reproduction, static analysis, focused security review and CI report distinct
 evidence. Formal workloads run only in CI or on the dedicated verification box.
+The impairment scenario funds mixed-currency rewards through real PoolManager
+swaps before freezing a constituent. Qualification requires a successful healthy
+reward payout, exact forfeiture event and zero impaired-token calls, unchanged
+forfeited fee reservations, cleared claims, and mined unauthorized/replay failures.
+Receipt, trace, returned amounts, and block-bound view observations must agree.
 Production deployment and Diamond upgrades remain separate operations.

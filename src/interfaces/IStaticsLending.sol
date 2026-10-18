@@ -45,6 +45,9 @@ interface IStaticsLending {
         uint256 penaltyShares,
         uint40 maturity
     );
+    event LoanImpairedPrincipalWrittenOff(
+        uint256 indexed loanId, uint256 indexed basketId, address indexed asset, uint256 principal
+    );
     event LoanRepaid(uint256 indexed loanId, uint256 indexed positionId, address indexed payer);
     event LoanExtended(uint256 indexed loanId, uint40 maturity);
     event LoanExtensionFeePaid(uint256 indexed loanId, address indexed asset, uint256 requiredFee, uint256 receivedFee);

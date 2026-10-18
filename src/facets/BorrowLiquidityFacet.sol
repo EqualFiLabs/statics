@@ -69,7 +69,6 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     error InvalidRecipient();
     error InvalidPoolCount(uint256 provided, uint256 required);
     error DuplicatePoolAsset(address asset);
-    error AssetNotInBasket(uint256 basketId, address asset);
     error LiquidityManagerNotInstalled();
     error InvalidLiquidityParameters(address asset);
     error AmountCapExceeded(address token, uint256 required, uint256 maximum);
@@ -193,7 +192,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
 
         for (uint256 i; i < length; ++i) {
             LiquidityParams calldata supplied = pools[i];
-            uint256 assetIndex = _assetIndex(configured, basketId, supplied.asset);
+            uint256 assetIndex = LibBasket.assetIndex(configured, basketId, supplied.asset);
             if (seen[assetIndex]) revert DuplicatePoolAsset(supplied.asset);
             seen[assetIndex] = true;
             result.pools[i] = _preparePool(ls, configured, basketId, supplied);
@@ -300,18 +299,6 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
                 LibCustody.pushReserved(custodyAccount, configured.assets[i], receiver, refund, refund);
             }
         }
-    }
-
-    function _assetIndex(LibBasket.Basket storage configured, uint256 basketId, address asset)
-        private
-        view
-        returns (uint256 index)
-    {
-        uint256 length = configured.assets.length;
-        for (uint256 i; i < length; ++i) {
-            if (configured.assets[i] == asset) return i;
-        }
-        revert AssetNotInBasket(basketId, asset);
     }
 
     function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing) private view {

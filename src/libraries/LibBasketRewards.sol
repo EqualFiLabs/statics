@@ -138,7 +138,9 @@ library LibBasketRewards {
         assets = rewardAssets(configured);
         uint256 length = assets.length;
         amounts = new uint256[](length);
+        uint256 impaired = LibBasket.basketStorage().impairedAssets[basketId];
         for (uint256 i; i < length; ++i) {
+            if (i != 0 && impaired & (1 << (i - 1)) != 0) continue;
             amounts[i] = _pendingAsset(rs, position, basketId, assets[i], shares);
         }
     }

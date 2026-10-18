@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketStaging} from "../../src/interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketSettlement} from "../../src/interfaces/IStaticsBasketSettlement.sol";
@@ -356,7 +357,7 @@ contract SelectorManifestTest is Test {
 
     function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.governance();
-        bytes4[] memory expected = new bytes4[](18);
+        bytes4[] memory expected = new bytes4[](19);
         expected[0] = IStaticsGovernance.guardian.selector;
         expected[1] = IStaticsGovernance.pausedActions.selector;
         expected[2] = IStaticsGovernance.isPaused.selector;
@@ -375,6 +376,7 @@ contract SelectorManifestTest is Test {
         expected[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
         expected[16] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
         expected[17] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
+        expected[18] = IStaticsBasketImpairment.markBasketAssetImpaired.selector;
         _assertExact(actual, expected);
     }
 

@@ -6,6 +6,8 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
+import {LibBasketCollateral} from "../../src/libraries/LibBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IMorphoBlue, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
@@ -79,6 +81,22 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
         vm.prank(alice);
         morphoApi.borrowMorphoUsd(collateralPosition, marketId, 50 ether, type(uint256).max, alice);
         assertTrue(basketAdmin.isBasketDistributor(address(realMorpho)));
+    }
+
+    function testImpairedExitKeepsActualMorphoCollateralLocked() public {
+        IStaticsBasketImpairment impairment = IStaticsBasketImpairment(address(diamond));
+        impairment.markBasketAssetImpaired(collateralBasket, address(assetB));
+        uint256[] memory minimums = new uint256[](2);
+        vm.startPrank(alice);
+        vm.expectPartialRevert(LibBasketCollateral.PositionSharesLocked.selector);
+        impairment.redeemImpairedBasketCollateral(collateralPosition, collateralBasket, 21 ether, alice, minimums);
+        impairment.redeemImpairedBasketCollateral(collateralPosition, collateralBasket, 20 ether, alice, minimums);
+        vm.stopPrank();
+        assertEq(morphoApi.morphoPositionMarket(collateralPosition, marketId).trackedCollateral, 80 ether);
+        assertEq(
+            basketCollateral.basketCollateralPosition(collateralPosition, collateralBasket).depositedShares, 80 ether
+        );
+        assertEq(assetA.balanceOf(alice), 40 ether);
     }
 
     function testTrackedIngressAndRecallWithActualMorpho() public {
@@ -179,6 +197,34 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
         assertEq(morphoApi.morphoPositionMarket(collateralPosition, marketId).untrackedSurplus, 3 ether);
     }
 
+    function testImpairedRewardsClaimSynchronizesActualMorphoLoss() public {
+        vm.warp(block.timestamp + 25 hours);
+        _swapRewards(address(assetA));
+        _swapRewards(address(assetB));
+        (, uint256[] memory earned) = basketRewards.getBasketRewards(collateralPosition, collateralBasket);
+        assertGt(earned[1], 0);
+        assertGt(earned[2], 0);
+        oracle.setPrice(0.5e36);
+        (address account,) = morphoApi.morphoAccount(collateralPosition);
+        usd.mint(bob, 100 ether);
+        vm.startPrank(bob);
+        usd.approve(address(realMorpho), 100 ether);
+        realMorpho.liquidate(market, account, 1 ether, 0, "");
+        vm.stopPrank();
+        IStaticsBasketImpairment(address(diamond)).markBasketAssetImpaired(collateralBasket, address(assetB));
+        vm.mockCallRevert(address(assetB), abi.encodeWithSelector(IERC20.balanceOf.selector), "frozen");
+        vm.mockCallRevert(address(assetB), abi.encodeWithSelector(IERC20.transfer.selector), "frozen");
+        vm.prank(alice);
+        (, uint256[] memory paid) = basketRewards.claimBasketRewards(collateralPosition, collateralBasket, alice);
+        assertGt(paid[1], 0);
+        assertEq(paid[2], 0);
+        assertEq(morphoApi.morphoPositionMarket(collateralPosition, marketId).trackedCollateral, 79 ether);
+        assertEq(
+            basketCollateral.basketCollateralPosition(collateralPosition, collateralBasket).depositedShares, 99 ether
+        );
+        assertEq(basketRewards.basketRewardState(collateralBasket, address(assetB)).totalClaimable, 0);
+    }
+
     function testDirectTopUpRestoresHealthWithoutIncreasingStaticsStake() public {
         oracle.setPrice(0.5e36);
         (address account,) = morphoApi.morphoAccount(collateralPosition);
@@ -252,13 +298,19 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
     }
 
     function _swapAndClaimRewards() private returns (address[] memory assets, uint256[] memory amounts) {
+        _swapRewards(address(assetA));
+        vm.prank(alice);
+        return basketRewards.claimBasketRewards(collateralPosition, collateralBasket, alice);
+    }
+
+    function _swapRewards(address asset) private {
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
-            basketLiquidity.canonicalPool(collateralBasket, address(assetA));
+            basketLiquidity.canonicalPool(collateralBasket, asset);
         IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
         PoolKey memory key = pools.protocolPool(canonical.poolId).key;
-        assetA.mint(bob, 1 ether);
-        _approveV4Router(bob, address(assetA));
-        bool zeroForOne = Currency.unwrap(key.currency0) == address(assetA);
+        MockERC20(asset).mint(bob, 1 ether);
+        _approveV4Router(bob, asset);
+        bool zeroForOne = Currency.unwrap(key.currency0) == asset;
         vm.prank(bob);
         v4Router.swap(
             key,
@@ -267,9 +319,7 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
             )
         );
         pools.settleProtocolPoolRevenue(canonical.poolId, collateralToken);
-        pools.settleProtocolPoolRevenue(canonical.poolId, address(assetA));
-        vm.prank(alice);
-        return basketRewards.claimBasketRewards(collateralPosition, collateralBasket, alice);
+        pools.settleProtocolPoolRevenue(canonical.poolId, asset);
     }
 
     function testAccountRecoveryUsesAnExactDiamondMovementNotAnAccountBypass() public {

@@ -43,6 +43,7 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         address actor;
         address router;
         address[] maxAssets;
+        address impairmentAsset;
     }
 
     function run() external {
@@ -64,8 +65,9 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         c.batch = address(new PhaseTwoRehearsalBatch());
         c.actor = address(new PhaseTwoRehearsalActor());
         c.router = address(new PhaseTwoRehearsalRouter(pool));
-        c.maxAssets = new address[](16);
         address owner = IERC173(c.diamond).owner();
+        c.impairmentAsset = address(new PhaseTwoRehearsalAsset(owner));
+        c.maxAssets = new address[](16);
         for (uint256 i; i < c.maxAssets.length; ++i) {
             c.maxAssets[i] = address(new PhaseTwoRehearsalAsset(owner));
         }
@@ -101,6 +103,7 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         vm.serializeAddress(key, "actor", c.actor);
         vm.serializeAddress(key, "router", c.router);
         vm.serializeAddress(key, "maxAssets", c.maxAssets);
+        vm.serializeAddress(key, "impairmentAsset", c.impairmentAsset);
         vm.serializeBytes(key, "parts", abi.encode(parts));
         string memory result = vm.serializeString(key, "safeJson", builder.buildSafeJson(config, parts));
         vm.writeJson(result, vm.envString("STATICS_REHEARSAL_CANDIDATE"));

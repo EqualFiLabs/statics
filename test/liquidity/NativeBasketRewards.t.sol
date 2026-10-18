@@ -8,11 +8,13 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketSettlement} from "../../src/interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract NativeBasketRewardsTest is CanonicalPoolTestBase {
@@ -22,6 +24,40 @@ contract NativeBasketRewardsTest is CanonicalPoolTestBase {
         uint256 basketId;
         uint256 positionId;
         PoolKey key;
+    }
+
+    function testImpairedCollateralExitForfeitsFrozenRewardsAndPaysHealthyRewards() public {
+        NativeMarket memory market = _createNativeMarket(true, true);
+        _swapNative(market.key);
+        vm.prank(alice);
+        v4Router.swap(market.key, SwapParams(false, -int256(0.001 ether), TickMath.MAX_SQRT_PRICE - 1));
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        pools.settleProtocolPoolRevenue(market.key.toId(), address(0));
+        address basketToken = baskets.basket(market.basketId).token;
+        pools.settleProtocolPoolRevenue(market.key.toId(), basketToken);
+        (, uint256[] memory earned) = basketRewards.getBasketRewards(market.positionId, market.basketId);
+        assertGt(earned[0], 0);
+        assertGt(earned[2], 0);
+        uint256 reserved = custody.reservedByAccount(LibCustody.feeAccount(), address(wrappedNative));
+        IStaticsBasketImpairment impairment = IStaticsBasketImpairment(address(diamond));
+        impairment.markBasketAssetImpaired(market.basketId, address(wrappedNative));
+        vm.mockCallRevert(address(wrappedNative), abi.encodeWithSelector(IERC20.balanceOf.selector), "frozen");
+        vm.mockCallRevert(address(wrappedNative), abi.encodeWithSelector(IERC20.transfer.selector), "frozen");
+        vm.prank(alice);
+        impairment.redeemImpairedBasketCollateral(
+            market.positionId, market.basketId, 0.5 ether, alice, new uint256[](2)
+        );
+        (, uint256[] memory visible) = basketRewards.getBasketRewards(market.positionId, market.basketId);
+        assertEq(visible[0], earned[0]);
+        assertEq(visible[2], 0);
+        uint256 beforeBalance = IERC20(basketToken).balanceOf(alice);
+        vm.prank(alice);
+        (, uint256[] memory paid) = basketRewards.claimBasketRewards(market.positionId, market.basketId, alice);
+        assertEq(paid[0], earned[0]);
+        assertEq(paid[2], 0);
+        assertEq(IERC20(basketToken).balanceOf(alice) - beforeBalance, earned[0]);
+        assertEq(custody.reservedByAccount(LibCustody.feeAccount(), address(wrappedNative)), reserved);
+        assertEq(basketRewards.basketRewardState(market.basketId, address(wrappedNative)).totalClaimable, 0);
     }
 
     function testCurrencyEligibilityUsesBasketRewardAssetsAndMatureStake() public {

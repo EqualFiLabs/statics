@@ -18,6 +18,7 @@ import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsRewardSelectionTiming} from "../interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
@@ -106,6 +107,7 @@ library LibDeploymentPhases {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketImpairment).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketStaging).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsHookAdministration).interfaceId] = true;
