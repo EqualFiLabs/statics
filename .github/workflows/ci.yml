@@ -28,11 +28,13 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -81,6 +83,7 @@ jobs:
           - protocol-pol
           - phase-one
           - range-gauges
+          - restricted-baskets
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,12 +94,14 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery \
-            verification/doppler/vendor/doppler
+            verification/doppler/vendor/doppler \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -170,6 +175,7 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             verification/morpho/vendor/morpho-blue \
             verification/morpho/vendor/morpho-blue-irm
@@ -197,10 +203,12 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -252,11 +260,13 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -304,4 +314,10 @@ jobs:
           normalize_artifact "Permit2.sol" "Permit2" "default" "uniswap-position-manager"
           normalize_artifact "PositionManager.sol" "PositionManager" "uniswap-position-manager" "default"
       - name: Test
-        run: forge test -vv
+        # The two largest setUps deploy the whole protocol in one synthetic EVM
+        # transaction. Give those setup transactions explicit headroom; the
+        # release rehearsal enforces the real per-transaction chain limits.
+        run: |
+          forge test -vv --gas-limit 4294967296 --match-contract '^DiamondGovernanceTest$'
+          forge test -vv --gas-limit 4294967296 --match-contract '^UnifiedProtocolInvariantTest$'
+          forge test -vv --no-match-contract '^(DiamondGovernanceTest|UnifiedProtocolInvariantTest)$'

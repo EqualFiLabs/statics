@@ -7,6 +7,9 @@ import subprocess
 import time
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from execution_evidence import capture
 
 REBALANCE = 'rebalanceProtocolPolPositions((bytes32,(uint256,uint256,uint256)[],(int24,int24,uint128,uint256,uint256)[],uint256,uint256,uint256))'
 POOL_VIEW = 'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))'
@@ -164,6 +167,7 @@ class Rehearsal:
         tx = self.rpc('eth_sendTransaction', [{'from':sender,'to':self.diamond,'data':data,
             'gas':hex(15000000),'gasPrice':self.rpc('eth_gasPrice',[])}])
         receipt=self.mined_receipt(tx,label)
+        capture(self.root, self.url, tx, 'protocol-pol-rebalance')
         expected_status = '0x0' if expected_error else '0x1'
         transaction = self.rpc('eth_getTransactionByHash',[tx])
         assert transaction['to'].lower() == self.diamond.lower() and transaction['input'] == data
