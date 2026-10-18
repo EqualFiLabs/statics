@@ -29,6 +29,7 @@ library LibBasketLiquidity {
         address permissionedQuoter;
         bool permissionedIntegrationInstalled;
         mapping(uint256 basketId => mapping(address asset => CanonicalPool pool)) canonicalPools;
+        // Reserved to preserve the deployed liquidity-storage layout. Basket identities use LibBasketMarkets.
         mapping(PoolId poolId => PoolAssociation association) poolAssociations;
     }
 

@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {ConfigureStaticsMorpho, StaticsMorphoConfig} from "../../script/ConfigureStaticsMorpho.s.sol";
 import {MorphoMarketId, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
 import {IStaticsDollarCoreTypes} from "../../src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
+import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {TestnetMorphoOracle} from "../../src/testnet/TestnetMorphoOracle.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -93,9 +94,9 @@ contract ConfigureStaticsMorphoTest is Test {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             ceremony.buildBatch(diamond, config);
 
-        assertEq(targets.length, 3);
-        assertEq(values.length, 3);
-        assertEq(payloads.length, 3);
+        assertEq(targets.length, 4);
+        assertEq(values.length, 4);
+        assertEq(payloads.length, 4);
         for (uint256 i; i < targets.length; ++i) {
             assertEq(targets[i], diamond);
             assertEq(values[i], 0);
@@ -103,6 +104,7 @@ contract ConfigureStaticsMorphoTest is Test {
         assertEq(_selector(payloads[0]), IStaticsMorpho.initializeMorphoIntegration.selector);
         assertEq(_selector(payloads[1]), IStaticsMorpho.registerMorphoMarket.selector);
         assertEq(_selector(payloads[2]), IStaticsMorpho.registerMorphoMarket.selector);
+        assertEq(payloads[3], abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.morpho, true)));
     }
 
     function testSeedLiquidityMintsThroughPeggedGatewayAndSuppliesBothMarkets() public {

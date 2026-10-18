@@ -11,6 +11,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketImpairment} from "../../src/interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -73,7 +74,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
 
         assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
-        assertTrue(swapFeeHook.poolDecommissioned(canonicalKey.toId()));
+        assertTrue(IStaticsSwapFeeHook(address(canonicalKey.hooks)).poolDecommissioned(canonicalKey.toId()));
         assertTrue(IStaticsRangeGauge(address(diamond)).gaugePool(canonicalKey.toId()).stopped);
         assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonicalKey.toId()).activePolPositions, 0);
         _assertHookSettlementCleared(canonicalKey.currency0);
@@ -81,6 +82,16 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         assertLt(IERC20(basketToken).totalSupply(), supplyBefore);
         assertLt(baskets.vaultBalance(basketId, constituent), vaultBefore);
         assertGt(globalRewards.treasuryAccrued(constituent), treasuryBefore);
+    }
+
+    function testUnwindRejectsNonConstituentWithExactError() public {
+        governance.decommissionBasket(basketId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IStaticsBasketImpairment.AssetNotInBasket.selector, basketId, address(0))
+        );
+        basketLiquidity.unwindBasketLiquidity(basketId, address(0));
+        assertFalse(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
     }
 
     function testPoolCannotUnwindEarlyOrSwapAfterDecommission() public {
@@ -112,8 +123,9 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
 
     function _assertHookSettlementCleared(Currency currency) private view {
         PoolId poolId = canonicalKey.toId();
-        assertEq(swapFeeHook.pendingProtocolPol(poolId, currency), 0);
-        IStaticsSwapFeeHook.FeeDistribution memory pending = swapFeeHook.pendingFeeDistribution(poolId, currency);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(canonicalKey.hooks));
+        assertEq(hook.pendingProtocolPol(poolId, currency), 0);
+        IStaticsSwapFeeHook.FeeDistribution memory pending = hook.pendingFeeDistribution(poolId, currency);
         assertEq(pending.basketStaker, 0);
         assertEq(pending.staticsStaker, 0);
         assertEq(pending.creator, 0);
@@ -122,6 +134,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
 
     function testGovernanceCanUpdateCappedFeeConfiguration() public {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        bytes32 generalAllocationBefore = keccak256(abi.encode(swapFeeHook.basketFeeAllocation()));
         protocolPools.setDefaultProtocolPoolFeeRate(
             IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: 40, outputFeePips: 60})
         );
@@ -136,6 +149,28 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         assertEq(rate.outputFeePips, 60);
         assertEq(stored.polShareBps, 6_000);
         assertEq(stored.staticsStakerShareBps, 3_000);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(canonicalKey.hooks));
+        assertEq(hook.basketFeeAllocation().polShareBps, 6_000);
+        assertEq(hook.basketFeeAllocation().staticsStakerShareBps, 3_000);
+        assertEq(keccak256(abi.encode(swapFeeHook.basketFeeAllocation())), generalAllocationBefore);
+
+        Currency currency = Currency.wrap(basketToken);
+        PoolId poolId = canonicalKey.toId();
+        uint256 liabilityBefore = hook.claimLiability(currency);
+        uint256 polBefore = hook.pendingProtocolPol(poolId, currency);
+        IStaticsSwapFeeHook.FeeDistribution memory distributionBefore = hook.pendingFeeDistribution(poolId, currency);
+        _seedAndSwap();
+        uint256 charged = hook.claimLiability(currency) - liabilityBefore;
+        assertGt(charged, 0);
+        uint256 pol = charged * 6_000 / 10_000;
+        uint256 creator = charged * 500 / 10_000;
+        IStaticsSwapFeeHook.FeeDistribution memory distributionAfter = hook.pendingFeeDistribution(poolId, currency);
+        assertEq(hook.pendingProtocolPol(poolId, currency) - polBefore, pol);
+        assertEq(distributionAfter.creator - distributionBefore.creator, creator);
+        // With no eligible stake, the Statics share also routes to Treasury.
+        assertEq(distributionAfter.treasury - distributionBefore.treasury, charged - pol - creator);
+        assertEq(distributionAfter.basketStaker - distributionBefore.basketStaker, 0);
+        assertEq(distributionAfter.staticsStaker - distributionBefore.staticsStaker, 0);
     }
 
     function _seedAndSwap() private {

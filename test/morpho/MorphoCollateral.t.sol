@@ -6,6 +6,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {MorphoMarketId, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
+import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
@@ -117,6 +118,7 @@ contract MorphoCollateralTest is StaticsTestBase {
         morphoBlue = new MockMorphoBlue();
         usdStx = new MockERC20("Test USDstx", "USDstx", 18);
         morphoApi.initializeMorphoIntegration(address(morphoBlue), address(usdStx), 500);
+        basketAdmin.setBasketDistributor(address(morphoBlue), true);
         usdStx.mint(address(morphoBlue), 1_000_000 ether);
         MorphoGenesisHarnessFacet implementation = new MorphoGenesisHarnessFacet();
         bytes4[] memory selectors = new bytes4[](5);
@@ -599,8 +601,22 @@ contract MorphoCollateralTest is StaticsTestBase {
     function testPerformanceFeeIsDisabledWithoutRouterAndCappedAtTwentyPercent() public {
         (uint256 feeAmount,,) = morphoApi.quoteMorphoPerformanceFee(100 ether);
         assertEq(feeAmount, 0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MorphoSettlementFacet.UnauthorizedPerformanceFeeRouter.selector, address(this), address(0)
+            )
+        );
+        morphoApi.routeMorphoPerformanceFee(100 ether);
         vm.expectRevert(abi.encodeWithSignature("InvalidPerformanceFee(uint256)", 2_001));
         morphoApi.setMorphoPerformanceFeeConfig(makeAddr("router"), 2_001, 5_000);
+        address router = makeAddr("router");
+        genesisHarness.seedGenesisIntegration(true, 0);
+        morphoApi.setMorphoPerformanceFeeConfig(router, 1_000, 5_000);
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(MorphoSettlementFacet.UnauthorizedPerformanceFeeRouter.selector, alice, router)
+        );
+        morphoApi.routeMorphoPerformanceFee(100 ether);
     }
 
     function testLiquidationForfeiturePaysKeeperAndRoutesRemainderToTreasury() public {

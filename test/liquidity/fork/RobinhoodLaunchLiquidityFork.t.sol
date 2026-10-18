@@ -203,7 +203,6 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
     function _selectFork(string memory manifest) private returns (bool latest) {
         uint256 chainId = vm.parseJsonUint(manifest, ".chainId");
         uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
-        if (block.chainid == chainId) return vm.envOr("ROBINHOOD_FORK_LATEST", false);
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
@@ -213,11 +212,16 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
         latest = vm.envOr("ROBINHOOD_FORK_LATEST", false);
         if (latest) {
             vm.createSelectFork(rpcUrl);
-            assertEq(block.chainid, chainId);
+            assertEq(vm.getChainId(), chainId);
         } else {
+            bytes32 expectedHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
+            string memory header =
+                vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(expectedHash), "\",false]"));
+            assertEq(vm.parseJsonBytes32(header, ".hash"), expectedHash, "fork block hash drift");
+            assertEq(vm.parseJsonUint(header, ".number"), forkBlock);
             vm.createSelectFork(rpcUrl, forkBlock);
-            assertEq(block.chainid, chainId);
-            assertEq(block.number, forkBlock);
+            assertEq(vm.getChainId(), chainId);
+            assertEq(vm.getBlockNumber(), vm.parseJsonUint(header, ".l1BlockNumber"));
         }
     }
 }

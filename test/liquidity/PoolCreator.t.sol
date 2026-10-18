@@ -321,8 +321,9 @@ contract PoolCreatorTest is GeneralPoolLifecycleTestBase {
 
     // Narrow accounting input; real swaps above prove the value-moving lifecycle separately.
     function _credit(PoolId id, address asset, uint256 amount) private {
-        MockERC20(asset).mint(address(swapFeeHook), amount);
-        vm.startPrank(address(swapFeeHook));
+        address hook = address(pools.protocolPool(id).key.hooks);
+        MockERC20(asset).mint(hook, amount);
+        vm.startPrank(hook);
         IERC20(asset).approve(address(diamond), amount);
         revenue.routeProtocolSwapFees(id, asset, IStaticsProtocolRevenue.ProtocolFeeDistribution(0, 0, amount, 0));
         vm.stopPrank();

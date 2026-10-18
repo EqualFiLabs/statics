@@ -12,17 +12,16 @@ import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {IStaticsSwapRewardFunding} from "../interfaces/IStaticsSwapRewardFunding.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
-import {LibPoolRewards} from "../libraries/LibPoolRewards.sol";
 import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
 contract GlobalRewardsFacet is ReentrancyGuard {
@@ -35,7 +34,6 @@ contract GlobalRewardsFacet is ReentrancyGuard {
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error NoRewards(uint256 positionId);
     error ActionPaused(uint256 action);
-    error LiquidityIntegrationNotInstalled();
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -234,7 +232,7 @@ contract GlobalRewardsFacet is ReentrancyGuard {
     {
         uint256 unfunded = LibGlobalRewards.unfundedSwapRewards(asset);
         amount = maximumAmount < unfunded ? maximumAmount : unfunded;
-        if (amount != 0) _settlePublicSwapRewards(asset, amount);
+        if (amount != 0) amount = _settlePublicSwapRewards(asset, amount);
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
@@ -286,11 +284,7 @@ contract GlobalRewardsFacet is ReentrancyGuard {
         LibGlobalRewards.enforceFunded(asset, requested);
     }
 
-    function _settlePublicSwapRewards(address asset, uint256 amount) private {
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-        LibPoolRewards.settleStaker(asset, amount);
-        LibCustody.reserve(LibCustody.feeAccount(), asset, amount);
-        LibGlobalRewards.fundCrystallizedSwapFee(asset, amount);
+    function _settlePublicSwapRewards(address asset, uint256 amount) private returns (uint256 funded) {
+        return IStaticsSwapRewardFunding(address(this)).fundPublicSwapRewards(asset, amount);
     }
 }

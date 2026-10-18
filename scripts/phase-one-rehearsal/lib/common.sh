@@ -12,6 +12,32 @@ CURRENT_RUN_FILE="$ARTIFACT_ROOT/current.env"
 RPC_URL=${STATICS_REHEARSAL_RPC_URL:-http://127.0.0.1:8545}
 ANVIL_MNEMONIC=${STATICS_REHEARSAL_MNEMONIC:-"test test test test test test test test test test test junk"}
 
+# Capture observations while their blocks still exist: scenarios reset snapshots.
+# Never pass send arguments (which can contain keys) to the evidence recorder.
+cast() {
+    if [[ -z "${RUN_DIR:-}" || ! -d "$RUN_DIR" || ( "$1" != call && "$1" != send ) ]]; then
+        command cast "$@"
+        return
+    fi
+    local output status=0
+    output=$(mktemp "$RUN_DIR/cast-output.XXXXXXXX")
+    command cast "$@" >"$output" || status=$?
+    if [[ "$status" == 0 ]]; then
+        local mode=$1
+        shift
+        if [[ "$mode" == call ]]; then
+            python3 "$REHEARSAL_DIR/helpers/observe-cast.py" "$RUN_DIR" "$RPC_URL" \
+                "${REHEARSAL_SCENARIO:-deployment}" "$mode" "$output" -- "$@" || status=$?
+        elif [[ " $* " == *" --json "* ]]; then
+            python3 "$REHEARSAL_DIR/helpers/observe-cast.py" "$RUN_DIR" "$RPC_URL" \
+                "${REHEARSAL_SCENARIO:-deployment}" "$mode" "$output" -- || status=$?
+        fi
+    fi
+    cat "$output"
+    rm "$output"
+    return "$status"
+}
+
 fail() {
     printf 'ERROR: %s\n' "$*" >&2
     exit 1
@@ -149,6 +175,9 @@ expect_call_revert() {
     if output=$("$@" 2>&1); then
         fail "$context: expected revert, but call succeeded"
     fi
+    # Transport, CLI and decoding failures are not contract rejections.
+    [[ "$output" == *"execution reverted"* || "$output" == *"revert:"* ]] \
+        || fail "$context: command failed without an EVM revert: $output"
     printf '%s\n' "$output"
 }
 

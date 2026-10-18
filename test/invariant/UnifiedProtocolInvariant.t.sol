@@ -40,7 +40,10 @@ import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketTokenFactory} from "src/liquidity/StaticsBasketTokenFactory.sol";
+import {PublicHookPolicyFacet} from "src/facets/PublicHookPolicyFacet.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "test/helpers/BasketFactoryTestTools.sol";
 
 struct UnifiedHandlerConfig {
     address diamond;
@@ -574,7 +577,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     }
 }
 
-contract UnifiedProtocolInvariantTest is StdInvariant, Test {
+contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -600,6 +603,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     MockReentrantERC20 internal reentrant;
     MockETHUSDOracle internal peggedOracle;
     UnifiedProtocolHandler internal handler;
+    StaticsBasketTokenFactory internal basketFactory;
 
     uint256 internal firstBasketId;
     uint256 internal secondBasketId;
@@ -910,7 +914,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         uint256[] memory maximums = new uint256[](3);
         for (uint256 i; i < 3; ++i) {
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceAssetPerBasketX96: 1 << 96,
+                pairedAssetAmount: 1 ether,
+                activateManagedPol: true
             });
             maximums[i] = 1_000_000 ether;
         }
@@ -945,6 +953,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
+        basketFactory = _deployTestBasketFactory(deployment.diamond, poolManager, hook);
+        PublicHookPolicyFacet(deployment.diamond)
+            .installBasketHook(
+                address(_deployTestBasketHook(poolManager, deployment.diamond, deployment.weth)), address(basketFactory)
+            );
     }
 
     receive() external payable {}

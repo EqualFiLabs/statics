@@ -31,6 +31,10 @@ import {StaticsPhaseTwoInit} from "../src/diamond/StaticsPhaseTwoInit.sol";
 import {BasketAdminFacet} from "../src/facets/BasketAdminFacet.sol";
 import {BasketCollateralFacet} from "../src/facets/BasketCollateralFacet.sol";
 import {BasketCreationFacet} from "../src/facets/BasketCreationFacet.sol";
+import {BasketPreparationFacet} from "../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../src/facets/BasketArbitrageDeploymentFacet.sol";
+import {BasketMarketCreationFacet} from "../src/facets/BasketMarketCreationFacet.sol";
 import {BasketLiquidityFacet} from "../src/facets/BasketLiquidityFacet.sol";
 import {BasketLiquidityLifecycleFacet} from "../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {BasketMintFacet} from "../src/facets/BasketMintFacet.sol";
@@ -557,6 +561,9 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             IStaticsProtocolRevenue.routeProtocolSwapFees.selector,
             keccak256(type(ProtocolRevenueFacet).runtimeCode)
         );
+        parts.protocolPoolCreation = _checkedFacet(
+            diamond, IStaticsProtocolPools.quotePool.selector, keccak256(type(ProtocolPoolCreationFacet).runtimeCode)
+        );
     }
 
     function _validatePermissionedPeriphery(PhaseTwoConfig memory config) private view {
@@ -699,6 +706,20 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             diamond, StaticsSelectors.phaseTwoPositionPortfolio(), keccak256(type(PositionPortfolioFacet).runtimeCode)
         );
         _validateFacetSet(diamond, StaticsSelectors.basketCreation(), keccak256(type(BasketCreationFacet).runtimeCode));
+        _validateFacetSet(
+            diamond, StaticsSelectors.basketPreparation(), keccak256(type(BasketPreparationFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.basketSettlement(), keccak256(type(BasketSettlementFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.basketMarkets(), keccak256(type(BasketMarketCreationFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond,
+            StaticsSelectors.basketArbitrageDeployment(),
+            keccak256(type(BasketArbitrageDeploymentFacet).runtimeCode)
+        );
         _validateFacetSet(diamond, StaticsSelectors.basketMint(), keccak256(type(BasketMintFacet).runtimeCode));
         _validateFacetSet(
             diamond, StaticsSelectors.basketRedemption(), keccak256(type(BasketRedemptionFacet).runtimeCode)

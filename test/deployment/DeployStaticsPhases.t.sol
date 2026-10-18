@@ -25,6 +25,8 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketStaging} from "../../src/interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
@@ -95,10 +97,10 @@ contract StagedQuoterMock {
 }
 
 contract DeployStaticsPhasesTest is Test {
-    uint256 private constant PHASE_ONE_SELECTORS = 226;
-    uint256 private constant PHASE_TWO_SELECTORS = 318;
-    uint256 private constant PHASE_THREE_SELECTORS = 376;
-    uint256 private constant PHASE_FOUR_SELECTORS = 403;
+    uint256 private constant PHASE_ONE_SELECTORS = 229;
+    uint256 private constant PHASE_TWO_SELECTORS = 356;
+    uint256 private constant PHASE_THREE_SELECTORS = 414;
+    uint256 private constant PHASE_FOUR_SELECTORS = 441;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
@@ -144,7 +146,7 @@ contract DeployStaticsPhasesTest is Test {
         Fixture memory fixture = _phaseOneFixture();
         vm.resumeGasMetering();
         address diamond = fixture.phaseOne.diamond;
-        _assertManifest(diamond, 32, PHASE_ONE_SELECTORS);
+        _assertManifest(diamond, 35, PHASE_ONE_SELECTORS);
         assertEq(_activePhase(diamond), 1);
         (, bool managerInstalledAtPhaseOne) = IStaticsBasketLiquidity(diamond).liquidityManager();
         assertTrue(managerInstalledAtPhaseOne);
@@ -160,9 +162,31 @@ contract DeployStaticsPhasesTest is Test {
             fixture.phases.buildPhaseTwoBatch(diamond, phaseTwo, phaseTwoConfig);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase two"));
 
-        _assertManifest(diamond, 44, PHASE_TWO_SELECTORS);
+        _assertManifest(diamond, 51, PHASE_TWO_SELECTORS);
         assertEq(_activePhase(diamond), 2);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
+        assertFalse(IStaticsBasketAdmin(diamond).isBasketDistributor(address(fixture.timelock)));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketAdmin).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketStaging).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketPreparation).interfaceId));
+        assertEq(IDiamondLoupe(diamond).facetAddress(bytes4(keccak256("basketTokenFactory()"))), address(0));
+        assertFalse(
+            IERC165(diamond)
+                .supportsInterface(
+                    type(IStaticsBasketAdmin).interfaceId ^ IStaticsBasketAdmin.setBasketDistributor.selector
+                        ^ IStaticsBasketAdmin.isBasketDistributor.selector
+                )
+        );
+        assertFalse(
+            IERC165(diamond)
+                .supportsInterface(type(IStaticsBasket).interfaceId ^ IStaticsBasket.createBasketPrepared.selector)
+        );
+        assertFalse(
+            IERC165(diamond)
+                .supportsInterface(
+                    type(IStaticsBasketLiquidity).interfaceId ^ IStaticsBasketLiquidity.unwindBasketMarket.selector
+                )
+        );
         assertEq(IStaticsFlashLoan(diamond).singleAssetFlashFeeBps(), 5);
         (, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         assertTrue(managerInstalled);
@@ -178,7 +202,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseThreeBatch(diamond, phaseThree);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase three"));
 
-        _assertManifest(diamond, 49, PHASE_THREE_SELECTORS);
+        _assertManifest(diamond, 56, PHASE_THREE_SELECTORS);
         assertEq(_activePhase(diamond), 3);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsCustody).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
@@ -192,7 +216,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseFourBatch(diamond, phaseFour);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase four"));
 
-        _assertManifest(diamond, 54, PHASE_FOUR_SELECTORS);
+        _assertManifest(diamond, 61, PHASE_FOUR_SELECTORS);
         assertEq(_activePhase(diamond), 4);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionPortfolio).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsMorpho).interfaceId));
@@ -276,7 +300,12 @@ contract DeployStaticsPhasesTest is Test {
     }
 
     function _phaseOneFixture() private returns (Fixture memory fixture) {
+        // Script contracts embed every facet's creation code and are test orchestration, not deployed protocol code.
+        // Exclude their construction to preserve the gas budget for the staged and reference deployment comparison.
+        vm.pauseGasMetering();
         fixture.phases = new DeployStaticsPhases();
+        DeployStaticsPhaseOne phaseOneDeployer = new DeployStaticsPhaseOne();
+        vm.resumeGasMetering();
         fixture.statics = new MockERC20("Statics", "STATICS", 18);
         fixture.weth = new MockERC20("Wrapped Ether", "WETH", 18);
         fixture.poolManager = new StagedDependencyMock();
@@ -284,7 +313,6 @@ contract DeployStaticsPhasesTest is Test {
         fixture.positionManager = new StagedPositionManagerMock(
             address(fixture.poolManager), address(fixture.permit2), address(fixture.weth)
         );
-        DeployStaticsPhaseOne phaseOneDeployer = new DeployStaticsPhaseOne();
         (fixture.phaseOne, fixture.timelock) = phaseOneDeployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: address(this),

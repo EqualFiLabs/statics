@@ -50,13 +50,16 @@ fee account before principal moves. Native fees never become POL principal autom
 
 ## Activation and funding
 
-Basket canonical pools are POL-capable because their creator-funded launch position is part of the
-atomic basket launch.
-
-General pools start with POL disabled. While disabled, the configured POL share routes to Treasury
+General and Basket pools start with POL disabled. While disabled, the configured POL share routes to Treasury
 and the hook does not accumulate dormant POL inventory. The current pool creator may permanently
 activate managed POL by paying the exact governed native activation fee, which is sent entirely to
 Treasury. Activation affects future swaps only.
+
+Basket launch may explicitly activate selected pools, paying the same governed fee per pool.
+Seeding is optional: a zero paired-asset amount initializes without a POL position or backing
+contribution. A positive seed requires activation and mints fully backed BasketTokens for the
+protocol-owned position. Staged launch pays activation fees only for selected pools in the current
+batch; the basket creation fee is paid once. Ordinary LP liquidity does not require POL activation.
 
 Governance may override a pool's effective POL share from zero through the sum of that pool class's
 default POL and Treasury shares. Reducing the share reallocates only the difference to Treasury.
@@ -100,7 +103,7 @@ the swap transaction, so they do not use the public hook's deferred-claim ledger
    recipient.
 2. Every active POL position is bound to one registered public PoolId and one manager.
 3. Native LP fees are Treasury liabilities; hook POL allocations are POL principal.
-4. Disabled general pools create no POL inventory or portfolio obligation.
+4. Disabled public pools create no POL inventory or portfolio obligation.
 5. A zero effective funding share does not alter existing positions.
 6. Decommission finalization cannot scan positions and cannot complete while any position remains
    active.

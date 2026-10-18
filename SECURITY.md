@@ -46,6 +46,13 @@ boundary; native LP and POL principal remain ETH. Forced ETH stays unallocated.
 Native transfers use exact value accounting and failure-reverting calls inside
 shared reentrancy guards. See [native ETH Phase 1](docs/adr/native-eth-phase-one.md).
 
+Owner-marked impaired basket constituents have a separate explicit
+healthy-asset redemption path. Burning permanently forfeits impaired backing;
+there are no recovery claims. Residual assets stay reserved to that basket,
+without treasury reclassification. Basket reward claims pay healthy currencies
+and permanently forfeit impaired-constituent entitlements without calling those
+tokens; forfeited rewards remain reserved in the fee account. See [basket impairment](docs/adr/basket-impairment.md).
+
 ## Custody and execution
 
 Statics Dollar Core collateral remains physically held by
@@ -256,6 +263,27 @@ transition still requires its own review and timelocked execution.
 
 ## Economic and liveness assumptions
 
+New restricted BasketTokens consult one owner-governed Diamond distributor
+registry for ordinary transfers. Either transfer endpoint must be approved unless
+an exact protocol ticket authorizes the movement. A distributor spender still
+needs ERC-20 allowance, and ownership grants no implicit exemption. Exact tickets
+are consumed before distributor fallback; PoolManager lock, directional-budget
+and claim checks take precedence over every distributor approval.
+
+Morpho uses this registry without per-token bindings or ingress permissions.
+The later Morpho configuration batch explicitly approves its contract; Phase 2
+leaves distributor approvals empty and Morpho selectors absent. Governance is
+responsible for maintaining Morpho approval; no special revocation guard exists.
+Direct collateral deposits credited to a Statics position's Morpho account count
+toward Morpho health without increasing tracked collateral or Statics stake.
+Only collateral above the tracked amount is untracked surplus. Existing surplus
+withdrawal authorization and Morpho health checks govern recovery. Synchronization
+recognizes a loss only while actual collateral remains below tracked collateral;
+replenishment before synchronization can reduce or remove that loss and its reward
+forfeiture. This preserves net-balance accounting rather than introducing a
+historical liquidation penalty. Donations to previously tracked markets can
+require surplus recovery before position closure; the account must be empty.
+
 Holding a BasketToken in a wallet does not earn basket-specific fees. Deposited
 BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the
@@ -292,7 +320,7 @@ block so token callbacks cannot accrue fees after harvest and before principal
 accounting. Other pools remain available for swaps, and the block clears when
 the action ends.
 
-Basket creation initializes and seeds its canonical pools atomically. General-pool
+Basket creation initializes its canonical pools, with optional creator-funded POL seeds. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
 exact payment while the fee is nonzero. The bilateral default initializes to
@@ -304,8 +332,9 @@ override for both legs. Governance may change the global default and set or
 clear registered PoolId overrides after creation. Creators cannot change hook
 fees after creation or administer allocation profiles. Governance also controls
 the creation gate, POL operator, creator-paid POL activation fee, per-pool POL
-funding overrides, and staged general-pool decommissioning. General pools start
-with POL disabled. Creator activation is permanent and affects future fees
+funding overrides, and staged general-pool decommissioning. General and Basket pools start
+with POL disabled. A positive Basket launch seed requires explicit activation;
+activation without a seed is allowed. Creator activation is permanent and affects future fees
 only; setting the effective share to zero stops new funding without closing
 existing positions. Inventory settlement is permissionless. Position
 management is operator or owner authorized, and exits remain available while

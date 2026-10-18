@@ -78,12 +78,13 @@ contract RangeGaugeCallbackTest is Test {
     }
 
     function testRejectsCallerOtherThanInstalledPublicHook() public {
+        PoolId poolId = callback.registerGeneralPool(_key(address(hook)), makeAddr("creator"));
         callback.installPublicIntegration(makeAddr("poolManager"), address(hook));
 
         vm.expectRevert(
             abi.encodeWithSelector(RangeGaugeCallbackFacet.OnlyInstalledSwapHook.selector, address(this), address(hook))
         );
-        callback.afterStaticsPoolSwap(PoolId.wrap(bytes32(uint256(1))), toBalanceDelta(0, 0), 0, 0, 0);
+        callback.afterStaticsPoolSwap(poolId, toBalanceDelta(0, 0), 0, 0, 0);
     }
 
     function testRejectsUnregisteredPool() public {
@@ -110,15 +111,13 @@ contract RangeGaugeCallbackTest is Test {
         hook.notify(address(callback), poolId);
     }
 
-    function testRejectsPublicPoolBoundToDifferentHook() public {
+    function testRejectsLegacyHookForPublicPoolBoundToDifferentHook() public {
         PoolKey memory key = _key(otherHook);
         PoolId poolId = callback.registerGeneralPool(key, makeAddr("creator"));
         callback.installPublicIntegration(makeAddr("poolManager"), address(hook));
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                RangeGaugeCallbackFacet.SwapPoolHookMismatch.selector, poolId, address(hook), otherHook
-            )
+            abi.encodeWithSelector(RangeGaugeCallbackFacet.OnlyInstalledSwapHook.selector, address(hook), otherHook)
         );
         hook.notify(address(callback), poolId);
     }

@@ -51,7 +51,7 @@ verification cannot accidentally accept stale shared build output.
 ## Evidence layers
 
 - `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
-  bindings, exact source runtime bytecode, all 32 installed facets, all 226
+  bindings, exact source runtime bytecode, all 35 installed facets, all 229
   Diamond selector routes, and the PositionNFT market and royalty defaults.
 - `public-pool-creation.sh` exercises exact native creation fees, invalid
   payment and configuration paths, distinct PoolKeys, direct and relayed
@@ -134,10 +134,14 @@ verification cannot accidentally accept stale shared build output.
   reconciliation without resetting between transitions. Its terminal checks
   separately report custody backing and PoolId-local liability reconciliation.
 
-The selector coverage manifest joins every installed selector to its exact
-signature, facet name, direct-success and revert evidence, and explicit
-classification. The runner fails when any externally callable state-changing
-selector lacks a direct fork scenario or any installed view remains unqueried.
+The selector coverage manifest joins each installed selector to a mined transaction
+trace or a recorded `eth_call` at a captured block. Source mentions, rolled-back
+child calls, transport failures and missing status fields cannot complete coverage.
+The two policy views intentionally revert before factory activation; their typed
+rejections are recorded as deferred, with no successful execution claimed.
+Installation-only routes are classified explicitly and are not counted as
+behavioral coverage. Required abuse cases carry the exact error data and matching
+before/after financial observations.
 Deployment-only installation calls and authenticated hook callbacks remain
 separately classified; route verification is never presented as behavioral
 coverage. Foundry unit, fuzz, invariant, and formal suites remain separate

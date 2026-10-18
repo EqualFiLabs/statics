@@ -103,6 +103,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
 
     function setUp() public virtual override {
         super.setUp();
+        IStaticsProtocolPools(address(diamond)).setPoolCreationFee(0);
 
         (rangePermit2, rangePositionManager) = _deployRangePeriphery();
         rangeLiquidityManager = new StaticsLiquidityManager(
@@ -171,7 +172,11 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         return _createRangeGaugePool(creator, address(assetA), address(assetB));
     }
 
-    function _createRangeGaugePool(address creator, address tokenA, address tokenB) internal returns (PoolId poolId) {
+    function _createRangeGaugePool(address creator, address tokenA, address tokenB)
+        internal
+        virtual
+        returns (PoolId poolId)
+    {
         IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
             tokenA: tokenA,
             tokenB: tokenB,

@@ -10,8 +10,8 @@ load_current_run
 require_local_chain
 cd_repo
 
-EXPECTED_FACETS=32
-EXPECTED_SELECTORS=226
+EXPECTED_FACETS=35
+EXPECTED_SELECTORS=229
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -390,3 +390,11 @@ record_result verification immutable-bindings pass "canonical Robinhood dependen
 record_result verification selector-routes pass "$EXPECTED_SELECTORS selectors across $EXPECTED_FACETS facets"
 note "verified $EXPECTED_SELECTORS selectors across $EXPECTED_FACETS facets"
 note "selector inventory: $RUN_DIR/selector-inventory.json"
+
+# Public-hook identities are installed by Phase 2 and remain empty in Phase 1.
+PUBLIC_HOOKS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'basketHookConfiguration()(address,address)' --rpc-url "$RPC_URL" --json)
+for index in 0 1; do
+    assert_eq "$(jq -r ".[${index}]" <<<"$PUBLIC_HOOKS")" \
+        "0x0000000000000000000000000000000000000000" "empty Phase 1 public-hook configuration"
+done
