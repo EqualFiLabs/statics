@@ -86,7 +86,7 @@ library LibProtocolPools {
         returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
     {
         LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
-        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) {
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None && !market.conversion) {
             return
                 (
                     IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical,

@@ -22,6 +22,7 @@ import {IStaticsBasketStaging} from "../interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
+import {IStaticsBasketConversion} from "../interfaces/IStaticsBasketConversion.sol";
 import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
@@ -66,6 +67,16 @@ import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDolla
 import {IStaticsHookAdministration} from "../interfaces/IStaticsHookAdministration.sol";
 
 library StaticsSelectors {
+    function basketConversion() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsBasketConversion.basketConversionConfiguration.selector;
+        selectors[1] = IStaticsBasketConversion.basketConversionMarket.selector;
+        selectors[2] = IStaticsBasketConversion.createBasketConversionMarket.selector;
+        selectors[3] = IStaticsBasketConversion.decommissionBasketConversionMarket.selector;
+        selectors[4] = IStaticsBasketConversion.mintBasketConversion.selector;
+        selectors[5] = IStaticsBasketConversion.prefundBasketConversion.selector;
+    }
+
     function publicHookPolicy() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](2);
         selectors[0] = IStaticsPublicHookPolicy.installBasketHook.selector;

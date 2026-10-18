@@ -34,6 +34,8 @@ library LibBasketMarkets {
         bool basket0;
         bool basket1;
         Lifecycle lifecycle;
+        // Appended to the existing record; AMM entries retain the default false value.
+        bool conversion;
     }
 
     struct MarketStorage {
