@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: MIT
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";

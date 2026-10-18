@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity ^0.8.26;
 
 /// @notice Authorizes one native sender only for the duration of an external settlement.
