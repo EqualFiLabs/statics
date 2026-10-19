@@ -26,7 +26,7 @@ def check_liquidity(fixture):
     if any(length != (0 if asset.lower() == fixture["quote"].lower() else hops)
            for asset,length in zip(fixture["assets"],lengths)):
         raise ValueError("conversion underlying liquidity mismatch")
-    if any(int(pool,16) == 0 or liquidity <= 0 for pool,liquidity
+    if any(int(pool,16) == 0 or int(liquidity) <= 0 for pool,liquidity
            in zip(fixture["underlyingPools"],fixture["underlyingActiveLiquidity"])):
         raise ValueError("conversion underlying liquidity mismatch")
     expected = 1_010_000_000_000_000 if fixture["mode"] in ("premium","discount") else 0

@@ -35,7 +35,7 @@ class ConversionEvidenceGateTest(unittest.TestCase):
 
     def test_four_hop_liquidity_requires_every_hop(self):
         fixture = dict(count=16, assets=["0x01"]*16, quote="0x02", routeLengths=[4]*16,
-                       routeHops=4, underlyingPools=["0x10"]*64, underlyingActiveLiquidity=[123]*64,
+                       routeHops=4, underlyingPools=["0x10"]*64, underlyingActiveLiquidity=[str(10**24)]*64,
                        targetQuoteNotional=100_000_000, secondaryActiveLiquidity=0, mode="buy")
         r.check_liquidity(fixture)
         fixture["underlyingActiveLiquidity"][-1] = 0
