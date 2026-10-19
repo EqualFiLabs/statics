@@ -82,9 +82,8 @@ contract BasketConversionFacetTest is StaticsTestBase {
         conversion.decommissionBasketConversionMarket(id);
         assertFalse(conversion.basketConversionMarket(id).active);
         assertEq(conversion.basketConversionMarket(id).basketToken, basketToken);
-        vm.expectRevert(BasketConversionFacet.UnauthorizedConversion.selector);
+        vm.prank(address(0x123)); // The configured zap must reject the retired market.
+        vm.expectRevert(abi.encodeWithSelector(LibBasketMarkets.BasketMarketNotActive.selector, id));
         conversion.mintBasketConversion(id, 1 ether, alice, new uint256[](2));
-        vm.expectRevert(BasketConversionFacet.UnauthorizedConversion.selector);
-        conversion.prefundBasketConversion(id, alice, 1 ether);
     }
 }

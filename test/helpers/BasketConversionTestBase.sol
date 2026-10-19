@@ -223,7 +223,76 @@ abstract contract BasketConversionTestBase is StaticsTestBase {
             assertEq(baskets.vaultBalance(f.basketId, assets[i]), (supply * bundle + 1 ether - 1) / 1 ether);
             assertEq(pm.currencyDelta(address(conversionHook), Currency.wrap(assets[i])), 0);
             assertEq(pm.currencyDelta(address(conversionZap), Currency.wrap(assets[i])), 0);
+            assertEq(pm.currencyDelta(address(conversionRouter), Currency.wrap(assets[i])), 0);
+        }
+        address quote = Currency.unwrap(f.key.currency0) == f.token
+            ? Currency.unwrap(f.key.currency1)
+            : Currency.unwrap(f.key.currency0);
+        address[2] memory outer = [quote, f.token];
+        address[3] memory adapters = [address(conversionHook), address(conversionZap), address(conversionRouter)];
+        for (uint256 i; i < outer.length; ++i) {
+            for (uint256 j; j < adapters.length; ++j) {
+                assertEq(pm.currencyDelta(adapters[j], Currency.wrap(outer[i])), 0);
+            }
         }
         assertEq(pm.getLiquidity(f.poolId), 0);
+    }
+
+    /// @dev Financial state only: excludes caller nonce and gas paid for a reverted transaction.
+    function _conversionBooks(Fixture memory f) internal view returns (bytes32 state) {
+        state = keccak256(abi.encode(IERC20(f.token).totalSupply(), _poolBooks(f.key)));
+        address[] memory assets = baskets.basket(f.basketId).assets;
+        for (uint256 i; i < assets.length + 2; ++i) {
+            address quote = Currency.unwrap(f.key.currency0) == f.token
+                ? Currency.unwrap(f.key.currency1)
+                : Currency.unwrap(f.key.currency0);
+            address token = i < assets.length ? assets[i] : i == assets.length ? quote : f.token;
+            state = keccak256(abi.encode(state, _currencyBooks(token, f.basketId)));
+        }
+        for (uint256 i; i < f.routes.length; ++i) {
+            for (uint256 j; j < f.routes[i].pools.length; ++j) {
+                state = keccak256(abi.encode(state, _poolBooks(f.routes[i].pools[j])));
+            }
+        }
+    }
+
+    function _currencyBooks(address token, uint256 basketId) private view returns (bytes32 state) {
+        state = keccak256(
+            abi.encode(
+                custody.globalReservedByToken(token),
+                baskets.vaultBalance(basketId, token),
+                globalRewards.rewardAsset(token),
+                globalRewards.treasuryAccrued(token),
+                globalRewards.unfundedSwapRewards(token)
+            )
+        );
+        address[5] memory holders =
+            [alice, address(diamond), address(conversionHook), address(conversionZap), address(conversionRouter)];
+        for (uint256 i; i < holders.length; ++i) {
+            state = keccak256(
+                abi.encode(
+                    state,
+                    IERC20(token).balanceOf(holders[i]),
+                    pm.currencyDelta(holders[i], Currency.wrap(token)),
+                    pm.balanceOf(holders[i], uint160(token))
+                )
+            );
+        }
+        state = keccak256(
+            abi.encode(
+                state,
+                IERC20(token).balanceOf(address(pm)),
+                IERC20(token).allowance(alice, address(diamond)),
+                IERC20(token).allowance(alice, address(conversionRouter)),
+                IERC20(token).allowance(alice, address(conversionZap))
+            )
+        );
+    }
+
+    function _poolBooks(PoolKey memory key) internal view returns (bytes32) {
+        PoolId id = key.toId();
+        (uint160 price, int24 tick, uint24 protocolFee, uint24 lpFee) = pm.getSlot0(id);
+        (uint256 fee0, uint256 fee1) = pm.getFeeGrowthGlobals(id);
+        return keccak256(abi.encode(price, tick, protocolFee, lpFee, fee0, fee1, pm.getLiquidity(id)));
     }
 }

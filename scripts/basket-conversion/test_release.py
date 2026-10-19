@@ -21,8 +21,8 @@ class ConversionEvidenceGateTest(unittest.TestCase):
             r.check_bindings(frozen,{"1":actual["2"],"2":actual["1"]},expected)
 
     def test_liquidity_bounds_require_real_paths_and_explicit_zero_hops(self):
-        fixture = dict(count=2, assets=["0x01","0x02"], quote="0x02", underlyingPools=["0x10","0x00"],
-                       underlyingActiveLiquidity=[123,0], targetQuoteNotional=100_000_000,
+        fixture = dict(count=2, assets=["0x01","0x02"], quote="0x02", underlyingPools=["0x10"], routeLengths=[1,0], routeHops=1,
+                       underlyingActiveLiquidity=[123], targetQuoteNotional=100_000_000,
                        secondaryActiveLiquidity=0, mode="buy")
         r.check_liquidity(fixture)
         fixture["underlyingActiveLiquidity"][0] = 0
@@ -33,6 +33,31 @@ class ConversionEvidenceGateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"secondary liquidity"):
             r.check_liquidity(fixture)
 
+    def test_four_hop_liquidity_requires_every_hop(self):
+        fixture = dict(count=16, assets=["0x01"]*16, quote="0x02", routeLengths=[4]*16,
+                       routeHops=4, underlyingPools=["0x10"]*64, underlyingActiveLiquidity=[123]*64,
+                       targetQuoteNotional=100_000_000, secondaryActiveLiquidity=0, mode="buy")
+        r.check_liquidity(fixture)
+        fixture["underlyingActiveLiquidity"][-1] = 0
+        with self.assertRaisesRegex(ValueError, "underlying liquidity"):
+            r.check_liquidity(fixture)
+        fixture["underlyingActiveLiquidity"][-1] = 123
+        fixture["routeLengths"][0] = 3
+        with self.assertRaisesRegex(ValueError, "incomplete"):
+            r.check_liquidity(fixture)
+
+    def test_deep_matrix_cannot_be_replaced_by_single_hop_receipts(self):
+        report = self.report()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "manifest.json").write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, "route depth"):
+                r.check_execution(directory, "candidate", directory, deep=True)
+            report["routeHops"] = 4
+            (directory / "manifest.json").write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                r.check_execution(directory, "candidate", directory, deep=True)
+
     def report(self):
         rows = []
         for count in (2, 3, 4, 7, 16):
@@ -41,9 +66,9 @@ class ConversionEvidenceGateTest(unittest.TestCase):
                     for idle in (0, 3600, 26 * 3600):
                         for repeat in (False, True):
                             rows.append(dict(case=f"{count}-{mode}-{path}-{idle}-{repeat}", count=count, mode=mode,
-                                             path=path, idleSeconds=idle, repeat=repeat, gasUsed=1_000_000))
+                                             path=path, idleSeconds=idle, repeat=repeat, routeHops=1, gasUsed=1_000_000))
         return dict(commit="candidate", fork=json.loads((r.ROOT / "test/fixtures/basket-conversion/fork-pin.json").read_text()),
-                    kind="local-anvil-receipts", results=rows, sourceSha256={}, evidenceSha256={})
+                    kind="local-anvil-receipts", routeHops=1, results=rows, sourceSha256={}, evidenceSha256={})
 
     def check(self, report, directory):
         (directory / "manifest.json").write_text(json.dumps(report))
@@ -60,11 +85,11 @@ class ConversionEvidenceGateTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "interrupted"):
                         r.qualify(first, "candidate")
                 self.assertTrue((first / "conversion").is_dir())
-                with patch.object(r.base, "run_logged") as run:
+                with patch.object(r.base, "run_logged") as run, patch.object(r, "check_upgrade", return_value={}):
                     report = r.qualify(second, "candidate")
-                self.assertEqual(run.call_count, 3)
+                self.assertEqual(run.call_count, 4)
                 self.assertEqual(report["evidenceDirectory"], "conversion")
-                check.assert_called_once_with(second / "conversion" / "execution", "candidate", second)
+                self.assertEqual(check.call_count, 2)
                 self.assertTrue((first / "conversion").is_dir())
 
     def test_missing_or_duplicate_execution_case_is_rejected(self):

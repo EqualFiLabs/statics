@@ -71,11 +71,31 @@ contract BasketConversionTest is BasketConversionTestBase {
         _assertBacking(f);
     }
 
-    function testZapBuyResolvesMarketOnce() public {
+    function testRouterFinalBoundsRollBackSwapsAndAllowRetry() public {
         Fixture memory f = _fixture(false);
-        vm.expectCall(address(diamond), abi.encodeCall(conversion.basketConversionMarket, (f.poolId)), uint64(1));
+        BasketConversionStep[] memory steps = new BasketConversionStep[](1);
+        steps[0] = _step(f.key, quoteToken, int256(1 ether), abi.encode(_request(f, true, false)));
+        for (uint256 i; i < 3; ++i) {
+            BasketConversionBounds memory bounds = BasketConversionBounds(1_000_000 ether, 0, 1 ether, block.timestamp);
+            if (i == 0) bounds.maxQuoteIn = 0;
+            else if (i == 1) bounds.minQuoteOut = 1;
+            else bounds.minBasketOut = 1 ether + 1;
+            bytes32 beforeState = _conversionBooks(f);
+            vm.prank(alice);
+            vm.expectRevert(LibBasketConversion.ConversionBound.selector);
+            conversionRouter.execute(f.poolId, steps, 0, bounds);
+            assertEq(_conversionBooks(f), beforeState, "late buy bound changes financial state");
+            _trade(f, true, 1 ether, false, false);
+        }
+        steps[0] = _step(f.key, f.token, -int256(1 ether), abi.encode(_request(f, false, false)));
+        bytes32 beforeSell = _conversionBooks(f);
         vm.prank(alice);
-        conversionZap.buy(f.poolId, 1 ether, alice, _request(f, true, false));
+        vm.expectRevert(LibBasketConversion.ConversionBound.selector);
+        conversionRouter.execute(
+            f.poolId, steps, 1 ether, BasketConversionBounds(0, type(uint256).max, 0, block.timestamp)
+        );
+        assertEq(_conversionBooks(f), beforeSell, "late sell bound consumes prefunding");
+        _trade(f, false, 1 ether, true, false);
         _assertBacking(f);
     }
 
@@ -192,6 +212,8 @@ contract BasketConversionTest is BasketConversionTestBase {
         conversion.decommissionBasketConversionMarket(f.poolId);
         vm.expectRevert();
         _trade(f, true, 1 ether, false, false);
+        vm.expectRevert(LibBasketConversion.ConversionUnavailable.selector);
+        _trade(f, false, 1 ether, true, false);
         assertTrue(vm.revertToState(snapshot));
         IStaticsBasketImpairment(address(diamond)).markBasketAssetImpaired(f.basketId, address(assetA));
         vm.expectRevert();
@@ -238,17 +260,8 @@ contract BasketConversionTest is BasketConversionTestBase {
         PoolKey memory secondary = _key(f.token, quoteToken, address(_localBasketHook), 500, 10);
         vm.prank(alice);
         liquidityRouter.modifyLiquidity(secondary, ModifyLiquidityParams(-887270, 887270, 1 ether, bytes32(0)));
-        BasketConversionStep[] memory steps = new BasketConversionStep[](2);
-        BasketConversionStep memory convert = _step(
-            f.key,
-            premium ? quoteToken : f.token,
-            premium ? int256(1 ether) : -int256(1 ether),
-            abi.encode(_request(f, premium, false))
-        );
-        BasketConversionStep memory market =
-            _step(secondary, premium ? f.token : quoteToken, premium ? -int256(1 ether) : int256(1 ether), "");
-        steps[0] = premium ? convert : market;
-        steps[1] = premium ? market : convert;
+        BasketConversionStep[] memory steps = _arbSteps(f, secondary, premium);
+        _assertArbBounds(f, secondary, steps, premium);
         uint256 beforeQuote = IERC20(quoteToken).balanceOf(alice);
         uint256 beforeBasket = IERC20(f.token).balanceOf(alice);
         vm.prank(alice);
@@ -259,6 +272,43 @@ contract BasketConversionTest is BasketConversionTestBase {
         assertEq(IERC20(quoteToken).balanceOf(alice) - beforeQuote, uint256(profit));
         assertEq(IERC20(f.token).balanceOf(alice), beforeBasket);
         _assertBacking(f);
+    }
+
+    function _arbSteps(Fixture memory f, PoolKey memory secondary, bool premium)
+        private
+        view
+        returns (BasketConversionStep[] memory steps)
+    {
+        steps = new BasketConversionStep[](2);
+        BasketConversionStep memory convert = _step(
+            f.key,
+            premium ? quoteToken : f.token,
+            premium ? int256(1 ether) : -int256(1 ether),
+            abi.encode(_request(f, premium, false))
+        );
+        BasketConversionStep memory market =
+            _step(secondary, premium ? f.token : quoteToken, premium ? -int256(1 ether) : int256(1 ether), "");
+        steps[0] = premium ? convert : market;
+        steps[1] = premium ? market : convert;
+    }
+
+    function _assertArbBounds(
+        Fixture memory f,
+        PoolKey memory secondary,
+        BasketConversionStep[] memory steps,
+        bool premium
+    ) private {
+        bytes32 state = keccak256(abi.encode(_conversionBooks(f), _poolBooks(secondary)));
+        vm.prank(alice);
+        vm.expectRevert(LibBasketConversion.ConversionBound.selector);
+        conversionRouter.execute(f.poolId, steps, 0, BasketConversionBounds(0, type(uint256).max, 0, block.timestamp));
+        assertEq(keccak256(abi.encode(_conversionBooks(f), _poolBooks(secondary))), state);
+        // Existing wallet approval must not fund the reverse, loss-making cycle.
+        steps = _arbSteps(f, secondary, !premium);
+        vm.prank(alice);
+        vm.expectRevert(LibBasketConversion.ConversionBound.selector);
+        conversionRouter.execute(f.poolId, steps, 0, BasketConversionBounds(0, 0, 0, block.timestamp));
+        assertEq(keccak256(abi.encode(_conversionBooks(f), _poolBooks(secondary))), state);
     }
 
     function testMintSellArbitrageWithNoQuoteAllowance() public {

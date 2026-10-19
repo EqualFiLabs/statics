@@ -43,6 +43,7 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
         bool buy = keccak256(bytes(e.mode)) == keccak256("buy");
         require(buy || sell || premium || keccak256(bytes(e.mode)) == keccak256("discount"));
         e.f = _fixture(vm.envUint("CONVERSION_ASSETS"));
+        if (vm.envOr("CONVERSION_ROUTE_HOPS", uint256(1)) == 4) e.f = _fourHopRoutes(e.f);
         e.positions = _activateStakers(baskets.basket(e.f.basketId).assets);
         _trade(e.f, true, 100 ether, false, false);
         uint256 snap = vm.snapshotState();
@@ -88,7 +89,12 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
     }
 
     function _prefix() private view returns (string memory) {
-        return string.concat(vm.toString(vm.envUint("CONVERSION_ASSETS")), "-", vm.envString("CONVERSION_MODE"));
+        return string.concat(
+            vm.toString(vm.envUint("CONVERSION_ASSETS")),
+            "-",
+            vm.envString("CONVERSION_MODE"),
+            vm.envOr("CONVERSION_ROUTE_HOPS", uint256(1)) == 4 ? "-4hop" : ""
+        );
     }
 
     function _exportGauge(Fixture memory f, PoolKey memory market) private returns (uint256 position) {
@@ -196,15 +202,24 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
     }
 
     function _serializeLiquidity(string memory k, Export memory e) private {
-        bytes32[] memory pools = new bytes32[](e.f.routes.length);
-        uint256[] memory liquidity = new uint256[](e.f.routes.length);
-        for (uint256 i; i < pools.length; ++i) {
-            if (e.f.routes[i].pools.length != 0) {
-                PoolId id = e.f.routes[i].pools[0].toId();
-                pools[i] = PoolId.unwrap(id);
-                liquidity[i] = PM.getLiquidity(id);
+        uint256 total;
+        uint256[] memory lengths = new uint256[](e.f.routes.length);
+        for (uint256 i; i < lengths.length; ++i) {
+            lengths[i] = e.f.routes[i].pools.length;
+            total += lengths[i];
+        }
+        bytes32[] memory pools = new bytes32[](total);
+        uint256[] memory liquidity = new uint256[](total);
+        uint256 next;
+        for (uint256 i; i < lengths.length; ++i) {
+            for (uint256 j; j < lengths[i]; ++j) {
+                PoolId id = e.f.routes[i].pools[j].toId();
+                pools[next] = PoolId.unwrap(id);
+                liquidity[next++] = PM.getLiquidity(id);
             }
         }
+        vm.serializeUint(k, "routeHops", vm.envOr("CONVERSION_ROUTE_HOPS", uint256(1)));
+        vm.serializeUint(k, "routeLengths", lengths);
         vm.serializeBytes32(k, "underlyingPools", pools);
         vm.serializeUint(k, "underlyingActiveLiquidity", liquidity);
         vm.serializeUint(k, "secondaryActiveLiquidity", e.steps.length > 1 ? PM.getLiquidity(e.market.toId()) : 0);

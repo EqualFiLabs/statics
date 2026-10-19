@@ -32,6 +32,8 @@ import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.
 import {RangeGaugePositionManagementFacet} from "../../src/facets/RangeGaugePositionManagementFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {CanonicalV4Router} from "./CanonicalPoolTestBase.sol";
+import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketConversionRoute} from "../../src/interfaces/IStaticsBasketConversionRoutes.sol";
 
 abstract contract BasketConversionForkBase is BasketConversionTestBase {
     using PoolIdLibrary for PoolKey;
@@ -132,6 +134,38 @@ abstract contract BasketConversionForkBase is BasketConversionTestBase {
         }
     }
 
+    /// @dev Maximum-depth gas fixture: one pinned real hop and three locally funded
+    /// ordinary ERC-20 hops per asset. Distinct bridges avoid overstating warm-slot savings.
+    function _fourHopRoutes(Fixture memory f) internal returns (Fixture memory) {
+        address[] memory assets = baskets.basket(f.basketId).assets;
+        BasketConversionRoute[] memory direct = f.routes;
+        f.routes = new BasketConversionRoute[](assets.length);
+        for (uint256 i; i < assets.length; ++i) {
+            require(assets[i] != USDG, "deep fixture has no zero-hop constituent");
+            uint256 first = assets[i] == assets[0] ? 1 : 0;
+            address bridgeA = address(new MockERC20("Route bridge A", "RBA", 18));
+            address bridgeB = address(new MockERC20("Route bridge B", "RBB", 18));
+            _seedUnderlying(assets[first], bridgeA);
+            _seedUnderlying(bridgeA, bridgeB);
+            _seedUnderlying(bridgeB, assets[i]);
+            BasketConversionRoute memory r;
+            r.currencies = new address[](5);
+            r.currencies[0] = USDG;
+            r.currencies[1] = assets[first];
+            r.currencies[2] = bridgeA;
+            r.currencies[3] = bridgeB;
+            r.currencies[4] = assets[i];
+            r.pools = new PoolKey[](4);
+            r.hookData = new bytes[](4);
+            r.pools[0] = direct[first].pools[0];
+            for (uint256 j = 1; j < 4; ++j) {
+                r.pools[j] = _key(r.currencies[j], r.currencies[j + 1], address(0), 3000, 60);
+            }
+            f.routes[i] = r;
+        }
+        return f;
+    }
+
     function _activateStakers(address[] memory assets) internal returns (uint256[] memory positions) {
         uint256 batches = (assets.length + 7) / 8;
         positions = new uint256[](batches);
@@ -208,7 +242,14 @@ abstract contract BasketConversionForkBase is BasketConversionTestBase {
         vm.prank(alice);
         IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1}(
             IStaticsBasketMarkets.MarketParams(
-                f.token, USDG, 500, 10, sqrtPrice, type(uint256).max, block.timestamp, false
+                f.token,
+                USDG,
+                500,
+                10,
+                uint160(Math.sqrt(Math.mulDiv(price, 1 << 192, 1 ether))),
+                type(uint256).max,
+                block.timestamp,
+                false
             )
         );
         (address a, address b) = f.token < USDG ? (f.token, USDG) : (USDG, f.token);

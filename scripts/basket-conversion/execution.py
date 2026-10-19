@@ -2,6 +2,7 @@
 """Production conversion receipts on loopback Anvil; private upstream receives reads only."""
 import argparse
 from functools import lru_cache
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -28,6 +29,15 @@ def rpc(url, method, params):
     if "error" in result:
         raise ValueError(fork.redact(str(result["error"]), os.environ))
     return result["result"]
+
+
+def wait_receipt(url, tx_hash):
+    for _ in range(120):
+        receipt = rpc(url, "eth_getTransactionReceipt", [tx_hash])
+        if receipt is not None:
+            return receipt
+        time.sleep(.25)
+    raise RuntimeError("local transaction did not produce a receipt")
 
 
 @lru_cache(maxsize=1024)
@@ -67,6 +77,22 @@ def snapshot_books(url, f):
     }
 
 
+def state_batches(actions):
+    # Anvil's default request-body cap is 2 MB. Large test/deployer runtimes
+    # need their own batch even when fewer than 200 slot writes are present.
+    chunk, size = [], 2
+    for action in actions:
+        method, params = action
+        cost = len(json.dumps({"jsonrpc":"2.0", "id":len(chunk), "method":method, "params":params})) + 1
+        if chunk and (len(chunk) == 200 or size + cost > 1_500_000):
+            yield chunk
+            chunk, size = [], 2
+        chunk.append(action)
+        size += cost
+    if chunk:
+        yield chunk
+
+
 def install(url, state):
     # Vm.dumpState produces a genesis alloc: only cached fork account/slot state.
     alloc = state.get('alloc', state)
@@ -86,14 +112,17 @@ def install(url, state):
             actions.append(('anvil_setStorageAt',[address,'0x'+key.removeprefix('0x').zfill(64),
                                                 '0x'+val.removeprefix('0x').zfill(64)]))
     # Distinct slots/accounts can be set in batches; validate every result.
-    for start in range(0,len(actions),200):
-        chunk = actions[start:start+200]
+    for chunk in state_batches(actions):
         request = urllib.request.Request(url,json.dumps([
             {'jsonrpc':'2.0','id':i,'method':m,'params':p} for i,(m,p) in enumerate(chunk)]).encode(),
             {'Content-Type':'application/json'})
         with urllib.request.urlopen(request,timeout=120) as response:
             result = json.load(response)
-        assert len(result)==len(chunk) and all('error' not in x for x in result)
+        if not isinstance(result, list):
+            raise ValueError("local fork batch failed: " + fork.redact(str(result), os.environ))
+        if len(result) != len(chunk) or any("error" in x for x in result):
+            errors = [x.get("error") for x in result if "error" in x]
+            raise ValueError("local fork state installation failed: " + fork.redact(str(errors[:2]), os.environ))
 
 
 def trace_calls(trace):
@@ -128,7 +157,7 @@ def qualify(before, after, fixture, receipt, path):
             assert 0 <= charged - indexed - treasury <= len(fixture["eligibleStakingPositions"]) + 1, "fee conservation"
     swaps = [entry for entry in receipt["logs"] if entry["address"].lower() == PM.lower() and entry["topics"][0].lower() == SWAP]
     # The four-asset fixture includes the quote as a zero-hop constituent.
-    underlying = len(fixture["assets"]) - int(fixture["quote"].lower() in [x.lower() for x in fixture["assets"]])
+    underlying = sum(fixture["routeLengths"])
     outer = 0 if path == "zap" else 1 if mode in ("buy", "sell") else 2
     assert len(swaps) == underlying + outer, "swap receipt count"
     conversion = [entry for entry in swaps if entry["topics"][1].lower() == fixture["conversionPool"].lower()]
@@ -139,9 +168,8 @@ def qualify(before, after, fixture, receipt, path):
     return quote, underlying
 
 
-def run(output, count, mode, endpoint, pin):
-    name = f"{count}-{mode}"
-    f = json.loads((output / f"{name}-fixture.json").read_text())
+@contextmanager
+def anvil_fork(endpoint, pin):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -161,6 +189,21 @@ def run(output, count, mode, endpoint, pin):
         else:
             raise RuntimeError("local Anvil startup timed out")
         assert rpc(local,"eth_getBlockByNumber",[pin["number"],False])["hash"] == pin["hash"]
+        yield local
+    finally:
+        node.terminate()
+        try:
+            node.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            node.kill()
+            node.wait()
+
+
+
+def run(output, count, mode, endpoint, pin, hops=1):
+    name = f"{count}-{mode}" + ("-4hop" if hops == 4 else "")
+    f = json.loads((output / f"{name}-fixture.json").read_text())
+    with anvil_fork(endpoint, pin) as local:
         base = json.loads((output / f"{name}-base-state.json").read_text())
         for address, account in json.loads((output / f"{name}-state.json").read_text()).items():
             previous = base.get(address,{})
@@ -174,7 +217,7 @@ def run(output, count, mode, endpoint, pin):
         baseline = rpc(local,"evm_snapshot",[])
         rows = []
         for path in (["hook","zap"] if mode in ("buy","sell") else ["hook"]):
-            for idle in (0,3600,26*3600):
+            for idle in ((26*3600,) if hops == 4 else (0,3600,26*3600)):
                 assert rpc(local,"evm_revert",[baseline])
                 baseline = rpc(local,"evm_snapshot",[])
                 rpc(local,"evm_setNextBlockTimestamp",[int(f["blockTimestamp"])+idle+2])
@@ -185,11 +228,7 @@ def run(output, count, mode, endpoint, pin):
                     tx = {"from":f["buyer"], "to":f["router"] if path == "hook" else f["zap"], "data":f[path+"Data"], "gas":hex(CAP)}
                     # Only a fresh loopback node receives eth_sendTransaction.
                     h = rpc(local,"eth_sendTransaction",[tx])
-                    receipt = None
-                    for _ in range(120):
-                        receipt = rpc(local,"eth_getTransactionReceipt",[h])
-                        if receipt: break
-                        time.sleep(.25)
+                    receipt = wait_receipt(local,h)
                     if not receipt or int(receipt["status"],16) != 1:
                         failure = rpc(local,"debug_traceTransaction",[h,{"tracer":"callTracer"}])
                         (output/f"{case}-failure.json").write_text(json.dumps(failure,indent=2))
@@ -203,26 +242,19 @@ def run(output, count, mode, endpoint, pin):
                     calls = trace_calls(rpc(local,"debug_traceTransaction",[h,{"tracer":"callTracer"}]))
                     assert calls[0]["to"].lower() == tx["to"].lower() and calls[0]["input"] == tx["data"], "trace binding"
                     assert any(call.get("to","").lower() == f["core"].lower() for call in calls), "missing Diamond call"
-                    result = {"case":case, "count":count, "mode":mode, "path":path, "idleSeconds":idle,
+                    result = {"case":case, "count":count, "mode":mode, "routeHops":hops, "path":path, "idleSeconds":idle,
                         "repeat":repeat, "gasUsed":gas, "quoteDelta":quote, "underlyingSwaps":underlying,
                         "before":before, "after":after, "receipt":receipt, "transaction":transaction, "calls":calls}
                     (output/f"{case}.json").write_text(json.dumps(result,indent=2)+"\n")
                     rows.append({k:v for k,v in result.items() if k not in ("before","after","receipt","transaction","calls")})
                     print(f"{case}: {gas:,} gas",flush=True)
         if mode in ("buy", "sell"):
-            for idle in (0,1,26):
+            for idle in ((26,) if hops == 4 else (0,1,26)):
                 for suffix in ("first","repeat"):
                     a = json.loads((output/f"{name}-hook-idle{idle}h-{suffix}.json").read_text())
                     b = json.loads((output/f"{name}-zap-idle{idle}h-{suffix}.json").read_text())
                     assert a["quoteDelta"] == b["quoteDelta"] and a["before"] == b["before"] and a["after"] == b["after"], "hook/zap accounting equivalence"
         return rows
-    finally:
-        node.terminate()
-        try:
-            node.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            node.kill()
-            node.wait()
 
 
 def main():
@@ -231,7 +263,10 @@ def main():
     parser.add_argument("--modes", nargs="+", choices=["buy","sell","premium","discount"], default=["buy","sell","premium","discount"])
     parser.add_argument("--output", default=".tooling/basket-conversion/execution")
     parser.add_argument("--reuse-exports", action="store_true")
+    parser.add_argument("--route-hops", type=int, choices=[1,4], default=1)
     args = parser.parse_args()
+    if args.route_hops == 4 and (args.counts != [16] or set(args.modes) != {"buy","sell"}):
+        parser.error("four-hop qualification uses --counts 16 --modes buy sell")
     endpoint = os.environ.get("ROBINHOOD_MAINNET")
     if not endpoint:
         raise ValueError("load the canonical private RPC environment first")
@@ -243,7 +278,7 @@ def main():
     for count in args.counts:
         for mode in args.modes:
             if not args.reuse_exports:
-                env = {**os.environ,"CONVERSION_ASSETS":str(count),"CONVERSION_MODE":mode,"CONVERSION_EVIDENCE_OUT":str(output)+"/", "STATICS_CONVERSION_CANDIDATE":commit}
+                env = {**os.environ,"CONVERSION_ASSETS":str(count),"CONVERSION_ROUTE_HOPS":str(args.route_hops),"CONVERSION_MODE":mode,"CONVERSION_EVIDENCE_OUT":str(output)+"/", "STATICS_CONVERSION_CANDIDATE":commit}
                 command = ["forge","test","--match-path","test/liquidity/BasketConversionExecutionFixture.t.sol","--match-test","testExportExecutionFixture","--threads","1","--rpc-timeout","120","-vv"]
                 with (output/f"{count}-{mode}-export.log").open("w") as log:
                     process = subprocess.Popen(command,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
@@ -251,9 +286,10 @@ def main():
                         log.write(fork.redact(line,env));log.flush()
                     if process.wait():
                         raise ValueError(f"fixture export failed: {count} {mode}")
-            rows.extend(run(output,count,mode,endpoint,pin))
+            rows.extend(run(output,count,mode,endpoint,pin,args.route_hops))
     manifest = {"commit":commit,"fork":pin,"kind":"local-anvil-receipts","gasLimit":2**24,"qualifiedGasMaximum":CAP,
-        "counts":args.counts,"modes":args.modes,"results":rows,
+        "counts":args.counts,"modes":args.modes,"routeHops":args.route_hops,
+        "liquidityScope":"one pinned hop plus three local ERC-20 bridge hops" if args.route_hops == 4 else "pinned underlying pools","results":rows,
         "sourceSha256":{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((ROOT/"src").rglob("*.sol"))},
         "evidenceSha256":{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.glob("*.json")) if p.name != "manifest.json"}}
     (output/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")

@@ -115,6 +115,22 @@ Arbitrage fixtures use 1e15 full-range secondary liquidity plus a 1e13 gauge leg
 Exports record each underlying PoolId and its active liquidity at preparation.
 Repeated trades use the resulting pool state without restoring its price.
 
+The additional `execution.py --counts 16 --modes buy sell --route-hops 4` gate
+measures hook/zap buys and sells, first and repeated, after 26 hours of reward
+history. Each constituent route uses one pinned real hop followed by three
+locally funded ERC-20 bridge hops with distinct bridge tokens. This is a bounded
+maximum-depth execution fixture, not evidence of four-hop live-market liquidity.
+
+`scripts/basket-conversion/upgrade.py` starts from the original Phase 1 Diamond
+fixture upgraded to Phase 2 on the same pin. It mines the conversion batch through
+the actual Safe with ordinary owner hash approvals and delegatecall batching,
+then creates a conversion market and exercises zap buying, router buying,
+wallet-prefunded selling and conversion/AMM arbitrage. Late spend, sell-output
+and profit-bound failures require exact errors, mined receipts and call traces,
+unchanged custody, backing, allowances, rewards and pool state, then successful
+retries. One underlying route uses the existing General hook; funding its fees
+must preserve the generation-time reward index.
+
 `scripts/basket-conversion/release.py <new-isolated-directory>` runs the original
 Phase 2 freeze, bytecode reproduction and Cast/Anvil rehearsal unchanged, then
 adds the conversion upgrade, strategy and receipt gates. The conversion extension

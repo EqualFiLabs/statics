@@ -9,6 +9,7 @@ import {BasketConversionTestBase} from "../helpers/BasketConversionTestBase.sol"
 contract BasketConversionInvariantTest is BasketConversionTestBase {
     bytes private first;
     bytes private second;
+    uint256 private donated;
 
     function setUp() public override {
         super.setUp();
@@ -51,11 +52,14 @@ contract BasketConversionInvariantTest is BasketConversionTestBase {
         assetA.mint(address(conversionHook), amount);
         assetA.mint(address(conversionZap), amount);
         assetA.mint(address(diamond), amount);
+        donated += amount;
     }
 
     function invariantSharedCustodyAndPoolIsolation() public view {
         _assertBacking(abi.decode(first, (Fixture)));
         _assertBacking(abi.decode(second, (Fixture)));
+        assertEq(assetA.balanceOf(address(conversionHook)), donated, "hook consumes donations");
+        assertEq(assetA.balanceOf(address(conversionZap)), donated, "zap consumes donations");
         assertGe(
             IERC20(address(assetA)).balanceOf(address(diamond)),
             IStaticsCustody(address(diamond)).globalReservedByToken(address(assetA))
