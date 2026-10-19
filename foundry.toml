@@ -93,3 +93,7 @@ dynamic_test_linking = false
 # Slither reuses Foundry build-info with compilation disabled. Dynamic linking
 # references ephemeral foundry-pp sources that are unavailable to Crytic Compile.
 dynamic_test_linking = false
+
+# Print-only measurements are opt-in: FOUNDRY_PROFILE=benchmark forge test.
+[profile.benchmark]
+test = "benchmark"

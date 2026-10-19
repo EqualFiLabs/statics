@@ -246,6 +246,8 @@ jobs:
         run: git diff --check
       - name: Test fork rehearsal evidence guards
         run: python3 -m unittest discover -s test/rehearsal -v
+      - name: Check repository independence
+        run: python3 test/scripts/test_repository_independence.py
       - name: Test conversion evidence gate
         run: python3 -m unittest discover -s scripts/basket-conversion -v
 
