@@ -369,7 +369,7 @@ def check_impaired_reward_evidence(run, rows, asset):
                 for view in views), "forfeited claim cleanup observation missing")
 
 
-def check_rehearsal(destination, artifacts, commit):
+def check_rehearsal(destination, commit):
     """Require the pinned Cast/Anvil Phase 2 and later Morpho evidence."""
     import sys
     sys.path.insert(0, str(ROOT / "scripts/phase-one-rehearsal/helpers"))
@@ -431,7 +431,8 @@ def check_rehearsal(destination, artifacts, commit):
     return result
 
 
-def freeze(destination):
+def freeze(destination, extra_roots=(), extra_names=(), qualification=None):
+    names = (*IPFS_NAMES, *extra_names)
     status = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], cwd=ROOT, text=True).splitlines()
     if any(not row[3:].startswith(".solidity-auditor/") for row in status):
         raise ValueError("commit the complete candidate before freezing")
@@ -444,6 +445,7 @@ def freeze(destination):
     roots = ["src/facets", "src/position/PositionNFTFacet.sol", "src/diamond/StaticsInterfaceInit.sol",
              "src/liquidity/StaticsBasketHook.sol", "src/liquidity/StaticsBasketTokenFactory.sol",
              "src/liquidity/StaticsLiquidityManager.sol", "src/diamond/StaticsPublicHookReleaseInit.sol"]
+    roots.extend(extra_roots)
     with (destination / "build.log").open("w") as log:
         # Importers of IPFS-restricted roots use this profile in the typed dry run.
         # Pin the same metadata mode for every artifact in this isolated release.
@@ -464,7 +466,7 @@ def freeze(destination):
         if len(target) != 1:
             continue
         source, name = next(iter(target.items()))
-        if not (is_facet(source) or name in IPFS_NAMES or name in
+        if not (is_facet(source) or name in names or name in
                 ("StaticsLiquidityManager", "StaticsPublicHookReleaseInit")):
             continue
         creation = hexbytes(a["bytecode"]["object"])
@@ -491,8 +493,20 @@ def freeze(destination):
             result = json.loads(output.stdout)
             if any(error.get("severity") == "error" for error in result.get("errors", [])):
                 raise ValueError("independent source reproduction failed")
-            reproduced[input_digest] = result["contracts"]
-        exact = reproduced[input_digest][source][name]
+            declarations = {}
+            def collect(node):
+                if isinstance(node, dict):
+                    if node.get("nodeType") == "VariableDeclaration" and node.get("mutability") == "immutable":
+                        declarations[str(node["id"])] = node["name"]
+                    for child in node.values():
+                        collect(child)
+                elif isinstance(node, list):
+                    for child in node:
+                        collect(child)
+            collect(result.get("sources", {}))
+            reproduced[input_digest] = (result["contracts"], declarations)
+        contracts, declarations = reproduced[input_digest]
+        exact = contracts[source][name]
         enforce_reproduction(a, exact)
 
         directory = destination / "contracts" / name
@@ -502,7 +516,9 @@ def freeze(destination):
             continue
         save(directory / "standard-input.json", standard)
         save(directory / "metadata.json", metadata)
-        save(directory / "artifact.json", {k: a[k] for k in ("abi", "bytecode", "deployedBytecode", "methodIdentifiers")})
+        frozen = {k: a[k] for k in ("abi", "bytecode", "deployedBytecode", "methodIdentifiers")}
+        frozen["immutableNames"] = {key: declarations[key] for key in a["deployedBytecode"].get("immutableReferences", {})}
+        save(directory / "artifact.json", frozen)
         constructor = next((v["inputs"] for v in a["abi"] if v.get("type") == "constructor"), [])
         entry = {"source": source, "name": name, "compiler": metadata["compiler"]["version"],
                  "creationKeccak": keccak(creation), "runtimeTemplateKeccak": keccak(runtime),
@@ -512,7 +528,7 @@ def freeze(destination):
         if len(runtime) > 24_576:
             raise ValueError(f"EIP-170 overflow: {name}")
         artifacts[name] = entry
-    for name in IPFS_NAMES:
+    for name in names:
         if name not in artifacts:
             raise ValueError(f"missing release root: {name}")
     # Assert the factory runtime embeds the same metadata-bearing token creation payload.
@@ -526,7 +542,8 @@ def freeze(destination):
     enforce_embedded_token(hexbytes(factory_artifact["deployedBytecode"]["object"]),
                            creation_of("StaticsBasketToken"))
     dry_run = simulate(destination, artifacts, commit)
-    rehearsal = check_rehearsal(destination, artifacts, commit)
+    rehearsal = check_rehearsal(destination, commit)
+    extra_evidence = qualification(destination, commit) if qualification else None
     if (any(not row[3:].startswith(".solidity-auditor/") for row in
             subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], cwd=ROOT, text=True).splitlines())
             or subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != commit):
@@ -536,6 +553,8 @@ def freeze(destination):
                 "foundry": subprocess.check_output(["forge", "--version"], text=True).strip(),
                 "dependencies": subprocess.check_output(["git", "submodule", "status", "--recursive"], cwd=ROOT, text=True).splitlines(),
                 "contracts": artifacts, "deployment": "TO_FILL_AFTER_DEPLOYMENT"}
+    if extra_evidence is not None:
+        manifest["conversion"] = extra_evidence
     manifest["releaseId"] = sha(canonical(manifest))
     save(destination / "manifest.json", manifest)
     print(json.dumps({"releaseId": manifest["releaseId"], "contracts": len(artifacts), "bundle": str(destination)}))

@@ -10,6 +10,8 @@ optimizer = true
 optimizer_runs = 200
 bytecode_hash = "none"
 fs_permissions = [
+    { access = "read-write", path = "./.tooling/basket-conversion" },
+    { access = "read-write", path = "./artifacts/basket-conversion" },
     { access = "read-write", path = "./artifacts/diamond-manifests" },
     { access = "read-write", path = "./artifacts/public-hook-release" },
     { access = "read-write", path = "./artifacts/phase-two-rehearsal" },
@@ -32,6 +34,11 @@ additional_compiler_profiles = [
 ]
 
 compilation_restrictions = [
+    # Conversion deployment roots retain reproducible, explorer-publishable source metadata.
+    { paths = "src/liquidity/StaticsBasketConversionHook.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/liquidity/StaticsBasketConversionZap.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/liquidity/StaticsBasketConversionRouter.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
+    { paths = "src/facets/BasketConversionFacet.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
     # Include metadata in deployed contracts and factory-embedded constructor bytecode.
     { paths = "src/liquidity/StaticsBasketHook.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
     { paths = "src/liquidity/StaticsBasketTokenFactory.sol", version = "=0.8.33", bytecode_hash = "Ipfs", optimizer_runs = 200 },
@@ -86,3 +93,7 @@ dynamic_test_linking = false
 # Slither reuses Foundry build-info with compilation disabled. Dynamic linking
 # references ephemeral foundry-pp sources that are unavailable to Crytic Compile.
 dynamic_test_linking = false
+
+# Print-only measurements are opt-in: FOUNDRY_PROFILE=benchmark forge test.
+[profile.benchmark]
+test = "benchmark"

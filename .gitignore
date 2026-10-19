@@ -32,6 +32,8 @@ x-ray/
 /artifacts/phase-two-rehearsal/
 
 # Local investigation and audit bundles; retain them outside published source.
+/.solidity-auditor/
 /.tooling/
 /.audit-*/
 /artifacts/phase-two-production-preflight/
+/artifacts/basket-conversion/

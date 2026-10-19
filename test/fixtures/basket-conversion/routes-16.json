@@ -1,0 +1,157 @@
+{
+  "fork": {
+    "number": "0x570c283",
+    "hash": "0x02e02a12d59e8291e0a55b72c67187857514d55a3291c3c0b21e7ec2c9a7756f",
+    "timestamp": "0x6ad3f4ed",
+    "chainId": 4663
+  },
+  "quote": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "routes": [
+    {
+      "symbol": "AAPL",
+      "token": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0xc748f4671a867db48b552f6b7650bf3255e05f80f00e3f7aad1b17ccb7898fdb",
+      "liquidity": 537379419069844714
+    },
+    {
+      "symbol": "META",
+      "token": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+      "liquidity": 1246112428915822299
+    },
+    {
+      "symbol": "TSLA",
+      "token": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+      "liquidity": 390119633304333735
+    },
+    {
+      "symbol": "NVDA",
+      "token": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+      "liquidity": 305617229398469134
+    },
+    {
+      "symbol": "MSFT",
+      "token": "0xe93237c50d904957cf27e7b1133b510c669c2e74",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0x9194a557b6a6bb2236b49ea7e2bbccec5d3eeb705aef00903be4b3de1d949579",
+      "liquidity": 71789849290705860
+    },
+    {
+      "symbol": "GOOGL",
+      "token": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0xd4ecb79fdc521d7725d22b33ed43cb4e47aa96bfad76aa29577e3151f723ac5e",
+      "liquidity": 365259098246973092
+    },
+    {
+      "symbol": "AMZN",
+      "token": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0xd32646872e6712af8cf778e34b6bbef1d2ae0bddd83764e1b07333518ad59333",
+      "liquidity": 5493728624715425
+    },
+    {
+      "symbol": "SPY",
+      "token": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd",
+      "liquidity": 3168608112898228721
+    },
+    {
+      "symbol": "QQQ",
+      "token": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "poolId": "0xf9568ec0cba6e9ba30d9daabbf3e807813b8852e5737b7d83ea06529c73c9758",
+      "liquidity": 10142601034135047
+    },
+    {
+      "symbol": "COIN",
+      "token": "0x6330d8c3178a418788df01a47479c0ce7ccf450b",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0x007a13fa152f6dc383cad20a8eaab4e1e2538b606936eae2a424f8aa47d6db31",
+      "liquidity": 254752923111372888
+    },
+    {
+      "symbol": "PLTR",
+      "token": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0xee430ee1003e1985e1828a01b9a20dad67ad4302994fe2abb4a173de4ac54623",
+      "liquidity": 365463540999260816
+    },
+    {
+      "symbol": "AMD",
+      "token": "0x86923f96303d656e4aa86d9d42d1e57ad2023fdc",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0xde9f85fdd9e05a943a52f2c69ffafe3064a3287df03d02c9b431bc92d4781274",
+      "liquidity": 25847486683959617
+    },
+    {
+      "symbol": "ORCL",
+      "token": "0xb0992820e760d836549ba69bc7598b4af75dee03",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0xc2ce4784e1e72cf0221b51b30c8aaadf6c0b12863cf03ab3687854fb7b1d850a",
+      "liquidity": 63535082279339227
+    },
+    {
+      "symbol": "RDDT",
+      "token": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0xec481672a94cfe42e2d8c996b7eaeee8a93093d56bd01c1714341971e3f406c1",
+      "liquidity": 35828412479888681
+    },
+    {
+      "symbol": "INTC",
+      "token": "0xc72b96e0e48ecd4dc75e1e45396e26300bc39681",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0xf2e329e631d0fb315a5c563ee3a9120f24822b5ef6c502a91cb56b174d5d8c22",
+      "liquidity": 82722005162784402
+    },
+    {
+      "symbol": "MU",
+      "token": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "fee": 10000,
+      "tickSpacing": 200,
+      "poolId": "0x6fa3ee0048e78bf0a513eb0ab56f482944a767c21db990fcf555605e69f05659",
+      "liquidity": 23483829852503506
+    }
+  ],
+  "symbols": [
+    "AAPL",
+    "META",
+    "TSLA",
+    "NVDA",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "SPY",
+    "QQQ",
+    "COIN",
+    "PLTR",
+    "AMD",
+    "ORCL",
+    "RDDT",
+    "INTC",
+    "MU"
+  ]
+}

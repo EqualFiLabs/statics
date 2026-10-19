@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -28,6 +34,8 @@ library LibBasketMarkets {
         bool basket0;
         bool basket1;
         Lifecycle lifecycle;
+        // Appended to the existing record; AMM entries retain the default false value.
+        bool conversion;
     }
 
     struct MarketStorage {

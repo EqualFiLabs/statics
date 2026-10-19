@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -80,7 +86,7 @@ library LibProtocolPools {
         returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
     {
         LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
-        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) {
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None && !market.conversion) {
             return
                 (
                     IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical,
