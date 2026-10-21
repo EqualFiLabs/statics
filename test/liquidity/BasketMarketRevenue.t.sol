@@ -56,6 +56,60 @@ contract BasketMarketRevenueTest is CanonicalPoolTestBase {
         _exerciseAndClaim();
     }
 
+    function testNestedCanonicalPoolRewardsEachTokenInsteadOfTheParentConstituentBook() public {
+        _market(true, 3);
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.assets[0] = tokens[0];
+        IStaticsBasket.PoolLaunchParams[] memory launch = _defaultPoolLaunchParams(2);
+        for (uint256 i; i < 2; ++i) {
+            launch[i].pairedAssetAmount = 0;
+            launch[i].activateManagedPol = false;
+        }
+        uint256 fee = basketAdmin.creationFee();
+        vm.prank(creator);
+        (uint256 parent, address parentToken) =
+            baskets.createBasket{value: fee}(params, launch, new uint256[](2), type(uint256).max);
+        _fundAndApprove(alice, 20 ether, 20 ether);
+        uint256[] memory quote = baskets.quoteMint(parent, 4 ether);
+        vm.startPrank(alice);
+        IERC20(tokens[0]).approve(address(diamond), type(uint256).max);
+        baskets.mint(parent, 4 ether, alice, quote);
+        IERC20(parentToken).approve(address(diamond), 1 ether);
+        uint256 parentPosition = basketCollateral.createAndDepositBasketCollateral(parent, 1 ether, alice);
+        IERC20(parentToken).approve(address(v4Router), type(uint256).max);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 25 hours);
+        poolId = basketLiquidity.canonicalPool(parent, tokens[0]).poolId;
+        key = pools.protocolPool(poolId).key;
+        vm.prank(alice);
+        v4Router.modifyLiquidity(
+            key,
+            ModifyLiquidityParams(TickMath.minUsableTick(10), TickMath.maxUsableTick(10), int256(0.1 ether), bytes32(0))
+        );
+        _fourSwaps();
+        uint256 childFee = hook.pendingFeeDistribution(poolId, Currency.wrap(tokens[0])).basketStaker;
+        uint256 parentFee = hook.pendingFeeDistribution(poolId, Currency.wrap(parentToken)).basketStaker;
+        assertGt(childFee, 0);
+        assertGt(parentFee, 0);
+        pools.settleProtocolPoolRevenue(poolId, tokens[0]);
+        pools.settleProtocolPoolRevenue(poolId, parentToken);
+        assertEq(basketRewards.basketRewardState(0, tokens[0]).indexedReserve, childFee);
+        // The parent can earn its constituent in other flows, but this pool's child-token fee belongs to the child.
+        assertEq(basketRewards.basketRewardState(parent, tokens[0]).indexedReserve, 0);
+        assertEq(basketRewards.basketRewardState(parent, parentToken).indexedReserve, parentFee);
+        uint256 beforeChild = IERC20(tokens[0]).balanceOf(alice);
+        uint256 beforeParent = IERC20(parentToken).balanceOf(alice);
+        vm.startPrank(alice);
+        basketRewards.claimBasketRewards(positions[0], 0, alice);
+        (, uint256[] memory parentPaid) = basketRewards.claimBasketRewards(parentPosition, parent, alice);
+        vm.stopPrank();
+        assertEq(parentPaid[0], parentFee);
+        assertEq(parentPaid[1], 0);
+        assertEq(IERC20(tokens[0]).balanceOf(alice) - beforeChild, childFee);
+        assertEq(IERC20(parentToken).balanceOf(alice) - beforeParent, parentFee);
+        assertGe(IERC20(tokens[0]).balanceOf(address(diamond)), custody.globalReservedByToken(tokens[0]));
+    }
+
     function testEachBasketEligibilityFallsBackIndependentlyWithAndWithoutPol() public {
         for (uint256 flags; flags < 8; ++flags) {
             uint256 snapshot = vm.snapshotState();
