@@ -342,10 +342,11 @@ contract OptionalBasketPolTest is CanonicalPoolTestBase {
         vm.prank(bob);
         PoolId id = IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params);
         assertFalse(protocol.protocolPool(id).polActivated);
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(ProtocolPolFacet.OnlyPoolCreator.selector, bob, alice));
-        protocol.activateProtocolPoolPol{value: ACTIVATION_FEE}(id);
+        assertEq(protocol.protocolPoolCreator(id), bob);
         vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPolFacet.OnlyPoolCreator.selector, alice, bob));
+        protocol.activateProtocolPoolPol{value: ACTIVATION_FEE}(id);
+        vm.prank(bob);
         protocol.activateProtocolPoolPol{value: ACTIVATION_FEE}(id);
         assertTrue(protocol.protocolPool(id).polActivated);
     }
@@ -361,7 +362,7 @@ contract OptionalBasketPolTest is CanonicalPoolTestBase {
 
         PoolId id = IStaticsBasketMarkets(address(diamond)).createBasketMarket(params);
         assertEq(address(protocol.protocolPool(id).key.hooks), address(_localBasketHook));
-        assertEq(protocol.protocolPoolCreator(id), alice);
+        assertEq(protocol.protocolPoolCreator(id), address(this));
         assertFalse(protocol.protocolPool(id).polActivated);
     }
 
@@ -372,16 +373,13 @@ contract OptionalBasketPolTest is CanonicalPoolTestBase {
         IStaticsBasketMarkets.MarketParams memory params = _market(f.token);
         params.activateManagedPol = true;
         vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(ProtocolPolFacet.OnlyPoolCreator.selector, bob, alice));
-        IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether + ACTIVATION_FEE}(params);
-        vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
                 BasketMarketCreationFacet.IncorrectMarketCreationFee.selector, 1 ether + ACTIVATION_FEE, 1 ether
             )
         );
         IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params);
-        vm.prank(alice);
+        vm.prank(bob);
         PoolId id = IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether + ACTIVATION_FEE}(params);
         assertTrue(protocol.protocolPool(id).polActivated);
         assertEq(protocol.protocolPool(id).activePolPositions, 0);

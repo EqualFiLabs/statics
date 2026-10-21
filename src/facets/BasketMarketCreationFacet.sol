@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -63,7 +69,7 @@ contract BasketMarketCreationFacet is IStaticsBasketMarkets, ReentrancyGuard {
         address token = LibBasket.isBasketToken(currency0) ? currency0 : currency1;
         address paired = token == currency0 ? currency1 : currency0;
         uint256 basketId = LibBasket.basketStorage().basketIds[token] - 1;
-        address creator = LibBasket.basketStorage().baskets[basketId].creator;
+        address creator = msg.sender;
         LibProtocolPools.enforceUnregistered(key.toId());
         IStaticsSwapFeeHook(address(key.hooks)).registerPool(key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, creator);
         LibBasketMarkets.register(key, creator, basketId, paired);

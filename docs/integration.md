@@ -615,6 +615,22 @@ calls the creator. Claim it with
 amounts through the creator-credit views. Creator credits never expire, cannot
 be confiscated by governance, and survive decommissioning.
 
+Additional basket markets record the caller of `createBasketMarket` as the pool
+creator, independently of either basket's creator and token address ordering.
+That account receives creator revenue and controls paid POL activation. Canonical
+launch pools retain their designated basket creator. Basket creator claims remain
+creator-only through `claimCreatorRevenue`.
+
+For a basket A / basket B market, the basket-staker allocation collected in A
+enters A's existing basket reward index; the allocation collected in B enters
+B's index. This also applies when one basket holds the other as a constituent.
+Basket/non-basket markets retain their registered basket beneficiary and reward
+asset eligibility rules. Eligibility is checked separately for each collected
+currency. An unavailable basket share follows the existing POL/Treasury fallback,
+never the other basket's index. Global STATICS-staker allocations remain separate
+and follow each staker's currency opt-ins. Both swap legs continue to incur their
+configured hook fees.
+
 The hook records bilateral fees as PoolManager ERC-6909 claims without routing
 or managing positions in the swap callback. Any caller may settle one pool
 currency with `settleProtocolPoolRevenue(poolId, asset)`. The Diamond redeems
