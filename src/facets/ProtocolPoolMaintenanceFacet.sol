@@ -28,7 +28,6 @@ contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
     error IncompatibleTokenTransfer(address token, uint256 expected, uint256 observed);
     error InvalidMaintenanceConfig();
     error ActionPaused(uint256 action);
-    error PublicProtocolPoolRequired(PoolId poolId);
 
     function setProtocolPoolMaintenanceConfig(IStaticsProtocolPools.ProtocolPoolMaintenanceConfig calldata config)
         external
@@ -49,7 +48,7 @@ contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_TREASURY != 0) {
             revert ActionPaused(LibGovernance.PAUSE_TREASURY);
         }
-        (, PoolKey memory key,,) = _enforcePublicProtocolPool(poolId);
+        (, PoolKey memory key) = LibProtocolPools.enforcePublicPool(poolId);
         Currency currency = asset == Currency.unwrap(key.currency0) ? key.currency0 : key.currency1;
         if (asset != Currency.unwrap(currency)) revert LibProtocolRevenue.InvalidRewardAsset(poolId, asset);
 
@@ -92,16 +91,5 @@ contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
         if (amount == 0) return;
         (uint256 spent, uint256 received) = LibCustody.pushUnreserved(token, receiver, amount, amount);
         if (spent != amount || received != amount) revert IncompatibleTokenTransfer(token, amount, received);
-    }
-
-    function _enforcePublicProtocolPool(PoolId poolId)
-        private
-        view
-        returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
-    {
-        (kind, key, basketId, basketAsset) = LibProtocolPools.enforceRegistered(poolId);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
-            revert PublicProtocolPoolRequired(poolId);
-        }
     }
 }

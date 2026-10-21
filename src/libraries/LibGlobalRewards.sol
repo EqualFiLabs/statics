@@ -506,11 +506,6 @@ library LibGlobalRewards {
         }
     }
 
-    function enforcePositionRewardBooksFresh(uint256 positionId) internal view {
-        RewardStorage storage rs = rewardStorage();
-        _enforcePositionBooksFresh(rs, rs.positions[positionId]);
-    }
-
     function rewardBookNeedsCheckpoint(address asset) internal view returns (bool) {
         return _needsCheckpoint(rewardStorage().books[asset]);
     }

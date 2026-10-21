@@ -71,7 +71,10 @@ contract NativeBasketRewardsTest is CanonicalPoolTestBase {
         vm.warp(block.timestamp + 25 hours);
         assertTrue(settlement.canAccrueBasketCurrencyRewards(id, basket.token));
         for (uint256 i; i < basket.assets.length; ++i) {
-            assertTrue(settlement.canAccrueBasketCurrencyRewards(id, basket.assets[i]));
+            assertEq(
+                settlement.canAccrueBasketCurrencyRewards(id, basket.assets[i]),
+                basket.assets[i] == address(wrappedNative)
+            );
         }
         assertFalse(settlement.canAccrueBasketCurrencyRewards(id, address(stakingAsset)));
         assertFalse(settlement.canAccrueBasketCurrencyRewards(id, address(0)));

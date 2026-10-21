@@ -112,7 +112,6 @@ library LibRangeGauge {
     error PoolRewardConfigNotInitialized(PoolId poolId);
     error RewardAssetAlreadyAssigned(PoolId poolId, address asset);
     error RewardSlotLimitReached(PoolId poolId);
-    error InvalidRewardSlot(PoolId poolId, uint8 slot);
     error GaugeAlreadyInitialized(PoolId poolId);
     error GaugeNotInitialized(PoolId poolId);
     error InvalidTimestamp(uint256 timestamp);
@@ -183,12 +182,6 @@ library LibRangeGauge {
         config.assets[slot] = asset;
         config.slotPlusOne[asset] = slot + 1;
         config.slotCount = slot + 1;
-    }
-
-    function rewardSlot(PoolId poolId, address asset) internal view returns (uint8 slot, bool assigned) {
-        uint8 slotPlusOne = rangeGaugeStorage().rewardConfig[poolId].slotPlusOne[asset];
-        if (slotPlusOne == 0) return (0, false);
-        return (slotPlusOne - 1, true);
     }
 
     function rewardAsset(PoolId poolId, uint8 slot) internal view returns (address asset, bool assigned) {

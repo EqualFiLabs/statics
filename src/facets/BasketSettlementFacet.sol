@@ -46,9 +46,8 @@ contract BasketSettlementFacet is IStaticsBasketSettlement, ReentrancyGuard {
     }
 
     function canAccrueBasketCurrencyRewards(PoolId poolId, address asset) external view returns (bool) {
-        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
-        return market.lifecycle != LibBasketMarkets.Lifecycle.None && LibBasketRewards.canAccrue(market.basketId)
-            && LibBasketRewards.isRewardAsset(LibBasket.basketStorage().baskets[market.basketId], asset);
+        (bool supported, uint256 basketId) = LibBasketMarkets.rewardBasket(poolId, asset);
+        return supported && LibBasketRewards.canAccrue(basketId);
     }
 
     function settleBasketManagerDelivery(address token, address receiver, uint256 amount)

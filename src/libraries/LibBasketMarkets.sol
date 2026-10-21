@@ -13,6 +13,8 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {LibBasketLaunchExecution} from "./LibBasketLaunchExecution.sol";
 import {LibBasket} from "./LibBasket.sol";
+import {LibBasketRewards} from "./LibBasketRewards.sol";
+import {LibPoolRewards} from "./LibPoolRewards.sol";
 
 /// @notice Permanent identities; canonical pointers may never erase historical settlement records.
 library LibBasketMarkets {
@@ -71,6 +73,20 @@ library LibBasketMarkets {
         market.basket0 = basket0;
         market.basket1 = basket1;
         market.lifecycle = Lifecycle.Active;
+    }
+
+    /// @notice Basket-token pairs reward the basket of the collected currency. Other pairs
+    /// retain their registered basket, provided the currency is one of its reward assets.
+    /// @dev Assets use the revenue denomination (WETH for a native pool currency).
+    function rewardBasket(PoolId id, address asset) internal view returns (bool supported, uint256 basketId) {
+        Market storage market = marketStorage().markets[id];
+        if (market.lifecycle == Lifecycle.None) return (false, 0);
+        if (
+            asset != LibPoolRewards.rewardAsset(Currency.unwrap(market.key.currency0))
+                && asset != LibPoolRewards.rewardAsset(Currency.unwrap(market.key.currency1))
+        ) return (false, 0);
+        basketId = market.basket0 && market.basket1 ? LibBasket.basketStorage().basketIds[asset] - 1 : market.basketId;
+        supported = LibBasketRewards.isRewardAsset(LibBasket.basketStorage().baskets[basketId], asset);
     }
 
     function requireMarket(PoolId id) internal view returns (Market storage market) {

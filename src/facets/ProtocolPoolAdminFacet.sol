@@ -45,7 +45,6 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     error InvalidLiquidityManager(address manager);
     error LiquidityManagerBindingMismatch(address manager, address expected, address actual);
     error LiquidityManagerUnchanged(address manager);
-    error PublicProtocolPoolRequired(PoolId poolId);
 
     function setPoolCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();
@@ -61,14 +60,14 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
 
     function setProtocolPoolFeeRate(PoolId poolId, IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate) external {
         LibDiamond.enforceIsContractOwner();
-        (, PoolKey memory key,,) = _enforcePublicProtocolPool(poolId);
+        (, PoolKey memory key) = LibProtocolPools.enforcePublicPool(poolId);
         IStaticsSwapFeeHook(address(key.hooks)).setPoolFeeRate(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateSet(poolId, feeRate.inputFeePips, feeRate.outputFeePips);
     }
 
     function clearProtocolPoolFeeRate(PoolId poolId) external {
         LibDiamond.enforceIsContractOwner();
-        (, PoolKey memory key,,) = _enforcePublicProtocolPool(poolId);
+        (, PoolKey memory key) = LibProtocolPools.enforcePublicPool(poolId);
         IStaticsSwapFeeHook(address(key.hooks)).clearPoolFeeRate(poolId);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateCleared(poolId);
     }
@@ -291,16 +290,5 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {
         ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-    }
-
-    function _enforcePublicProtocolPool(PoolId poolId)
-        private
-        view
-        returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
-    {
-        (kind, key, basketId, basketAsset) = LibProtocolPools.enforceRegistered(poolId);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
-            revert PublicProtocolPoolRequired(poolId);
-        }
     }
 }

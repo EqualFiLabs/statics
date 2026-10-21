@@ -22,6 +22,12 @@ minting and LP provision then enable swaps. Mandatory cases exercise exact paid
 creator activation, unauthorized calls, wrong fees, replay, pool isolation,
 prospective routing and settlement of both pre-activation Treasury and new POL.
 
+The additional basket/basket market is created by a caller distinct from its
+basket creators. Mandatory cases verify creator registration and claims, paid
+POL authority, both fee legs in both swap directions and exact-output modes,
+per-currency basket rewards, global reward funding without reindexing, and
+backed payouts. Repeated revenue settlement cannot credit either basket twice.
+
 The impairment scenario launches an unseeded two-asset basket, opens a native
 loan, marks one constituent impaired, and freezes both its transfers and balance
 queries. Mandatory mined cases prove owner authority, blocked mint and ordinary

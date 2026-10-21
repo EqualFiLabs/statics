@@ -72,6 +72,7 @@ library LibProtocolPools {
     error ProtocolPoolNotRegistered(PoolId poolId);
     error ProtocolPoolAlreadyRegistered(PoolId poolId, IStaticsProtocolPools.ProtocolPoolKind kind);
     error GeneralPoolNotRegistered(PoolId poolId);
+    error PublicProtocolPoolRequired(PoolId poolId);
 
     function protocolPoolStorage() internal pure returns (ProtocolPoolStorage storage ps) {
         bytes32 position = PROTOCOL_POOL_STORAGE_POSITION;
@@ -106,9 +107,9 @@ library LibProtocolPools {
         }
     }
 
-    /// @dev Current creator authority. Basket canonical -> basket creator; general ->
-    /// stored general-pool creator. Downstream fee routing consumes this rather than duplicating
-    /// pool-class-specific lookups.
+    /// @dev Returns the recorded pool creator. Canonical launches use their designated basket
+    /// creator; additional basket markets use their creating caller. Downstream fee routing
+    /// consumes this rather than duplicating pool-class-specific lookups.
     function creatorOf(PoolId poolId) internal view returns (address creator) {
         LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
         if (market.lifecycle != LibBasketMarkets.Lifecycle.None) return market.creator;
@@ -136,6 +137,17 @@ library LibProtocolPools {
     {
         (kind, key, basketId, basketAsset) = resolve(poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.None) revert ProtocolPoolNotRegistered(poolId);
+    }
+
+    function enforcePublicPool(PoolId poolId)
+        internal
+        view
+        returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key)
+    {
+        (kind, key,,) = enforceRegistered(poolId);
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            revert PublicProtocolPoolRequired(poolId);
+        }
     }
 
     function generalPool(PoolId poolId) internal view returns (GeneralPool storage pool) {

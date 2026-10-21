@@ -48,7 +48,9 @@ contract RangeGaugeHarness {
     }
 
     function rewardSlot(PoolId poolId, address asset) external view returns (uint8 slot, bool assigned) {
-        return LibRangeGauge.rewardSlot(poolId, asset);
+        uint8 slotPlusOne = LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId].slotPlusOne[asset];
+        if (slotPlusOne == 0) return (0, false);
+        return (slotPlusOne - 1, true);
     }
 
     function rewardAsset(PoolId poolId, uint256 slot) external view returns (address asset, bool assigned) {

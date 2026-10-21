@@ -13,6 +13,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {LibBasket} from "./LibBasket.sol";
+import {LibBasketMarkets} from "./LibBasketMarkets.sol";
 import {LibBasketRewards} from "./LibBasketRewards.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
@@ -39,8 +40,7 @@ library LibProtocolRevenue {
         address asset,
         IStaticsProtocolRevenue.ProtocolFeeDistribution memory distribution
     ) internal {
-        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId,) =
-            LibProtocolPools.enforceRegistered(poolId);
+        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(poolId);
         address asset0 = Currency.unwrap(key.currency0);
         address asset1 = Currency.unwrap(key.currency1);
         if (kind != IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
@@ -62,6 +62,8 @@ library LibProtocolRevenue {
         if (total == 0) return;
         LibCustody.reserve(LibCustody.feeAccount(), asset, total);
         if (distribution.basketStaker != 0) {
+            (bool supported, uint256 basketId) = LibBasketMarkets.rewardBasket(poolId, asset);
+            if (!supported) revert InvalidRewardAsset(poolId, asset);
             // The hook normally converts this fallback to POL before redeeming its claim. Recheck
             // after the token pull as a liveness guard against an eligibility-changing token
             // callback between the hook's check and this non-reentrant accounting section.

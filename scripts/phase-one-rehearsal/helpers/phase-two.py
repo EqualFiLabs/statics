@@ -33,6 +33,12 @@ MANDATORY = {
     "basket-raw-liquidity", "basket-claim-mint", "basket-claim-theft", "basket-claim-forged",
     "market-gate", "market-create", "market-liquidity", "market-swap", "market-exit-swap",
     "market-unwind", "market-unwind-replay", "market-historical-exit",
+    "market-second-collateral", "market-reward-opt-in", "market-reward-swap-in", "market-reward-swap-out",
+    "market-reward-exact-output-in", "market-reward-exact-output-out",
+    "market-revenue-first", "market-revenue-second", "market-fund-first", "market-fund-second",
+    "market-creator-denied", "market-creator-claim-first", "market-creator-claim-second",
+    "market-reward-claim-first", "market-reward-claim-second", "market-global-claim",
+    "market-pol-creator-denied", "market-pol-creator-activate",
     "multi-pool-revenue", "multi-pool-funding", "legacy-managed-exit", "basket-exit-only", "basket-exit-swap",
     "basket-exit-mint", "basket-exit-redeem", "basket-pol-close", "basket-unwind", "basket-unwind-replay",
     "max-basket-prepare", "max-basket-finalize", "max-basket-mint", "max-basket-swap",
@@ -379,12 +385,24 @@ class PhaseTwo(Rehearsal):
         hook = self.candidate["basketHook"]
         create = data("createBasketMarket(" + MARKET + ")", params)
         self.send("market-gate", self.diamond, create, error="PermissionlessMarketCreationDisabled()")
-        self.safe("market-create", [self.diamond], [create], case_target=self.diamond, case_data=create)
+        self.govern(None, "setPoolCreationFee(uint256)", 1)
+        params = (*params[:5], 1, *params[6:])
+        create = data("createBasketMarket(" + MARKET + ")", params)
+        receipt = self.send("market-create", self.diamond, create, value=1)
+        self.govern(None, "setPoolCreationFee(uint256)", 0)
         first, second = sorted((self.token, self.second_token), key=lambda value: int(value,16))
         key = (first, second, 3000, 60, hook)
         pool_id = self.pool_id(key)
         self.market_key, self.market_id = key, pool_id
         self.pools[pool_id] = key
+        require(self.scalar(self.diamond, "protocolPoolCreator(bytes32)(address)", pool_id).lower() == self.alice.lower(),
+                "market creator is not the caller")
+        registration = self.scalar(hook, "poolRegistration(bytes32)((address,address,uint8,address,bool))", pool_id)
+        require(registration[3].lower() == self.alice.lower(), "hook creator differs from Diamond")
+        topic = "0x" + keccak(b"BasketMarketCreated(bytes32,address,address,uint256)").hex()
+        event = next(log for log in receipt["logs"] if log["address"].lower() == self.diamond.lower() and log["topics"][0] == topic)
+        require(event["topics"][1].lower() == pool_id.lower()
+                and event["topics"][2][-40:].lower() == self.alice[2:].lower(), "market creation event creator differs")
         require(self.scalar(self.diamond, POOL, pool_id)[1][4].lower() == hook.lower(), "market hook mismatch")
         canonical = self.scalar(self.diamond,
             "canonicalPool(uint256,address)((bytes32,address,address,address,address,address,uint24,int24,int24))",
@@ -394,6 +412,91 @@ class PhaseTwo(Rehearsal):
         self.approve(self.second_token, self.candidate["router"])
         self.send("market-liquidity", self.candidate["router"], data(RUN,key,1,10**16,True,0))
         self.swap("market-swap", key, True, -10**12)
+
+    def market_rewards(self):
+        key, pool_id = self.market_key, self.market_id
+        tokens = [self.token, self.second_token]
+        basket_ids = [self.basket_id, self.second_basket_id]
+        # Flush the earlier pre-eligibility trade so the following deltas are isolated.
+        for token in tokens:
+            self.send(None, self.diamond, data("settleProtocolPoolRevenue(bytes32,address)", pool_id, token))
+        second_position = int(self.scalar(self.diamond, "nextPositionId()(uint256)"))
+        self.approve(self.second_token, self.diamond)
+        fee = int(self.scalar(self.diamond, "positionCreationFee()(uint256)"))
+        self.send("market-second-collateral", self.diamond,
+                  data("createAndDepositBasketCollateral(uint256,uint256,address)", self.second_basket_id, 10**17, self.alice), value=fee)
+        self.positions.append(second_position)
+        self.send("market-reward-opt-in", self.diamond,
+                  data("optInRewardAssets(uint256,address[])", self.legacy_position, tokens))
+        self.warp(25 * 3600)
+        for token in tokens:
+            require(self.scalar(self.diamond, "canAccrueBasketCurrencyRewards(bytes32,address)(bool)", pool_id, token),
+                    "basket currency has no eligible beneficiary")
+        for label, direction, amount in (
+                ("market-reward-swap-in", True, -10**12), ("market-reward-swap-out", False, -10**12),
+                ("market-reward-exact-output-in", True, 10**12), ("market-reward-exact-output-out", False, 10**12)):
+            before = [int(self.scalar(key[4], "claimLiability(address)(uint256)", token)) for token in tokens]
+            self.swap(label, key, direction, amount)
+            require(all(int(self.scalar(key[4], "claimLiability(address)(uint256)", token)) > old
+                        for token, old in zip(tokens, before)), "swap did not collect both basket currencies")
+        global_earned = self.scalar(self.diamond, "pendingRewards(uint256,address[])(uint256[])", self.legacy_position, tokens)
+        require(all(int(amount) > 0 for amount in global_earned), "global basket rewards missing")
+        reward_view = "basketRewardState(uint256,address)((uint256,uint256,uint256,uint256,uint256))"
+        for index, (token, basket_id, position, suffix) in enumerate(zip(
+                tokens, basket_ids, [self.collateral_position, second_position], ["first", "second"])):
+            pending = list(map(int, self.scalar(key[4],
+                "pendingFeeDistribution(bytes32,address)((uint256,uint256,uint256,uint256))", pool_id, token)))
+            require(pending[0] > 0, "basket-staker fee missing")
+            other = self.scalar(self.diamond, reward_view, basket_ids[1 - index], tokens[1 - index])
+            before = int(self.scalar(self.diamond, reward_view, basket_id, token)[2])
+            self.send("market-revenue-" + suffix, self.diamond, data("settleProtocolPoolRevenue(bytes32,address)", pool_id, token))
+            require(int(self.scalar(self.diamond, reward_view, basket_id, token)[2]) - before == pending[0],
+                    "fee credited to the wrong basket")
+            require(self.scalar(self.diamond, reward_view, basket_ids[1 - index], tokens[1 - index]) == other,
+                    "foreign basket reward index changed")
+            self.send(None, self.diamond, data("settleProtocolPoolRevenue(bytes32,address)", pool_id, token))
+            require(int(self.scalar(self.diamond, reward_view, basket_id, token)[2]) == before + pending[0],
+                    "repeated settlement indexed fees twice")
+            self.send("market-fund-" + suffix, self.diamond, data("settlePublicSwapRewards(address,uint256)", token, MAX))
+            require(int(self.scalar(key[4], "pendingStakerRewards(address)(uint256)", token)) == 0,
+                    "global basket fee backing remains pending")
+            if index == 0:
+                denied = data("claimCreatorRevenue(bytes32,address,address,uint256)", pool_id, token, self.owner, 0)
+                self.safe("market-creator-denied", [self.diamond], [denied], error="OnlyPoolCreator(address,address)",
+                          case_target=self.diamond, case_data=denied)
+            credit = int(self.scalar(self.diamond, "creatorRevenue(bytes32,address)(uint256)", pool_id, token))
+            balance = int(self.scalar(token, "balanceOf(address)(uint256)", self.alice))
+            self.send("market-creator-claim-" + suffix, self.diamond,
+                      data("claimCreatorRevenue(bytes32,address,address,uint256)", pool_id, token, self.alice, credit))
+            require(int(self.scalar(token, "balanceOf(address)(uint256)", self.alice)) - balance == credit,
+                    "market creator did not receive its fee")
+            earned_assets, earned = self.call(self.diamond, "getBasketRewards(uint256,uint256)(address[],uint256[])", position, basket_id)
+            expected = int(earned[[asset.lower() for asset in earned_assets].index(token.lower())])
+            require(expected > 0, "basket fee is not claimable")
+            balance = int(self.scalar(token, "balanceOf(address)(uint256)", self.alice))
+            self.send("market-reward-claim-" + suffix, self.diamond,
+                      data("claimBasketRewards(uint256,uint256,address)", position, basket_id, self.alice))
+            require(int(self.scalar(token, "balanceOf(address)(uint256)", self.alice)) - balance == expected,
+                    "basket reward claim did not pay its currency")
+        require(self.scalar(self.diamond, "pendingRewards(uint256,address[])(uint256[])", self.legacy_position, tokens)
+                == global_earned, "funding or basket claims changed global reward ownership")
+        before = [int(self.scalar(token, "balanceOf(address)(uint256)", self.alice)) for token in tokens]
+        self.send("market-global-claim", self.diamond,
+                  data("claimRewards(uint256,address[],address,uint256[])", self.legacy_position, tokens, self.alice, [0, 0]))
+        for token, old, expected in zip(tokens, before, global_earned):
+            require(int(self.scalar(token, "balanceOf(address)(uint256)", self.alice)) - old == int(expected),
+                    "global reward payout changed")
+            require(int(self.scalar(token, "balanceOf(address)(uint256)", self.diamond)) >=
+                    int(self.scalar(self.diamond, "globalReservedByToken(address)(uint256)", token)), "basket custody shortfall")
+        activation_fee = 10**12
+        self.govern(None, "setProtocolPolActivationFee(uint256)", activation_fee)
+        activate = data("activateProtocolPoolPol(bytes32)", pool_id)
+        self.safe("market-pol-creator-denied", [self.diamond], [activate], values=[activation_fee],
+                  error="OnlyPoolCreator(address,address)", case_target=self.diamond, case_data=activate)
+        self.send("market-pol-creator-activate", self.diamond, activate, value=activation_fee)
+        require(self.scalar(self.diamond, "protocolPolFundingConfig(bytes32)(bool,bool,uint16)", pool_id),
+                "market creator could not activate POL")
+        self.govern(None, "setProtocolPolActivationFee(uint256)", 0)
 
     def managed_and_accounting(self):
         key = self.basket_keys[0]
@@ -843,6 +946,7 @@ if __name__ == "__main__":
     run.distributors()
     run.settlement()
     run.independent_market()
+    run.market_rewards()
     run.managed_and_accounting()
     run.later_morpho()
     run.retire()
