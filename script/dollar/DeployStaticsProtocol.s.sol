@@ -53,6 +53,7 @@ import {SeriesMigrationFacet} from "../../src/dollar/periphery/facets/SeriesMigr
 import {StakingFacet} from "../../src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../../src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.sol";
+import {ExternalModuleFacet} from "../../src/facets/ExternalModuleFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
@@ -203,6 +204,7 @@ abstract contract DeployStaticsProtocol {
         parts.ownership = address(new OwnershipFacet());
         parts.governance = address(new GovernanceFacet());
         parts.position = address(new PositionNFTFacet());
+        parts.externalModules = address(new ExternalModuleFacet());
         parts.positionMarket = address(new PositionMarketFacet());
         parts.custody = address(new CustodyFacet());
         parts.globalRewards = address(new GlobalRewardsFacet());

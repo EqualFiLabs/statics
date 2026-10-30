@@ -59,7 +59,7 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         LibRangeGauge.bindPosm(leg.posmTokenId, positionId, poolId);
         ++rgs.gauges[poolId].managedLegCount;
         ++rgs.gauges[poolId].unresolvedLegCount;
-        LibPosition.activateLeg(positionId, LibPosition.LP_MODULE, PoolId.unwrap(poolId));
+        LibPosition.activateLeg(positionId, address(this), LibPosition.LP_MODULE, PoolId.unwrap(poolId));
     }
 
     function _replaceRange(

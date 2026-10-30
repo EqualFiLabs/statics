@@ -7,6 +7,7 @@
 // ============================================================================
 pragma solidity 0.8.33;
 
+import {LibNFTTransferHistory} from "../libraries/LibNFTTransferHistory.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
@@ -56,7 +57,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         }
         gs.linkedPosition[genesisId] = positionId;
         gs.linkedGenesis[positionId] = genesisId;
-        LibPosition.activateLeg(positionId, LibPosition.GENESIS_MODULE, bytes32(genesisId));
+        LibPosition.activateLeg(positionId, address(this), LibPosition.GENESIS_MODULE, bytes32(genesisId));
         emit IERC5192.Locked(positionId);
         IStaticsGenesis(gs.genesis).refreshLockStatus(genesisId);
         emit GenesisLinked(positionId, genesisId, msg.sender, multiplierBps);
@@ -106,6 +107,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         if (msg.sender != gs.activationRegistry) revert UnauthorizedActivationRegistry(msg.sender);
         LibGenesisRewards.transition(genesisId, previousOwner, nextOwner, nextMultiplierBps);
+        LibNFTTransferHistory.record(gs.genesis, genesisId, previousOwner, nextOwner);
         uint256 positionId = gs.linkedPosition[genesisId];
         if (positionId == 0) return;
         address positionOwner = IERC721(address(this)).ownerOf(positionId);
@@ -166,6 +168,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
             revert GenesisConsumerPredecessorNotFinalized(predecessor);
         }
         registry.acceptConsumer();
+        LibNFTTransferHistory.startOperatorCoverage();
     }
 
     function registerGenesis(uint256 genesisId) external nonReentrant {

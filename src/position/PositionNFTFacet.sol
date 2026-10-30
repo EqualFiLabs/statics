@@ -7,6 +7,7 @@
 // ============================================================================
 pragma solidity 0.8.33;
 
+import {LibNFTTransferHistory} from "../libraries/LibNFTTransferHistory.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -198,7 +199,7 @@ contract PositionNFTFacet is
         positionId = LibPosition.allocatePositionId();
         _safeMint(receiver, positionId);
         LibPosition.emitStateChanged(positionId);
-        if (moduleType != bytes32(0)) LibPosition.activateLeg(positionId, moduleType, localPositionId);
+        if (moduleType != bytes32(0)) LibPosition.activateLeg(positionId, address(this), moduleType, localPositionId);
         LibPosition.finishInitialization(positionId);
         emit PositionCreated(positionId, receiver);
     }
@@ -210,6 +211,7 @@ contract PositionNFTFacet is
         }
         previousOwner = super._update(to, tokenId, auth);
         LibPosition.syncOwnerIndex(tokenId, to);
+        LibNFTTransferHistory.record(address(this), tokenId, previousOwner, to);
     }
 
     function _enforcePositionCreationFee() private view {

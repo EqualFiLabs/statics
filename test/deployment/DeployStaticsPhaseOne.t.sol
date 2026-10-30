@@ -141,8 +141,8 @@ contract DeployStaticsPhaseOneTest is Test {
         deployer.run();
     }
 
-    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 32;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 226;
+    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 33;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 237;
 
     struct PhaseOneDexFixture {
         address diamond;

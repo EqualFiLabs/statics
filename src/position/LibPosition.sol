@@ -179,11 +179,10 @@ library LibPosition {
         return legKey(GAUGE_ALLOCATOR_MODULE, PoolId.unwrap(poolId));
     }
 
-    function activateLeg(uint256 positionId, bytes32 moduleType, bytes32 localPositionId)
+    function activateLeg(uint256 positionId, address moduleAuthority, bytes32 moduleType, bytes32 localPositionId)
         internal
         returns (bytes32 key)
     {
-        address moduleAuthority = address(this);
         if (moduleAuthority == address(0)) revert InvalidModuleAuthority();
         if (moduleType == bytes32(0)) revert InvalidModuleType();
         IERC721(address(this)).ownerOf(positionId);

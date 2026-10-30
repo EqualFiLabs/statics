@@ -90,14 +90,14 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
     uint256 private constant EXTENSION_FEE = 0.003 ether;
     bytes32 private constant POOL_ID = keccak256("GENESIS_POSITION_INTEGRATION");
 
-    MockERC20 private numeraire;
-    GenesisIntegrationFeeSource private feeSource;
-    StaticsFeeReceiver private feeReceiver;
-    GenesisActivationRegistry private activationRegistry;
-    StaticsGenesisVault private vault;
-    StaticsGenesis private genesis;
-    IStaticsGenesisIntegration private integration;
-    uint256 private epochEnd;
+    MockERC20 internal numeraire;
+    GenesisIntegrationFeeSource internal feeSource;
+    StaticsFeeReceiver internal feeReceiver;
+    GenesisActivationRegistry internal activationRegistry;
+    StaticsGenesisVault internal vault;
+    StaticsGenesis internal genesis;
+    IStaticsGenesisIntegration internal integration;
+    uint256 internal epochEnd;
 
     struct ComposedRecoverySnapshot {
         bytes32 collateralHash;
@@ -110,7 +110,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         uint256 positionObligations;
     }
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         numeraire = new MockERC20("Wrapped Native", "WETH", 18);
         feeSource = new GenesisIntegrationFeeSource();
@@ -147,14 +147,14 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         GenesisIntegrationInitHarness(address(diamond))
             .initializeGenesisIntegration(
                 LibGenesisIntegration.InitArgs({
-                genesis: address(genesis),
-                vault: address(vault),
-                activationRegistry: address(activationRegistry),
-                feeReceiver: address(feeReceiver),
-                statics: address(stakingAsset),
-                numeraire: address(numeraire),
-                genesisRewardShareBps: 9_000
-            })
+                    genesis: address(genesis),
+                    vault: address(vault),
+                    activationRegistry: address(activationRegistry),
+                    feeReceiver: address(feeReceiver),
+                    statics: address(stakingAsset),
+                    numeraire: address(numeraire),
+                    genesisRewardShareBps: 9_000
+                })
             );
 
         feeReceiver.proposeDistributor(address(diamond));
@@ -673,7 +673,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
-    function _buyGenesis(address owner, uint256 genesisId) private {
+    function _buyGenesis(address owner, uint256 genesisId) internal {
         stakingAsset.mint(owner, GENESIS_PRICE);
         GenesisPurchaseQuote memory quote = vault.quoteGenesisPurchase();
         vm.startPrank(owner);
@@ -694,19 +694,19 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         feeSource.queue(staticsAmount, numeraireAmount);
     }
 
-    function _createPosition(address owner) private returns (uint256 positionId) {
+    function _createPosition(address owner) internal returns (uint256 positionId) {
         vm.prank(owner);
         positionId = IStaticsPosition(address(diamond)).createPosition(owner);
     }
 
-    function _activate(address owner, uint256 genesisId, uint8 tier) private {
+    function _activate(address owner, uint256 genesisId, uint8 tier) internal {
         uint256 amount = tier == 1 ? 10_000 ether : 100_000 ether;
         _fundActivation(owner, amount);
         vm.prank(owner);
         activationRegistry.activate(genesisId, tier);
     }
 
-    function _fundActivation(address owner, uint256 amount) private {
+    function _fundActivation(address owner, uint256 amount) internal {
         stakingAsset.mint(owner, amount);
         vm.prank(owner);
         stakingAsset.approve(address(activationRegistry), type(uint256).max);

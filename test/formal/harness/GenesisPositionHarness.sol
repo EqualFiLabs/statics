@@ -96,7 +96,7 @@ contract GenesisPositionHarness is GenesisNFTFacet {
         LibGlobalRewards.StakePosition storage position = LibGlobalRewards.rewardStorage().positions[POSITION_ID];
         position.balance = rawStake;
         position.rewardMultiplierBps = LibGlobalRewards.BASE_REWARD_MULTIPLIER_BPS;
-        LibPosition.activateLeg(POSITION_ID, OTHER_MODULE, bytes32(uint256(77)));
+        LibPosition.activateLeg(POSITION_ID, address(this), OTHER_MODULE, bytes32(uint256(77)));
     }
 
     function ownerOf(uint256 positionId) external view returns (address) {

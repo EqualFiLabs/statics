@@ -139,7 +139,7 @@ library LibMorpho {
         LibPositionPortfolio.addMorphoMarket(positionId, uint256(id));
         bytes32 key = LibPosition.morphoLegKey(id);
         if (!LibPosition.positionStorage().activeLeg[positionId][key]) {
-            LibPosition.activateLeg(positionId, LibPosition.MORPHO_MODULE, id);
+            LibPosition.activateLeg(positionId, address(this), LibPosition.MORPHO_MODULE, id);
         }
     }
 
