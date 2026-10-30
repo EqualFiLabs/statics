@@ -323,6 +323,42 @@ contract ExternalModulesTest is GenesisPositionIntegrationTest {
         );
     }
 
+    function testExternalPendingBoostedBatchPrecedesLaterOperatorTransfer() public {
+        uint256 a = _createPosition(alice);
+        uint256 b = _createPosition(bob);
+        uint256 unrelated = _createPosition(alice);
+        _buyGenesis(alice, 1);
+        _activate(alice, 1, 4);
+        vm.startPrank(alice);
+        single.deposit(a, 100 ether, true);
+        single.register(a, 1);
+        vm.stopPrank();
+        vm.prank(bob);
+        single.deposit(b, 100 ether, true);
+        uint256 boostedTotal = single.totalWeight();
+        vm.prank(alice);
+        IERC721(address(diamond)).transferFrom(alice, bob, unrelated);
+        vm.prank(bob);
+        IERC721(address(diamond)).transferFrom(bob, alice, unrelated);
+        single.fund(address(stakingAsset), boostedTotal);
+        assertEq(single.nextBatch(), 0);
+        // This invalidation is later than the still-pending boosted allocation.
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 1);
+        single.fund(address(stakingAsset), 200 ether);
+        assertEq(single.nextBatch(), 0);
+        single.process(1);
+        assertEq(single.nextBatch(), 1);
+        assertEq(single.totalWeight(), boostedTotal);
+        assertEq(single.pendingRay(a, address(stakingAsset)), (boostedTotal - 100 ether) * single.RAY());
+        single.process(1);
+        assertEq(single.totalWeight(), 200 ether);
+        single.process(1);
+        assertEq(single.nextBatch(), 2);
+        assertEq(single.pendingRay(a, address(stakingAsset)), boostedTotal * single.RAY());
+        assertEq(single.pendingRay(b, address(stakingAsset)), 200 ether * single.RAY());
+    }
+
     function testExternalZeroStakeAndFractionalDustCannotBeCaptured() public {
         uint256 a = _createPosition(alice);
         uint256 b = _createPosition(bob);
@@ -432,8 +468,9 @@ contract ExternalModulesTest is GenesisPositionIntegrationTest {
         vm.prank(alice);
         integration.linkGenesis(id, 1);
         IModularPositionNFT.PositionState memory beforeState = IModularPositionNFT(address(diamond)).positionState(id);
-        // Emulate pre-feature namespaced storage without touching existing protocol layouts.
-        vm.store(address(diamond), keccak256("statics.storage.nft.transfer.history.v1"), bytes32(0));
+        // Leave all pre-existing protocol state intact, but empty the new namespace.
+        _emptyHistoryFixture();
+        vm.roll(block.number + 100);
         bytes4[] memory selectors = StaticsSelectors.externalModules();
         IDiamondCut.FacetCut[] memory removal = new IDiamondCut.FacetCut[](1);
         removal[0] = IDiamondCut.FacetCut(address(0), IDiamondCut.FacetCutAction.Remove, selectors);
@@ -447,7 +484,37 @@ contract ExternalModulesTest is GenesisPositionIntegrationTest {
         assertEq(integration.linkedGenesis(id), 1);
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsExternalModules).interfaceId));
         assertTrue(externalCore.historyCoverage(address(genesis)).ready);
+        assertEq(externalCore.historyCoverage(address(genesis)).startBlock, block.number);
+        assertEq(externalCore.historyCoverage(address(diamond)).startBlock, block.number);
+        assertEq(externalCore.transferHead(), 0);
+        assertEq(externalCore.transferState(address(genesis), 1).nonce, 0);
         vm.expectRevert(LibNFTTransferHistory.HistoryAlreadyInitialized.selector);
         IDiamondCut(address(diamond)).diamondCut(new IDiamondCut.FacetCut[](0), init, data);
+    }
+
+    function _emptyHistoryFixture() private {
+        uint256 root = uint256(keccak256("statics.storage.nft.transfer.history.v1"));
+        uint256 head = externalCore.transferHead();
+        for (uint256 sequence = 1; sequence <= head; ++sequence) {
+            (IStaticsExternalModules.TransferChange[] memory changes,) = externalCore.transferChanges(sequence - 1, 1);
+            IStaticsExternalModules.TransferChange memory change = changes[0];
+            uint256 stateSlot =
+                uint256(keccak256(abi.encode(change.tokenId, keccak256(abi.encode(change.collection, root + 3)))));
+            vm.store(address(diamond), bytes32(stateSlot), 0);
+            vm.store(address(diamond), bytes32(stateSlot + 1), 0);
+            uint256 recordSlot = uint256(keccak256(abi.encode(sequence, root + 4)));
+            for (uint256 field; field < 3; ++field) {
+                vm.store(address(diamond), bytes32(recordSlot + field), 0);
+            }
+        }
+        address[2] memory collections = [address(diamond), address(genesis)];
+        for (uint256 c; c < collections.length; ++c) {
+            uint256 coverageSlot = uint256(keccak256(abi.encode(collections[c], root + 2)));
+            for (uint256 field; field < 3; ++field) {
+                vm.store(address(diamond), bytes32(coverageSlot + field), 0);
+            }
+        }
+        vm.store(address(diamond), bytes32(root), 0);
+        vm.store(address(diamond), bytes32(root + 1), 0);
     }
 }

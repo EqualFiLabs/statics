@@ -15,7 +15,14 @@ contract ExternalModulesUpgradeTest is PositionNFTTest {
         moduleHarness.openObligation(id);
         vm.stopPrank();
         IModularPositionNFT.PositionState memory beforeState = IModularPositionNFT(address(diamond)).positionState(id);
-        vm.store(address(diamond), keccak256("statics.storage.nft.transfer.history.v1"), bytes32(0));
+        uint256 historyRoot = uint256(keccak256("statics.storage.nft.transfer.history.v1"));
+        // Only minting has occurred: no journal or per-NFT transfer entries exist.
+        vm.store(address(diamond), bytes32(historyRoot), 0);
+        uint256 coverageSlot = uint256(keccak256(abi.encode(address(diamond), historyRoot + 2)));
+        for (uint256 field; field < 3; ++field) {
+            vm.store(address(diamond), bytes32(coverageSlot + field), 0);
+        }
+        vm.roll(block.number + 100);
         (IDiamondCut.FacetCut[] memory cut, address init, bytes memory data) =
             new PrepareStaticsExternalModulesUpgrade().deploy(address(diamond));
         assertEq(cut.length, 2);
@@ -28,6 +35,7 @@ contract ExternalModulesUpgradeTest is PositionNFTTest {
         assertEq(ownerIndex.positionCount(alice), 1);
         assertTrue(IStaticsExternalModules(address(diamond)).historyCoverage(address(diamond)).ready);
         assertFalse(IStaticsExternalModules(address(diamond)).historyCoverage(address(0x123)).ready);
+        assertEq(IStaticsExternalModules(address(diamond)).historyCoverage(address(diamond)).startBlock, block.number);
         vm.prank(alice);
         vm.expectRevert();
         positions.closePosition(id);
