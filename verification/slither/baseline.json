@@ -1164,7 +1164,7 @@
       "summary": "RangeGaugePositionBase._fundManagerToken(address,address,address,uint256,uint256) (src/facets/RangeGaugePositionBase.sol#193-210) uses a dangerous strict equality:",
       "rationale": "The operation-local sum of recycled proceeds and measured funding receipt is compared with zero solely to skip an unnecessary transfer. Nonzero funding retains measured custody transfer and debit validation; this is not equality on an independently manipulable contract balance.",
       "occurrences": 1,
-      "id": "574eda21ed3b78298f1ee54e"
+      "id": "b3866318ccefa8ae78615a44"
     },
     {
       "impact": "Medium",
@@ -2444,7 +2444,7 @@
       "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#814) is a local variable never initialized",
       "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
       "occurrences": 1,
-      "id": "ab1d2452bdae013217d05da9"
+      "id": "f797f03672e1a57c1c050a79"
     },
     {
       "impact": "Medium",
@@ -2796,7 +2796,7 @@
       "summary": "LibGlobalRewards._ensureBookWeights(LibGlobalRewards.RewardBook).bitmap (src/libraries/LibGlobalRewards.sol#974) is a local variable never initialized",
       "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
       "occurrences": 1,
-      "id": "f5f179f74fe757c2114dd3c0"
+      "id": "2ec56e1d4f7fa914045bf6f7"
     },
     {
       "impact": "Medium",
@@ -3164,7 +3164,7 @@
       "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#308-341) ignores return value by LibPeriphery.clearZeroValueLiquidity(ps,positionId,seriesId) (src/dollar/periphery/facets/StakingFacet.sol#331)",
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
-      "id": "55e01ab7ab5bbcbdfb228f6d"
+      "id": "d99234fad51a82844f1e8095"
     },
     {
       "impact": "Medium",
@@ -3420,7 +3420,7 @@
       "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#87-93) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/RangeGaugePositionBase.sol#91)",
       "rationale": "The position path invokes the Diamond checkpoint for its state transition; committed and recycled amounts are emitted and do not control subsequent settlement.",
       "occurrences": 1,
-      "id": "2555dfe8d71062f9ab528352"
+      "id": "f4003df1b173c055efb3125a"
     },
     {
       "impact": "Medium",
@@ -3836,7 +3836,7 @@
       "summary": "RangeGaugePositionBase._enforcePublicGauge(PoolId,bool) (src/facets/RangeGaugePositionBase.sol#138-154) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugePositionBase.sol#139-140)",
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "3af92c7712e9fb9e9d873b48"
+      "id": "2c4c4154448a91a1f54a4910"
     },
     {
       "impact": "Medium",
@@ -4172,7 +4172,7 @@
       "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#87-93) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugePositionBase.sol#89)",
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "465fd815cda2d9f4afee9d1f"
+      "id": "b1ee2278004c08565fe67d1d"
     },
     {
       "impact": "Medium",
@@ -4185,10 +4185,10 @@
       "paths": [
         "src/dollar/periphery/facets/StakingFacet.sol"
       ],
-      "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#308-341) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/StakingFacet.sol#321)",
+      "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#308-341) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/StakingFacet.sol#321)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "41fa1e47e41440d265025132"
+      "id": "79038a8c27fb422fce67c63c"
     },
     {
       "impact": "Medium",
@@ -4297,10 +4297,10 @@
       "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
-      "summary": "SeriesMigrationFacet._stakeMigrated(LibPeriphery.PS,uint256,uint256,uint256) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#289-314) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#295)",
+      "summary": "SeriesMigrationFacet._stakeMigrated(LibPeriphery.PS,uint256,uint256,uint256) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#289-314) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#295)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "bf7b9f7b59b6f64de9f27d9e"
+      "id": "239f9c8adfd208b8d29f8259"
     },
     {
       "impact": "Medium",
@@ -4601,10 +4601,10 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "PositionNFTFacet._update(address,uint256,address) (src/position/PositionNFTFacet.sol#206-213) ignores return value by LibPosition.syncOwnerIndex(tokenId,to) (src/position/PositionNFTFacet.sol#212)",
+      "summary": "PositionNFTFacet._update(address,uint256,address) (src/position/PositionNFTFacet.sol#207-215) ignores return value by LibPosition.syncOwnerIndex(tokenId,to) (src/position/PositionNFTFacet.sol#213)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "4ec8220ee06e6f909fdf3c03"
+      "id": "70949593e1788cdde55f61f7"
     },
     {
       "impact": "Medium",
@@ -4825,10 +4825,10 @@
       "paths": [
         "src/libraries/LibMorpho.sol"
       ],
-      "summary": "LibMorpho.trackMarket(uint256,bytes32) (src/libraries/LibMorpho.sol#129-144) ignores return value by LibPosition.activateLeg(positionId,LibPosition.MORPHO_MODULE,id) (src/libraries/LibMorpho.sol#142)",
+      "summary": "LibMorpho.trackMarket(uint256,bytes32) (src/libraries/LibMorpho.sol#129-144) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.MORPHO_MODULE,id) (src/libraries/LibMorpho.sol#142)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "685a979d5f2398e96199fc6c"
+      "id": "3dec9cba2db779d1a0bc6171"
     },
     {
       "impact": "Medium",
@@ -4889,10 +4889,10 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards.activateStakingLeg(uint256) (src/libraries/LibGlobalRewards.sol#607-613) ignores return value by LibPosition.activateLeg(positionId,LibPosition.STAKING_MODULE,bytes32(uint256(1))) (src/libraries/LibGlobalRewards.sol#611)",
+      "summary": "LibGlobalRewards.activateStakingLeg(uint256) (src/libraries/LibGlobalRewards.sol#607-613) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.STAKING_MODULE,bytes32(uint256(1))) (src/libraries/LibGlobalRewards.sol#611)",
       "rationale": "Leg activation is used for its guarded state transition and reverts on failure; the caller does not need the returned module-local value.",
       "occurrences": 1,
-      "id": "6affa40982a391447a989c6e"
+      "id": "b90c947f4396a0b5d31c2120"
     },
     {
       "impact": "Medium",
@@ -5225,10 +5225,10 @@
       "paths": [
         "src/libraries/LibGaugeBribes.sol"
       ],
-      "summary": "LibGaugeBribes.syncPositionLeg(uint256,PoolId,uint256) (src/libraries/LibGaugeBribes.sol#331-352) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GAUGE_ALLOCATOR_MODULE,PoolId.unwrap(poolId)) (src/libraries/LibGaugeBribes.sol#346)",
+      "summary": "LibGaugeBribes.syncPositionLeg(uint256,PoolId,uint256) (src/libraries/LibGaugeBribes.sol#331-354) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.GAUGE_ALLOCATOR_MODULE,PoolId.unwrap(poolId)) (src/libraries/LibGaugeBribes.sol#346-348)",
       "rationale": "The call activates the deterministic allocator leg as its required state transition; the returned key is already known from gaugeAllocatorLegKey and needs no second use.",
       "occurrences": 1,
-      "id": "7b440d4a319bcbcecfd15fc8"
+      "id": "5a262e413857fbe9af57bc81"
     },
     {
       "impact": "Medium",
@@ -5260,7 +5260,7 @@
       "summary": "SeriesMigrationFacet._stakeMigrated(LibPeriphery.PS,uint256,uint256,uint256) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#289-314) ignores return value by LibPeriphery.clearZeroValueLiquidity(ps,positionId,seriesId) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#305)",
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
-      "id": "e2c3f93aafe71f475b1d05c5"
+      "id": "23ead705d468b9d38193e7e1"
     },
     {
       "impact": "Medium",
@@ -5644,7 +5644,7 @@
       "summary": "RangeGaugePositionBase._fundManagerToken(address,address,address,uint256,uint256) (src/facets/RangeGaugePositionBase.sol#193-210) ignores return value by LibCustody.beginUnreservedDebit(asset,received) (src/facets/RangeGaugePositionBase.sol#199)",
       "rationale": "The call is an availability and reservation-solvency check before forwarding native ETH; the managed-position flow verifies exact movement and refunds independently, so the starting balance is deliberately unused.",
       "occurrences": 1,
-      "id": "94c75bc7d60dd3119fb0c435"
+      "id": "d2ea0b321e8d1bd71c50f14b"
     },
     {
       "impact": "Medium",
@@ -5673,10 +5673,10 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "PositionNFTFacet.syncPositionOwnerIndex(uint256) (src/position/PositionNFTFacet.sol#105-109) ignores return value by LibPosition.syncOwnerIndex(positionId,owner) (src/position/PositionNFTFacet.sol#107)",
+      "summary": "PositionNFTFacet.syncPositionOwnerIndex(uint256) (src/position/PositionNFTFacet.sol#106-110) ignores return value by LibPosition.syncOwnerIndex(positionId,owner) (src/position/PositionNFTFacet.sol#108)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "44ac43968af9ec4d2c1b00ec"
+      "id": "a47eeda7699890ad315a0e7a"
     },
     {
       "impact": "Medium",
@@ -5721,10 +5721,10 @@
       "paths": [
         "src/libraries/LibBasketCollateral.sol"
       ],
-      "summary": "LibBasketCollateral.increasePosition(uint256,uint256,uint256) (src/libraries/LibBasketCollateral.sol#32-42) ignores return value by LibPosition.activateLeg(positionId,LibPosition.BASKET_MODULE,bytes32(basketId)) (src/libraries/LibBasketCollateral.sol#37)",
+      "summary": "LibBasketCollateral.increasePosition(uint256,uint256,uint256) (src/libraries/LibBasketCollateral.sol#32-42) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.BASKET_MODULE,bytes32(basketId)) (src/libraries/LibBasketCollateral.sol#37)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "99e67a900dc0f0b19e619f6e"
+      "id": "71f2a3dc7ee5aa90e3973439"
     },
     {
       "impact": "Medium",
@@ -5881,10 +5881,10 @@
       "paths": [
         "src/facets/GenesisNFTFacet.sol"
       ],
-      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#39-63) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#59)",
+      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#40-64) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#60)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "099dd32bd030547b938606a7"
+      "id": "be0994e94ccbdcde11e1d4bf"
     },
     {
       "impact": "Medium",
@@ -6172,7 +6172,7 @@
       "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#87-93) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,currentTime) (src/facets/RangeGaugePositionBase.sol#92)",
       "rationale": "The caller needs the topology synchronization side effect only; the library validates state and reverts atomically on failure.",
       "occurrences": 1,
-      "id": "baf078f09c6534748e94383b"
+      "id": "802cea8d71b134a08d754132"
     },
     {
       "impact": "Medium",
@@ -6745,10 +6745,10 @@
       "paths": [
         "src/facets/RangeGaugePositionBase.sol"
       ],
-      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#41-63) ignores return value by LibPosition.activateLeg(positionId,LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionBase.sol#62)",
+      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#41-63) ignores return value by LibPosition.activateLeg(positionId,address(this),LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionBase.sol#62)",
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "d043faeb0f05d2ed343b333d"
+      "id": "3ae32287cbbafcb982c07751"
     },
     {
       "impact": "Medium",
@@ -6908,7 +6908,7 @@
       "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#41-63) ignores return value by LibRangeGauge.bindPosm(leg.posmTokenId,positionId,poolId) (src/facets/RangeGaugePositionBase.sol#59)",
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "d5523b1896d92b1011e20230"
+      "id": "4978d863e55e649e65062ba4"
     },
     {
       "impact": "Medium",
@@ -7369,10 +7369,10 @@
       "paths": [
         "src/position/LibPosition.sol"
       ],
-      "summary": "LibPosition.activateLeg(uint256,bytes32,bytes32) (src/position/LibPosition.sol#182-201) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/position/LibPosition.sol#189)",
+      "summary": "LibPosition.activateLeg(uint256,address,bytes32,bytes32) (src/position/LibPosition.sol#182-200) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/position/LibPosition.sol#188)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "ee2addcdc7faa16b25855afa"
+      "id": "83bd4ef39105bad935f91653"
     },
     {
       "impact": "Medium",
@@ -7404,7 +7404,7 @@
       "summary": "StakingFacet._pushRiskToken(LibPeriphery.PS,address,address,uint256) (src/dollar/periphery/facets/StakingFacet.sol#411-415) ignores return value by LibCustody.pushReserved(LibCustody.dollarAccount(),token,receiver,amount,amount) (src/dollar/periphery/facets/StakingFacet.sol#414)",
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
-      "id": "2d45f058702ebe2fe11c1b52"
+      "id": "62b5d25c84f0027203b0764c"
     },
     {
       "impact": "Medium",
@@ -7449,10 +7449,10 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#194-204) ignores return value by LibPosition.activateLeg(positionId,moduleType,localPositionId) (src/position/PositionNFTFacet.sol#201)",
+      "summary": "PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#195-205) ignores return value by LibPosition.activateLeg(positionId,address(this),moduleType,localPositionId) (src/position/PositionNFTFacet.sol#202)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "fc447961b3065d8b50a53558"
+      "id": "a3ffca66fcdeb6f17a95629c"
     },
     {
       "impact": "Medium",
