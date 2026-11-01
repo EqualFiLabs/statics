@@ -3308,7 +3308,7 @@
       "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#373-420) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#387)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "6fb9a1a725a377534ad07424"
+      "id": "3b05a68bbc07838f930e71c9"
     },
     {
       "impact": "Medium",
@@ -7372,7 +7372,7 @@
       "summary": "LibPosition.activateLeg(uint256,bytes32,bytes32) (src/position/LibPosition.sol#182-201) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/position/LibPosition.sol#189)",
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "ee2addcdc7faa16b25855afa"
+      "id": "e1041d775c856f21439600e0"
     },
     {
       "impact": "Medium",
