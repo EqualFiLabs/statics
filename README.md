@@ -46,6 +46,7 @@ for the canonical machine-readable integration-beta state.
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
 | **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, and selected global rewards. |
+| **External accounts** | Approved modules attach isolated account legs with closure protection through [one generic interface](docs/external-modules.md). |
 | **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket vectors or individual Diamond-held assets can be borrowed through dedicated typed callbacks while nested flash loans remain blocked. |
@@ -326,7 +327,7 @@ release evidence for an already completed launch.
 
 The staged production entry point is
 `script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
-`StaticsTimelock`, the 32-facet and 226-selector `StaticsDiamond`, separate public and
+`StaticsTimelock`, the 33-facet and 233-selector `StaticsDiamond`, separate public and
 permissioned swap hooks, and a default venue-controller factory. It requires a nonzero general-pool
 creation fee at deployment, enabling fee-paid public creation, while
 accepting the PositionNFT fee as a deployment input. The exact-0.8.26

@@ -999,3 +999,9 @@ The companion SDK exports `staticsAggregatedBatchRewardsAbi`,
 Reuse `splitBatchRewardClaims`; simulation, further gas-based splitting and
 submission remain caller responsibilities. See the [validation evidence](aggregated-batch-claims-validation.md)
 for transfer counts, gas comparisons and execution boundaries.
+
+## External module accounts
+
+See [External PositionNFT accounts](external-modules.md) for module admission,
+closure protection and bounded discovery. Products retain their financial accounting,
+custody and reward logic.

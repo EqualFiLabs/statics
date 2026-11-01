@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IStaticsExternalModules} from "../interfaces/IStaticsExternalModules.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
@@ -74,6 +75,7 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IStaticsBatchRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsAggregatedBatchRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsExternalModules).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;

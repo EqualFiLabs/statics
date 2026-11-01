@@ -183,7 +183,13 @@ library LibPosition {
         internal
         returns (bytes32 key)
     {
-        address moduleAuthority = address(this);
+        return activateLeg(positionId, address(this), moduleType, localPositionId);
+    }
+
+    function activateLeg(uint256 positionId, address moduleAuthority, bytes32 moduleType, bytes32 localPositionId)
+        internal
+        returns (bytes32 key)
+    {
         if (moduleAuthority == address(0)) revert InvalidModuleAuthority();
         if (moduleType == bytes32(0)) revert InvalidModuleType();
         IERC721(address(this)).ownerOf(positionId);

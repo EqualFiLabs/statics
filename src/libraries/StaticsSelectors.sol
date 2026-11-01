@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IStaticsExternalModules} from "../interfaces/IStaticsExternalModules.sol";
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
@@ -49,6 +50,17 @@ import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function externalModules() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
+        selectors[0] = IStaticsExternalModules.setExternalModule.selector;
+        selectors[1] = IStaticsExternalModules.externalModuleEnabled.selector;
+        selectors[2] = IStaticsExternalModules.attachExternalAccountLeg.selector;
+        selectors[3] = IStaticsExternalModules.detachExternalAccountLeg.selector;
+        selectors[4] = IStaticsExternalModules.externalLegCount.selector;
+        selectors[5] = IStaticsExternalModules.externalLegCapacity.selector;
+        selectors[6] = IStaticsExternalModules.externalLegs.selector;
+    }
+
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](5);
         selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;

@@ -18,6 +18,9 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
+import {IStaticsExternalModules} from "../../src/interfaces/IStaticsExternalModules.sol";
+import {ExternalModuleFacet} from "../../src/facets/ExternalModuleFacet.sol";
+import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
@@ -512,6 +515,43 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ceremony.prepare(deployment.diamond, config, keccak256("reject split facet routes"));
     }
 
+    function testCeremonyRejectsUnexpectedExternalModuleRuntime() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        PhaseOneUnexpectedFacet unexpectedFacet = new PhaseOneUnexpectedFacet();
+        _replaceSelectors(
+            deployment.diamond, address(timelock), address(unexpectedFacet), StaticsSelectors.externalModules()
+        );
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsPhaseOneVerifier.InvalidFacet.selector,
+                address(unexpectedFacet),
+                keccak256(type(ExternalModuleFacet).runtimeCode),
+                address(unexpectedFacet).codehash
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject external module runtime"));
+    }
+
+    function testCeremonyRejectsMissingExternalModulesInterface() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        bytes4[] memory ids = new bytes4[](1);
+        ids[0] = type(IStaticsExternalModules).interfaceId;
+        vm.prank(address(timelock));
+        StaticsInterfaceInit(deployment.diamond).setInterfaces(ids, new bool[](1));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnsupportedInterface.selector, ids[0]));
+        ceremony.prepare(deployment.diamond, config, keccak256("missing external modules interface"));
+    }
+
     function testCeremonyRejectsMissingBatchRewardsInterface() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
@@ -599,7 +639,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         StaticsPhaseOneLiquidityConfig memory config =
             _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
 
-        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 32, 33));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 33, 34));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
     }
 

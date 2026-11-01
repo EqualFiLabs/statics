@@ -23,6 +23,7 @@ import {IStaticsMarketTape} from "../src/interfaces/IStaticsMarketTape.sol";
 import {IStaticsMarketObservations} from "../src/interfaces/IStaticsMarketObservations.sol";
 import {IStaticsAggregatedBatchRewards} from "../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../src/interfaces/IStaticsBatchRewards.sol";
+import {IStaticsExternalModules} from "../src/interfaces/IStaticsExternalModules.sol";
 import {IStaticsGlobalRewards} from "../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManager.sol";
@@ -450,6 +451,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _supportedInterface(diamond, type(IERC2981).interfaceId);
         _supportedInterface(diamond, type(IStaticsGlobalRewards).interfaceId);
         _supportedInterface(diamond, type(IStaticsBatchRewards).interfaceId);
+        _supportedInterface(diamond, type(IStaticsExternalModules).interfaceId);
         _supportedInterface(diamond, type(IStaticsAggregatedBatchRewards).interfaceId);
         _supportedInterface(diamond, type(IStaticsPosition).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionFees).interfaceId);
@@ -570,13 +572,13 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _validatePhaseOneSelectors(address diamond) private view {
         IDiamondLoupe.Facet[] memory facets = IDiamondLoupe(diamond).facets();
-        if (facets.length != 32) revert UnexpectedFacetCount(32, facets.length);
+        if (facets.length != 33) revert UnexpectedFacetCount(33, facets.length);
 
         uint256 selectorCount = 0;
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 226) revert UnexpectedSelectorCount(226, selectorCount);
+        if (selectorCount != 233) revert UnexpectedSelectorCount(233, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {
@@ -592,7 +594,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     }
 
     function _phaseOneSelectorSets() private pure returns (bytes4[][] memory sets) {
-        sets = new bytes4[][](32);
+        sets = new bytes4[][](33);
         sets[0] = StaticsSelectors.diamondCut();
         sets[1] = StaticsSelectors.diamondLoupe();
         sets[2] = StaticsSelectors.ownership();
@@ -625,6 +627,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         sets[29] = StaticsSelectors.marketTapeObservations();
         sets[30] = StaticsSelectors.positionMarket();
         sets[31] = StaticsSelectors.batchRewards();
+        sets[32] = StaticsSelectors.externalModules();
     }
 
     function _containsSelector(IDiamondLoupe.Facet[] memory facets, bytes4 expected) private pure returns (bool) {

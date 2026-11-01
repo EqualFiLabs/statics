@@ -13,6 +13,7 @@ struct StaticsProtocolParts {
     address ownership;
     address governance;
     address position;
+    address externalModules;
     address positionMarket;
     address positionPortfolio;
     address custody;
@@ -75,7 +76,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](32);
+        cut = new IDiamondCut.FacetCut[](33);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -108,6 +109,7 @@ library StaticsProtocolPlan {
         cut[29] = _add(parts.marketTapeViews, StaticsSelectors.marketTapeViews());
         cut[30] = _add(parts.marketTapeObservations, StaticsSelectors.marketTapeObservations());
         cut[31] = _add(parts.batchRewards, StaticsSelectors.batchRewards());
+        cut[32] = _add(parts.externalModules, StaticsSelectors.externalModules());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
