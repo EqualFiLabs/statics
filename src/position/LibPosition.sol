@@ -179,6 +179,13 @@ library LibPosition {
         return legKey(GAUGE_ALLOCATOR_MODULE, PoolId.unwrap(poolId));
     }
 
+    function activateLeg(uint256 positionId, bytes32 moduleType, bytes32 localPositionId)
+        internal
+        returns (bytes32 key)
+    {
+        return activateLeg(positionId, address(this), moduleType, localPositionId);
+    }
+
     function activateLeg(uint256 positionId, address moduleAuthority, bytes32 moduleType, bytes32 localPositionId)
         internal
         returns (bytes32 key)

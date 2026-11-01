@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {LibNFTTransferHistory} from "./LibNFTTransferHistory.sol";
 import {IStaticsExternalModules} from "../interfaces/IStaticsExternalModules.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -70,7 +69,6 @@ library LibDeploymentPhases {
 
     function initializePhaseOneInterfaces() internal {
         _advance(0, 1);
-        LibNFTTransferHistory.initialize();
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsNonSwapRevenue).interfaceId] = true;

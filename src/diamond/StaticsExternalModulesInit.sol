@@ -2,13 +2,11 @@
 pragma solidity 0.8.33;
 import {IStaticsExternalModules} from "../interfaces/IStaticsExternalModules.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
-import {LibNFTTransferHistory} from "../libraries/LibNFTTransferHistory.sol";
 
 /// @notice Executed atomically with installation on an existing Diamond.
 contract StaticsExternalModulesInit {
     function initialize() external {
         LibDiamond.enforceIsContractOwner();
-        LibNFTTransferHistory.initialize();
         LibDiamond.diamondStorage().supportedInterfaces[type(IStaticsExternalModules).interfaceId] = true;
     }
 }

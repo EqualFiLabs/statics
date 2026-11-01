@@ -1003,5 +1003,5 @@ for transfer counts, gas comparisons and execution boundaries.
 ## External module accounts
 
 See [External PositionNFT accounts](external-modules.md) for module admission,
-closure protection, bounded discovery, transfer coverage, and prospective reward
-reconciliation. Products retain their financial accounting and custody.
+closure protection and bounded discovery. Products retain their financial accounting,
+custody and reward logic.

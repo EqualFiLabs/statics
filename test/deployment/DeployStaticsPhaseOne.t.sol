@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {IStaticsExternalModules} from "../../src/interfaces/IStaticsExternalModules.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
@@ -142,7 +143,7 @@ contract DeployStaticsPhaseOneTest is Test {
     }
 
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 33;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 237;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 233;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -204,6 +205,7 @@ contract DeployStaticsPhaseOneTest is Test {
 
         _assertManifest(diamond, EXPECTED_PHASE_ONE_FACETS, EXPECTED_PHASE_ONE_SELECTORS);
         assertTrue(IERC165(diamond).supportsInterface(type(IERC721).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsExternalModules).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsNonSwapRevenue).interfaceId));
         assertEq(IStaticsNonSwapRevenue(diamond).nonSwapStakerShareBps(), 9_000);

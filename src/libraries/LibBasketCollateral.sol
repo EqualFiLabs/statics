@@ -34,7 +34,7 @@ library LibBasketCollateral {
         bytes32 legKey = LibPosition.basketLegKey(basketId);
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
         if (!ps.activeLeg[positionId][legKey]) {
-            LibPosition.activateLeg(positionId, address(this), LibPosition.BASKET_MODULE, bytes32(basketId));
+            LibPosition.activateLeg(positionId, LibPosition.BASKET_MODULE, bytes32(basketId));
         }
         // Position creation can attach the initial basket leg before collateral is recorded.
         LibPositionPortfolio.addBasket(positionId, basketId);

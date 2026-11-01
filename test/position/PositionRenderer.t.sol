@@ -50,8 +50,7 @@ contract PositionRendererTest is Test {
 
     function test_PositionFacetRetainsEip170Headroom() public {
         PositionNFTFacet facet = new PositionNFTFacet();
-        // Includes the fixed-cost transfer journal write; retain over 11 KB of EIP-170 headroom.
-        assertLt(address(facet).code.length, 13_000);
+        assertLt(address(facet).code.length, 12_100);
     }
 
     function _startsWith(string memory value, string memory prefix) private pure returns (bool) {

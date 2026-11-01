@@ -318,7 +318,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         if (!leg_.exists) {
             bytes32 legKey = LibPosition.dollarLegKey(seriesId);
             if (!LibPosition.positionStorage().activeLeg[positionId][legKey]) {
-                LibPosition.activateLeg(positionId, address(this), LibPosition.DOLLAR_MODULE, bytes32(seriesId));
+                LibPosition.activateLeg(positionId, LibPosition.DOLLAR_MODULE, bytes32(seriesId));
             }
             leg_.exists = true;
             leg_.epoch = book.epoch;

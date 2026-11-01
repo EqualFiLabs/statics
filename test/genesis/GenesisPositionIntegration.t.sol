@@ -90,14 +90,14 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
     uint256 private constant EXTENSION_FEE = 0.003 ether;
     bytes32 private constant POOL_ID = keccak256("GENESIS_POSITION_INTEGRATION");
 
-    MockERC20 internal numeraire;
-    GenesisIntegrationFeeSource internal feeSource;
-    StaticsFeeReceiver internal feeReceiver;
+    MockERC20 private numeraire;
+    GenesisIntegrationFeeSource private feeSource;
+    StaticsFeeReceiver private feeReceiver;
     GenesisActivationRegistry internal activationRegistry;
-    StaticsGenesisVault internal vault;
+    StaticsGenesisVault private vault;
     StaticsGenesis internal genesis;
     IStaticsGenesisIntegration internal integration;
-    uint256 internal epochEnd;
+    uint256 private epochEnd;
 
     struct ComposedRecoverySnapshot {
         bytes32 collateralHash;
@@ -706,7 +706,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         activationRegistry.activate(genesisId, tier);
     }
 
-    function _fundActivation(address owner, uint256 amount) internal {
+    function _fundActivation(address owner, uint256 amount) private {
         stakingAsset.mint(owner, amount);
         vm.prank(owner);
         stakingAsset.approve(address(activationRegistry), type(uint256).max);

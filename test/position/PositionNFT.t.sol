@@ -36,7 +36,7 @@ contract PositionModuleHarnessFacet {
 
     function activate(uint256 positionId, bytes32 moduleId, bytes32 localId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibPosition.activateLeg(positionId, address(this), moduleId, localId);
+        LibPosition.activateLeg(positionId, moduleId, localId);
     }
 
     function deactivate(uint256 positionId, bytes32 moduleId, bytes32 localId) external {

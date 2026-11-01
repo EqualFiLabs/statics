@@ -343,9 +343,7 @@ library LibGaugeBribes {
         bytes32 key = LibPosition.gaugeAllocatorLegKey(poolId);
         bool active = LibPosition.positionStorage().activeLeg[positionId][key];
         if (unresolved && !active) {
-            LibPosition.activateLeg(
-                positionId, address(this), LibPosition.GAUGE_ALLOCATOR_MODULE, PoolId.unwrap(poolId)
-            );
+            LibPosition.activateLeg(positionId, LibPosition.GAUGE_ALLOCATOR_MODULE, PoolId.unwrap(poolId));
             _addPositionPool(positionId, poolId);
         } else if (!unresolved && active) {
             LibPosition.deactivateLeg(positionId, key);

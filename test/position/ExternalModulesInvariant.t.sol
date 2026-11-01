@@ -14,8 +14,6 @@ contract ExternalModuleHandler is Test {
     uint256[3] public positions;
     bool[8][3][2] public active;
     bool[2] public enabled;
-    uint256[3] public transferNonces;
-    uint256 public transferCount;
     uint256 public attachments;
     uint256 public detachments;
 
@@ -61,10 +59,6 @@ contract ExternalModuleHandler is Test {
         address to = back ? address(0xB0B) : address(0xCA401);
         vm.prank(from);
         nft.transferFrom(from, to, positions[position]);
-        if (from != to) {
-            ++transferCount;
-            ++transferNonces[position];
-        }
     }
 }
 
@@ -111,14 +105,5 @@ contract ExternalModulesInvariantTest is ExternalModulesTest {
             total += count;
         }
         assertEq(total, handler.attachments() - handler.detachments());
-    }
-
-    function invariantTransferHeadAndPerNFTNoncesMatchOwnerChanges() public view {
-        assertEq(externalCore.transferHead(), handler.transferCount());
-        for (uint256 p; p < 3; ++p) {
-            assertEq(
-                externalCore.transferState(address(diamond), handler.positions(p)).nonce, handler.transferNonces(p)
-            );
-        }
     }
 }

@@ -51,7 +51,7 @@ import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDolla
 
 library StaticsSelectors {
     function externalModules() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](11);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsExternalModules.setExternalModule.selector;
         selectors[1] = IStaticsExternalModules.externalModuleEnabled.selector;
         selectors[2] = IStaticsExternalModules.attachExternalAccountLeg.selector;
@@ -59,10 +59,6 @@ library StaticsSelectors {
         selectors[4] = IStaticsExternalModules.externalLegCount.selector;
         selectors[5] = IStaticsExternalModules.externalLegCapacity.selector;
         selectors[6] = IStaticsExternalModules.externalLegs.selector;
-        selectors[7] = IStaticsExternalModules.transferHead.selector;
-        selectors[8] = IStaticsExternalModules.transferState.selector;
-        selectors[9] = IStaticsExternalModules.transferChanges.selector;
-        selectors[10] = IStaticsExternalModules.historyCoverage.selector;
     }
 
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {

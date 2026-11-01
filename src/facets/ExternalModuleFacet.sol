@@ -4,8 +4,6 @@ pragma solidity 0.8.33;
 import {IStaticsExternalModules} from "../interfaces/IStaticsExternalModules.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibExternalModules} from "../libraries/LibExternalModules.sol";
-import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
-import {LibNFTTransferHistory} from "../libraries/LibNFTTransferHistory.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 /// @notice Modules assert their own financial lifecycle; Statics only tracks closure protection.
@@ -72,43 +70,6 @@ contract ExternalModuleFacet {
         legs = new IStaticsExternalModules.ExternalLeg[](nextCursor - cursor);
         for (uint256 i; i < legs.length; ++i) {
             legs[i] = stored[cursor + i];
-        }
-    }
-
-    function transferHead() external view returns (uint256) {
-        return LibNFTTransferHistory.historyStorage().head;
-    }
-
-    function transferState(address collection, uint256 tokenId)
-        external
-        view
-        returns (IStaticsExternalModules.TransferState memory)
-    {
-        return LibNFTTransferHistory.historyStorage().states[collection][tokenId];
-    }
-
-    function transferChanges(uint256 afterSequence, uint256 limit)
-        external
-        view
-        returns (IStaticsExternalModules.TransferChange[] memory changes, uint256 nextSequence)
-    {
-        LibNFTTransferHistory.HistoryStorage storage hs = LibNFTTransferHistory.historyStorage();
-        nextSequence = LibExternalModules.pageEnd(afterSequence, limit, hs.head);
-        changes = new IStaticsExternalModules.TransferChange[](nextSequence - afterSequence);
-        for (uint256 i; i < changes.length; ++i) {
-            changes[i] = hs.changes[afterSequence + i + 1];
-        }
-    }
-
-    function historyCoverage(address collection)
-        external
-        view
-        returns (IStaticsExternalModules.HistoryCoverage memory coverage)
-    {
-        coverage = LibNFTTransferHistory.historyStorage().coverage[collection];
-        if (collection != address(this)) {
-            coverage.ready = coverage.ready && collection == LibGenesisIntegration.genesisStorage().genesis
-                && LibGenesisIntegration.recoveryReady();
         }
     }
 }

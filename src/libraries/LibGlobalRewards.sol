@@ -608,7 +608,7 @@ library LibGlobalRewards {
         bytes32 key = LibPosition.stakingLegKey();
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
         if (!ps.activeLeg[positionId][key]) {
-            LibPosition.activateLeg(positionId, address(this), LibPosition.STAKING_MODULE, bytes32(uint256(1)));
+            LibPosition.activateLeg(positionId, LibPosition.STAKING_MODULE, bytes32(uint256(1)));
         }
     }
 
