@@ -51,7 +51,7 @@ ERC-165 reports the reduced `IStaticsExternalModules` interface. Consumers must
 update their interface definition and interface ID together.
 
 There is no shared ownership journal, replay service, reward synchronization or
-Operator boost reconciliation. Products such as Fiddy read NFT ownership and the
+Operator boost reconciliation. Products such as Bonanza read NFT ownership and the
 Activation Registry directly and own their staking indexes, forfeiture rules and
 account nonces. Genesis activation, transfer, recovery and reward behavior are unchanged.
 
@@ -70,8 +70,8 @@ This preparer targets pre-extension Diamonds. An installation of the earlier
 selectors, clear its old interface flag, and replace any journal-enabled facets;
 it must not use this Add-only preparer. No deployed candidate migration is asserted.
 
-Fiddy compatibility uses the reduced interface and a pinned matching Statics dependency.
-The local funded lifecycle fixture and Fiddy actual-source integration tests establish
+Bonanza compatibility uses the reduced interface and a pinned matching Statics dependency.
+The local funded lifecycle fixture and Bonanza actual-source integration tests establish
 local behavior only. Production deployment bindings and upgrade execution still need
 separate qualification. Future casino and BucketPerps products implement their own
 financial lifecycle and require module registration rather than new Statics selectors.
