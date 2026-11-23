@@ -86,9 +86,7 @@ contract MorphoFacet is ReentrancyGuard {
         tracked.trackedCollateral -= assets;
         _decreaseSourceAllocation(ms, config, positionId, assets);
         LibCustody.reserve(_custodyAccount(config), config.params.collateralToken, assets);
-        MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
-        LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
+        _syncRemainingPosition(positionId, marketId_);
         emit IStaticsMorpho.MorphoCollateralRecalled(positionId, marketId_, assets);
     }
 
@@ -137,9 +135,7 @@ contract MorphoFacet is ReentrancyGuard {
         if (maxAssets > assetsRepaid) {
             _pushExactUnreserved(ms.usdStx, msg.sender, maxAssets - assetsRepaid);
         }
-        MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
-        LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
+        _syncRemainingPosition(positionId, marketId_);
         emit IStaticsMorpho.MorphoRepaid(positionId, marketId_, assetsRepaid, sharesRepaid);
     }
 
@@ -213,6 +209,12 @@ contract MorphoFacet is ReentrancyGuard {
     function _pushExactUnreserved(address token, address receiver, uint256 amount) private {
         (uint256 spent, uint256 received) = LibCustody.pushUnreserved(token, receiver, amount, amount);
         if (spent != amount || received != amount) revert IncompatibleTokenTransfer(token, amount, received);
+    }
+
+    function _syncRemainingPosition(uint256 positionId, bytes32 marketId_) private {
+        MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
+        LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
+        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
     }
 
     function _custodyAccount(LibMorpho.MarketConfig storage config) private view returns (bytes32) {

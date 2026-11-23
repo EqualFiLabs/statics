@@ -43,6 +43,7 @@ import {DiamondCutFacet} from "../src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../src/facets/DiamondLoupeFacet.sol";
 import {FlashLoanFacet} from "../src/facets/FlashLoanFacet.sol";
 import {GenesisNFTFacet} from "../src/facets/GenesisNFTFacet.sol";
+import {GenesisTransferTrackingFacet} from "../src/facets/GenesisTransferTrackingFacet.sol";
 import {GlobalRewardsFacet} from "../src/facets/GlobalRewardsFacet.sol";
 import {GaugeIncentiveFacet} from "../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../src/facets/GaugeIncentiveViewFacet.sol";
@@ -716,6 +717,11 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         _validateFacetSet(diamond, StaticsSelectors.lending(), keccak256(type(LendingFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.flashLoan(), keccak256(type(FlashLoanFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.genesisNFT(), keccak256(type(GenesisNFTFacet).runtimeCode));
+        _validateFacetSet(
+            diamond,
+            StaticsSelectors.genesisTransferTracking(),
+            keccak256(type(GenesisTransferTrackingFacet).runtimeCode)
+        );
         _validateFacetSet(
             diamond, StaticsSelectors.borrowLiquidity(), keccak256(type(BorrowLiquidityFacet).runtimeCode)
         );

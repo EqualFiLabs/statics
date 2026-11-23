@@ -20,8 +20,9 @@ contract RangeGaugeGasHarness is RangeGaugeCallbackHarness, MarketTapeObservatio
 
 contract RangeGaugeGasTest is Test {
     uint256 private constant REVIEWED_HOOK_BASELINE = 17_081;
-    uint256 private constant NATIVE_ETH_PUBLIC_HOOK_RUNTIME = 17_113;
-    uint256 private constant MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME = 15_576;
+    // Release builds retain the 41-byte IPFS commitment in addition to the compiler-only trailer.
+    uint256 private constant NATIVE_ETH_PUBLIC_HOOK_RUNTIME = 17_154;
+    uint256 private constant MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME = 15_617;
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
     uint256 private constant MIN_HOOK_HEADROOM = 256;
     uint256 private constant MIN_POSITION_FACET_HEADROOM = 1_024;

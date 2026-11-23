@@ -9,6 +9,10 @@ import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {
+    IGenesisTransferTracking,
+    IGenesisOperatorTransitionReceiver
+} from "../../src/interfaces/IGenesisTransferTracking.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
@@ -20,6 +24,7 @@ import {
     IStaticsGenesisVault
 } from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
+import {GenesisTransferTrackingFacet} from "../../src/facets/GenesisTransferTrackingFacet.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
@@ -81,6 +86,52 @@ contract GenesisIntegrationFeeSource {
 contract GenesisIntegrationInitHarness {
     function initializeGenesisIntegration(LibGenesisIntegration.InitArgs calldata args) external {
         LibGenesisIntegration.initialize(args);
+    }
+}
+
+contract RecordingOperatorTransitionReceiver is IGenesisOperatorTransitionReceiver {
+    address public immutable operatorCollection;
+    address public immutable operatorVault;
+    address public immutable activationRegistry;
+    address public immutable genesisTransitionSource;
+    uint64 public immutable transferTrackingStartedAt;
+    uint64 public observedNonce;
+    uint16 public observedMultiplier;
+    address public observedOwner;
+    bool public rejectAcknowledgement;
+
+    constructor(StaticsGenesis genesis, address source, uint64 startedAt) {
+        operatorCollection = address(genesis);
+        operatorVault = genesis.vault();
+        activationRegistry = genesis.activationRegistry();
+        genesisTransitionSource = source;
+        transferTrackingStartedAt = startedAt;
+    }
+
+    function setRejectAcknowledgement() external {
+        rejectAcknowledgement = true;
+    }
+
+    function onOperatorTransition(
+        uint256 genesisId,
+        address previousOwner,
+        address nextOwner,
+        uint16 previousMultiplierBps,
+        uint16 nextMultiplierBps,
+        uint64 nonce
+    ) external returns (bytes4) {
+        require(msg.sender == genesisTransitionSource, "source");
+        require(StaticsGenesis(operatorCollection).ownerOf(genesisId) == previousOwner, "owner was already written");
+        require(
+            GenesisActivationRegistry(activationRegistry).multiplierBps(genesisId) == previousMultiplierBps,
+            "multiplier was already written"
+        );
+        (uint64 recordedNonce,) = IGenesisTransferTracking(msg.sender).genesisTransferState(genesisId);
+        require(recordedNonce == nonce, "nonce was not recorded");
+        observedOwner = nextOwner;
+        observedMultiplier = nextMultiplierBps;
+        observedNonce = nonce;
+        return rejectAcknowledgement ? bytes4(0) : IGenesisOperatorTransitionReceiver.onOperatorTransition.selector;
     }
 }
 
@@ -147,14 +198,14 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         GenesisIntegrationInitHarness(address(diamond))
             .initializeGenesisIntegration(
                 LibGenesisIntegration.InitArgs({
-                genesis: address(genesis),
-                vault: address(vault),
-                activationRegistry: address(activationRegistry),
-                feeReceiver: address(feeReceiver),
-                statics: address(stakingAsset),
-                numeraire: address(numeraire),
-                genesisRewardShareBps: 9_000
-            })
+                    genesis: address(genesis),
+                    vault: address(vault),
+                    activationRegistry: address(activationRegistry),
+                    feeReceiver: address(feeReceiver),
+                    statics: address(stakingAsset),
+                    numeraire: address(numeraire),
+                    genesisRewardShareBps: 9_000
+                })
             );
 
         feeReceiver.proposeDistributor(address(diamond));
@@ -442,6 +493,55 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(integration.genesisEffectiveWeight(10), 10_000);
     }
 
+    function testOperatorCallbackTracksUnregisteredNFTAndRollsBackOnBadAcknowledgement() external {
+        IGenesisTransferTracking tracking = IGenesisTransferTracking(address(diamond));
+        uint64 startedAt = tracking.genesisTransferTrackingStartedAt();
+        RecordingOperatorTransitionReceiver receiver =
+            new RecordingOperatorTransitionReceiver(genesis, address(diamond), startedAt);
+        RecordingOperatorTransitionReceiver wrongSource =
+            new RecordingOperatorTransitionReceiver(genesis, address(receiver), startedAt);
+        vm.prank(alice);
+        vm.expectRevert();
+        tracking.bindGenesisOperatorFeeRouter(address(receiver));
+        vm.expectRevert();
+        tracking.bindGenesisOperatorFeeRouter(address(wrongSource));
+        tracking.bindGenesisOperatorFeeRouter(address(receiver));
+        vm.expectRevert(GenesisTransferTrackingFacet.GenesisOperatorFeeRouterAlreadyBound.selector);
+        tracking.bindGenesisOperatorFeeRouter(address(receiver));
+
+        _buyGenesis(alice, 1);
+        uint256 boughtAt = block.timestamp;
+        assertFalse(integration.genesisRegistered(1));
+        (uint64 nonce, uint64 lastTransferAt) = tracking.genesisTransferState(1);
+        assertEq(nonce, 1);
+        assertEq(lastTransferAt, boughtAt);
+        assertEq(receiver.observedOwner(), alice);
+
+        vm.warp(boughtAt + 1);
+        _activate(alice, 1, 1);
+        (nonce, lastTransferAt) = tracking.genesisTransferState(1);
+        assertEq(nonce, 1);
+        assertEq(lastTransferAt, boughtAt);
+        assertEq(receiver.observedMultiplier(), 11_000);
+
+        vm.prank(alice);
+        genesis.safeTransferFrom(alice, bob, 1);
+        assertEq(receiver.observedNonce(), 2);
+        assertEq(receiver.observedOwner(), bob);
+        assertEq(receiver.observedMultiplier(), 10_000);
+
+        receiver.setRejectAcknowledgement();
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisNFTFacet.InvalidOperatorTransitionAcknowledgement.selector, address(receiver))
+        );
+        genesis.transferFrom(bob, alice, 1);
+        (nonce, lastTransferAt) = tracking.genesisTransferState(1);
+        assertEq(nonce, 2);
+        assertEq(lastTransferAt, boughtAt + 1);
+        assertEq(genesis.ownerOf(1), bob);
+    }
+
     function testRewardsUseIsolatedCustodyAndTreasuryReceivesConfiguredShare() external {
         _buyAndRegister(alice, 11);
         _queueRewards(1_000 ether, 100 ether);
@@ -484,6 +584,9 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(integration.linkedPosition(12), 0);
         assertEq(integration.linkedGenesis(positionId), 0);
         assertEq(genesis.ownerOf(12), address(vault));
+        (uint64 nonce, uint64 lastTransferAt) = IGenesisTransferTracking(address(diamond)).genesisTransferState(12);
+        assertEq(nonce, 2);
+        assertEq(lastTransferAt, block.timestamp);
         assertEq(IERC721(address(diamond)).ownerOf(positionId), alice);
         assertEq(activationRegistry.tierOf(12), 0);
         assertGt(integration.pendingGenesisRecovery(), 0);
@@ -659,7 +762,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
     function _installGenesisIntegration() private {
         GenesisNFTFacet genesisFacet = new GenesisNFTFacet();
         GenesisIntegrationInitHarness initHarness = new GenesisIntegrationInitHarness();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](2);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(genesisFacet),
             action: IDiamondCut.FacetCutAction.Add,
@@ -669,6 +772,11 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         initSelectors[0] = GenesisIntegrationInitHarness.initializeGenesisIntegration.selector;
         cut[1] = IDiamondCut.FacetCut({
             facetAddress: address(initHarness), action: IDiamondCut.FacetCutAction.Add, functionSelectors: initSelectors
+        });
+        cut[2] = IDiamondCut.FacetCut({
+            facetAddress: address(new GenesisTransferTrackingFacet()),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: StaticsSelectors.genesisTransferTracking()
         });
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }

@@ -42,6 +42,7 @@ import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
+import {GenesisTransferTrackingFacet} from "../../src/facets/GenesisTransferTrackingFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
@@ -169,6 +170,7 @@ abstract contract DeployStaticsProtocol {
         parts.lending = address(new LendingFacet());
         parts.flashLoan = address(new FlashLoanFacet());
         parts.genesisNFT = address(new GenesisNFTFacet());
+        parts.genesisTransferTracking = address(new GenesisTransferTrackingFacet());
         parts.borrowLiquidity = address(new BorrowLiquidityFacet());
         return parts;
     }
