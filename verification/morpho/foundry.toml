@@ -9,7 +9,8 @@ evm_version = "paris"
 via_ir = true
 optimizer = true
 optimizer_runs = 999999
-bytecode_hash = "none"
+bytecode_hash = "ipfs"
+cbor_metadata = true
 fs_permissions = [
     { access = "read-write", path = "../../artifacts/morpho-testnet" },
     { access = "read", path = "../../deployments" },

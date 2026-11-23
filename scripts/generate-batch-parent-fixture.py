@@ -58,7 +58,7 @@ def main():
         dependencies[path] = revision
     settings = {
         "optimizer": {"enabled": True, "runs": 200}, "evmVersion": "cancun", "viaIR": False,
-        "metadata": {"bytecodeHash": "none"}, "remappings": ["=".join(r) for r in remappings],
+        "metadata": {"bytecodeHash": "ipfs", "appendCBOR": True}, "remappings": ["=".join(r) for r in remappings],
         "outputSelection": {f"src/facets/{f}.sol": {f: ["evm.deployedBytecode.object"]} for f in FACETS},
     }
     process = subprocess.run([args.solc, "--standard-json"],
