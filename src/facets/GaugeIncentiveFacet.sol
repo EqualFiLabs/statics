@@ -41,10 +41,7 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         LibGaugeRouting.RoutingStorage storage routing = LibGaugeRouting.routingStorage();
         uint40 maturityAt;
         if (routing.activated) {
-            uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
-            LibGaugeRouting.checkpointSchedule(currentTime, LibGaugeRouting.MAX_CATCHUP_PERIODS);
-            LibGaugeRouting.enforceScheduleCurrent(currentTime);
-            maturityAt = routing.periodFinish;
+            maturityAt = _checkpointScheduleAndGetFinish(routing);
             LibGaugeReserve.defer(received, maturityAt);
         } else {
             LibGaugeReserve.makeAvailable(received);
@@ -130,15 +127,19 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         LibGaugeRouting.RoutingStorage storage routing = LibGaugeRouting.routingStorage();
         uint40 effectiveAt;
         if (routing.activated) {
-            uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
-            LibGaugeRouting.checkpointSchedule(currentTime, LibGaugeRouting.MAX_CATCHUP_PERIODS);
-            LibGaugeRouting.enforceScheduleCurrent(currentTime);
-            effectiveAt = routing.periodFinish;
+            effectiveAt = _checkpointScheduleAndGetFinish(routing);
             LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveAt);
         } else {
             LibGaugeReserve.setPreActivationReleaseBps(releaseBps);
         }
         emit IStaticsGaugeIncentives.GaugeReleaseBpsScheduled(releaseBps, effectiveAt);
+    }
+
+    function _checkpointScheduleAndGetFinish(LibGaugeRouting.RoutingStorage storage routing) private returns (uint40) {
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        LibGaugeRouting.checkpointSchedule(currentTime, LibGaugeRouting.MAX_CATCHUP_PERIODS);
+        LibGaugeRouting.enforceScheduleCurrent(currentTime);
+        return routing.periodFinish;
     }
 
     function setGaugeAllocationCooldown(uint40 cooldown) external {
