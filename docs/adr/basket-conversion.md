@@ -90,6 +90,8 @@ creation/runtime bytes, constructor arguments, permission bits and selectors.
 Prepare the combined Diamond cut for owner execution. For each initial basket,
 prepare the token and obtain full-match verification. Finalize with zero seed
 and POL disabled, register the USDG market, and approve the zap for that basket.
+The combined initializer sets basket creation and shared pool registration fees
+to zero for owner-only creation and registration.
 Verify routing, per-basket authorization and a USDG buy and sell before listing.
 No deployment or owner transaction is implied by local qualification.
 

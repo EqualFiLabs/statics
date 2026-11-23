@@ -134,6 +134,10 @@ def qualify(destination, commit):
     output = destination/"conversion"
     output.mkdir(parents=True,exist_ok=False)
     commands = [
+        ["forge","test","--match-path","test/deployment/DeployStaticsPhases.t.sol",
+         "--match-test","^testFreshStagedPhaseTwoInstallsConversionAndBasketFactory$"],
+        ["forge","test","--match-path","test/deployment/BasketConversionUpgradeFork.t.sol",
+         "--match-test","^testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed$"],
         ["python3","scripts/basket-conversion/run-fork.py","--output",str(output/"strategy.log")],
         ["python3","scripts/basket-conversion/upgrade.py","--output",str(output/"upgrade")],
         ["python3","scripts/basket-conversion/execution.py","--output",str(output/"execution")],

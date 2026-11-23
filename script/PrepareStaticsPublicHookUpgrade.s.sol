@@ -19,6 +19,7 @@ contract PrepareStaticsPublicHookUpgrade is Script {
     error InvalidUpgradeContract(address target);
     error UnknownInstalledSelector(bytes4 selector);
     error EmptyReleaseFacet();
+    error NonzeroBasketCreationFee();
 
     struct Configuration {
         address diamond;
@@ -36,13 +37,7 @@ contract PrepareStaticsPublicHookUpgrade is Script {
         view
         returns (string memory)
     {
-        address[] memory targets;
-        bytes[] memory payloads;
-        if (parts.basketConversion == address(0)) {
-            (targets,, payloads) = this.build(config, parts);
-        } else {
-            (targets,, payloads) = this.buildCombined(config, parts);
-        }
+        (address[] memory targets,, bytes[] memory payloads) = this.build(config, parts);
         return string.concat(
             '{"version":"1.0","chainId":"',
             vm.toString(block.chainid),
@@ -62,6 +57,7 @@ contract PrepareStaticsPublicHookUpgrade is Script {
         view
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
+        if (config.basketFee != 0) revert NonzeroBasketCreationFee();
         if (parts.basketConversion.code.length == 0) revert InvalidUpgradeContract(parts.basketConversion);
         IStaticsBasketConversion.Configuration memory conversion =
             IStaticsBasketConversion(parts.basketConversion).basketConversionConfiguration();
@@ -75,7 +71,7 @@ contract PrepareStaticsPublicHookUpgrade is Script {
                 || zap.hook() != conversion.hook || address(router.poolManager()) != conversion.poolManager
                 || address(router.core()) != config.diamond || router.hook() != conversion.hook
         ) revert InvalidUpgradeContract(parts.basketConversion);
-        return this.build(config, parts);
+        return _build(config, parts);
     }
 
     function _transactionJson(address target, bytes memory payload) private pure returns (string memory) {
@@ -90,6 +86,15 @@ contract PrepareStaticsPublicHookUpgrade is Script {
 
     function build(Configuration memory config, StaticsProtocolParts memory parts)
         external
+        view
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        if (parts.basketConversion != address(0)) return this.buildCombined(config, parts);
+        return _build(config, parts);
+    }
+
+    function _build(Configuration memory config, StaticsProtocolParts memory parts)
+        private
         view
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
