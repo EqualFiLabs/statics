@@ -75,8 +75,6 @@ contract PrepareStaticsBasketConversionUpgrade is Script {
             vm.toString(IERC173(diamond).owner()),
             '"},"transactions":[',
             _transaction(targets[0], payloads[0]),
-            ",",
-            _transaction(targets[1], payloads[1]),
             "]}"
         );
     }

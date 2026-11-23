@@ -87,7 +87,9 @@ class ConversionEvidenceGateTest(unittest.TestCase):
                 self.assertTrue((first / "conversion").is_dir())
                 with patch.object(r.base, "run_logged") as run, patch.object(r, "check_upgrade", return_value={}):
                     report = r.qualify(second, "candidate")
-                self.assertEqual(run.call_count, 4)
+                self.assertEqual(run.call_count, 6)
+                self.assertIn("testFreshStagedPhaseTwoInstallsConversionAndBasketFactory", run.call_args_list[0].args[0][-1])
+                self.assertIn("testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed", run.call_args_list[1].args[0][-1])
                 self.assertEqual(report["evidenceDirectory"], "conversion")
                 self.assertEqual(check.call_count, 2)
                 self.assertTrue((first / "conversion").is_dir())
