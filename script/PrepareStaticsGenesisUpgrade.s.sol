@@ -6,6 +6,7 @@ import {console2} from "forge-std/console2.sol";
 
 import {CustodyFacet} from "../src/facets/CustodyFacet.sol";
 import {GenesisNFTFacet} from "../src/facets/GenesisNFTFacet.sol";
+import {GenesisTransferTrackingFacet} from "../src/facets/GenesisTransferTrackingFacet.sol";
 import {GlobalRewardsFacet} from "../src/facets/GlobalRewardsFacet.sol";
 import {IDiamondCut} from "../src/interfaces/IDiamondCut.sol";
 import {StaticsSelectors} from "../src/libraries/StaticsSelectors.sol";
@@ -16,6 +17,7 @@ struct StaticsGenesisUpgradeParts {
     address positionNFT;
     address custody;
     address genesisNFT;
+    address genesisTransferTracking;
 }
 
 library StaticsGenesisUpgradeCut {
@@ -27,7 +29,7 @@ library StaticsGenesisUpgradeCut {
         bytes4[] memory globalSelectors = StaticsSelectors.globalRewards();
         bytes4[] memory positionSelectors = StaticsSelectors.position();
         bytes4[] memory custodySelectors = StaticsSelectors.custody();
-        cut = new IDiamondCut.FacetCut[](7);
+        cut = new IDiamondCut.FacetCut[](8);
         cut[0] = IDiamondCut.FacetCut(
             parts.globalRewards,
             IDiamondCut.FacetCutAction.Replace,
@@ -57,6 +59,9 @@ library StaticsGenesisUpgradeCut {
             _slice(custodySelectors, PHASE_ONE_CUSTODY_SELECTORS, custodySelectors.length)
         );
         cut[6] = IDiamondCut.FacetCut(parts.genesisNFT, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisNFT());
+        cut[7] = IDiamondCut.FacetCut(
+            parts.genesisTransferTracking, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisTransferTracking()
+        );
     }
 
     function _slice(bytes4[] memory source, uint256 start, uint256 end) private pure returns (bytes4[] memory result) {
@@ -78,6 +83,7 @@ contract PrepareStaticsGenesisUpgrade is Script {
         console2.log("STATICS_POSITION_NFT_FACET_ADDRESS", parts.positionNFT);
         console2.log("STATICS_CUSTODY_FACET_ADDRESS", parts.custody);
         console2.log("STATICS_GENESIS_NFT_FACET_ADDRESS", parts.genesisNFT);
+        console2.log("STATICS_GENESIS_TRANSFER_TRACKING_FACET_ADDRESS", parts.genesisTransferTracking);
     }
 
     function deploy() public returns (StaticsGenesisUpgradeParts memory parts) {
@@ -85,7 +91,8 @@ contract PrepareStaticsGenesisUpgrade is Script {
             globalRewards: address(new GlobalRewardsFacet()),
             positionNFT: address(new PositionNFTFacet()),
             custody: address(new CustodyFacet()),
-            genesisNFT: address(new GenesisNFTFacet())
+            genesisNFT: address(new GenesisNFTFacet()),
+            genesisTransferTracking: address(new GenesisTransferTrackingFacet())
         });
     }
 

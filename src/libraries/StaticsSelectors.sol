@@ -40,6 +40,7 @@ import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
+import {IGenesisTransferTracking} from "../interfaces/IGenesisTransferTracking.sol";
 import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 import {IStaticsDollarSeriesMigration} from "../dollar/interfaces/IStaticsDollarSeriesMigration.sol";
@@ -500,6 +501,14 @@ library StaticsSelectors {
         selectors[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
         selectors[32] = IStaticsGenesisIntegration.claimAllGenesisRewards.selector;
         selectors[33] = IStaticsGenesisIntegration.claimAllGenesisTreasuryRewards.selector;
+    }
+
+    function genesisTransferTracking() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IGenesisTransferTracking.genesisTransferTrackingStartedAt.selector;
+        selectors[1] = IGenesisTransferTracking.genesisTransferState.selector;
+        selectors[2] = IGenesisTransferTracking.genesisOperatorFeeRouter.selector;
+        selectors[3] = IGenesisTransferTracking.bindGenesisOperatorFeeRouter.selector;
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {

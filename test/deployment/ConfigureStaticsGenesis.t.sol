@@ -19,6 +19,7 @@ import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IGenesisTransferTracking} from "../../src/interfaces/IGenesisTransferTracking.sol";
 import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
@@ -152,7 +153,11 @@ contract ConfigureStaticsGenesisTest is Test {
             genesisRewardShareBps: REWARD_SHARE_BPS,
             installUpgrade: false,
             upgrade: StaticsGenesisUpgradeParts({
-                globalRewards: address(0), positionNFT: address(0), custody: address(0), genesisNFT: address(0)
+                globalRewards: address(0),
+                positionNFT: address(0),
+                custody: address(0),
+                genesisNFT: address(0),
+                genesisTransferTracking: address(0)
             })
         });
 
@@ -185,6 +190,13 @@ contract ConfigureStaticsGenesisTest is Test {
         assertEq(launchDistributor.pendingGenesisRecovery(), 0);
         assertEq(integration.pendingGenesisRecovery(), pendingRecovery);
         assertTrue(integration.genesisIntegrationReady());
+        IGenesisTransferTracking tracking = IGenesisTransferTracking(address(integration));
+        assertEq(tracking.genesisTransferTrackingStartedAt(), block.timestamp);
+        (uint64 priorNonce,) = tracking.genesisTransferState(2);
+        assertEq(priorNonce, 0);
+        vm.prank(address(timelock));
+        vm.expectRevert(GenesisNFTFacet.GenesisTransferTrackingAlreadyStarted.selector);
+        integration.acceptGenesisConsumerRole();
 
         vm.prank(bob);
         integration.registerGenesis(2);

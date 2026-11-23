@@ -14,6 +14,7 @@ import {IStaticsBasketAdmin} from "../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsFeeReceiver} from "../src/interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis} from "../src/interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisIntegration} from "../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IGenesisTransferTracking} from "../src/interfaces/IGenesisTransferTracking.sol";
 import {IStaticsGlobalRewards} from "../src/interfaces/IStaticsGlobalRewards.sol";
 import {LibGenesisIntegration} from "../src/libraries/LibGenesisIntegration.sol";
 import {StaticsGenesisUpgradeCut, StaticsGenesisUpgradeParts} from "./PrepareStaticsGenesisUpgrade.s.sol";
@@ -313,7 +314,12 @@ contract ConfigureStaticsGenesis is Script {
             _contract(config.upgrade.positionNFT);
             _contract(config.upgrade.custody);
             _contract(config.upgrade.genesisNFT);
-        } else if (!genesisInstalled) {
+            _contract(config.upgrade.genesisTransferTracking);
+        } else if (
+            !genesisInstalled
+                || IDiamondLoupe(diamond).facetAddress(IGenesisTransferTracking.genesisTransferState.selector)
+                    == address(0)
+        ) {
             revert InvalidHandoffState();
         }
         if (genesisInstalled && IStaticsGenesisIntegration(diamond).genesisCollection() != address(0)) {
@@ -356,6 +362,7 @@ contract ConfigureStaticsGenesis is Script {
             revert GenesisHandoffFailed();
         }
         if (integration.genesisCollection() != config.genesis) revert GenesisHandoffFailed();
+        if (IGenesisTransferTracking(diamond).genesisTransferTrackingStartedAt() == 0) revert GenesisHandoffFailed();
         if (integration.genesisRewardShareBps() != config.genesisRewardShareBps) revert GenesisHandoffFailed();
     }
 
@@ -390,7 +397,8 @@ contract ConfigureStaticsGenesis is Script {
                 globalRewards: vm.envOr("STATICS_GLOBAL_REWARDS_FACET_ADDRESS", address(0)),
                 positionNFT: vm.envOr("STATICS_POSITION_NFT_FACET_ADDRESS", address(0)),
                 custody: vm.envOr("STATICS_CUSTODY_FACET_ADDRESS", address(0)),
-                genesisNFT: vm.envOr("STATICS_GENESIS_NFT_FACET_ADDRESS", address(0))
+                genesisNFT: vm.envOr("STATICS_GENESIS_NFT_FACET_ADDRESS", address(0)),
+                genesisTransferTracking: vm.envOr("STATICS_GENESIS_TRANSFER_TRACKING_FACET_ADDRESS", address(0))
             })
         });
     }

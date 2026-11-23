@@ -63,6 +63,7 @@ struct StaticsProtocolParts {
     address morphoSettlement;
     address morphoAdmin;
     address morphoView;
+    address genesisTransferTracking;
 }
 
 /// @notice Canonical selector-to-phase assignment for both fresh and staged deployments.
@@ -111,7 +112,7 @@ library StaticsProtocolPlan {
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](19);
+        cut = new IDiamondCut.FacetCut[](20);
         cut[0] = _add(parts.governance, StaticsSelectors.phaseTwoGovernance());
         cut[1] = _add(parts.custody, StaticsSelectors.phaseTwoCustody());
         cut[2] = _add(parts.basketAdmin, StaticsSelectors.phaseTwoBasketAdmin());
@@ -131,6 +132,7 @@ library StaticsProtocolPlan {
         cut[16] = _add(parts.flashLoan, StaticsSelectors.flashLoan());
         cut[17] = _add(parts.genesisNFT, StaticsSelectors.genesisNFT());
         cut[18] = _add(parts.borrowLiquidity, StaticsSelectors.borrowLiquidity());
+        cut[19] = _add(parts.genesisTransferTracking, StaticsSelectors.genesisTransferTracking());
     }
 
     function phaseThree(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

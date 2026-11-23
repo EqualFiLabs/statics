@@ -8,15 +8,18 @@
 pragma solidity 0.8.33;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
 import {IGenesisLaunchDistributor} from "../interfaces/IGenesisLaunchDistributor.sol";
+import {IGenesisTransferTracking, IGenesisOperatorTransitionReceiver} from "../interfaces/IGenesisTransferTracking.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
 import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
+import {LibGenesisTransferTracking} from "../libraries/LibGenesisTransferTracking.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -35,6 +38,8 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     error UnauthorizedTreasury(address caller);
     error GenesisDistributorNotActive(address activeDistributor);
     error GenesisConsumerPredecessorNotFinalized(address predecessor);
+    error GenesisTransferTrackingAlreadyStarted();
+    error InvalidOperatorTransitionAcknowledgement(address router);
 
     function linkGenesis(uint256 positionId, uint256 genesisId) external nonReentrant {
         if (!LibGenesisIntegration.integrationReady()) revert GenesisIntegrationNotReady();
@@ -100,11 +105,12 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         uint256 genesisId,
         address previousOwner,
         address nextOwner,
-        uint16,
+        uint16 previousMultiplierBps,
         uint16 nextMultiplierBps
     ) external nonReentrant {
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         if (msg.sender != gs.activationRegistry) revert UnauthorizedActivationRegistry(msg.sender);
+        _trackGenesisTransition(genesisId, previousOwner, nextOwner, previousMultiplierBps, nextMultiplierBps);
         LibGenesisRewards.transition(genesisId, previousOwner, nextOwner, nextMultiplierBps);
         uint256 positionId = gs.linkedPosition[genesisId];
         if (positionId == 0) return;
@@ -114,6 +120,31 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         }
         LibMorpho.syncIfInitialized(positionId, nextOwner);
         LibGlobalRewards.transitionPositionWeight(positionId, nextMultiplierBps);
+    }
+
+    function _trackGenesisTransition(
+        uint256 genesisId,
+        address previousOwner,
+        address nextOwner,
+        uint16 previousMultiplierBps,
+        uint16 nextMultiplierBps
+    ) private {
+        LibGenesisTransferTracking.Layout storage tracking = LibGenesisTransferTracking.layout();
+        LibGenesisTransferTracking.TransferState storage state = tracking.transfers[genesisId];
+        uint64 nonce = state.nonce;
+        if (previousOwner != nextOwner) {
+            state.nonce = ++nonce;
+            state.lastTransferAt = SafeCast.toUint64(block.timestamp);
+            emit IGenesisTransferTracking.GenesisTransferObserved(genesisId, nonce, state.lastTransferAt);
+        }
+
+        address router = tracking.router;
+        if (router == address(0)) return;
+        bytes4 acknowledgement = IGenesisOperatorTransitionReceiver(router)
+            .onOperatorTransition(genesisId, previousOwner, nextOwner, previousMultiplierBps, nextMultiplierBps, nonce);
+        if (acknowledgement != IGenesisOperatorTransitionReceiver.onOperatorTransition.selector) {
+            revert InvalidOperatorTransitionAcknowledgement(router);
+        }
     }
 
     function linkedGenesis(uint256 positionId) external view returns (uint256 genesisId) {
@@ -157,6 +188,8 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
 
     function acceptGenesisConsumerRole() external {
         LibDiamond.enforceIsContractOwner();
+        LibGenesisTransferTracking.Layout storage tracking = LibGenesisTransferTracking.layout();
+        if (tracking.startedAt != 0) revert GenesisTransferTrackingAlreadyStarted();
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         address activeDistributor = IStaticsFeeReceiver(gs.feeReceiver).activeDistributor();
         if (activeDistributor != address(this)) revert GenesisDistributorNotActive(activeDistributor);
@@ -166,6 +199,8 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
             revert GenesisConsumerPredecessorNotFinalized(predecessor);
         }
         registry.acceptConsumer();
+        tracking.startedAt = SafeCast.toUint64(block.timestamp);
+        emit IGenesisTransferTracking.GenesisTransferTrackingStarted(tracking.startedAt);
     }
 
     function registerGenesis(uint256 genesisId) external nonReentrant {

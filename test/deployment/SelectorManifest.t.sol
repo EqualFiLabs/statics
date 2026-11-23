@@ -31,6 +31,7 @@ import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoya
 import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
 import {IStaticsRewardSelectionTiming} from "../../src/interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IGenesisTransferTracking} from "../../src/interfaces/IGenesisTransferTracking.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {
@@ -378,6 +379,15 @@ contract SelectorManifestTest is Test {
                 assertNotEq(actual[i], actual[j]);
             }
         }
+    }
+
+    function testGenesisTransferTrackingSelectorsAreAdditive() public pure {
+        bytes4[] memory expected = new bytes4[](4);
+        expected[0] = IGenesisTransferTracking.genesisTransferTrackingStartedAt.selector;
+        expected[1] = IGenesisTransferTracking.genesisTransferState.selector;
+        expected[2] = IGenesisTransferTracking.genesisOperatorFeeRouter.selector;
+        expected[3] = IGenesisTransferTracking.bindGenesisOperatorFeeRouter.selector;
+        _assertExact(StaticsSelectors.genesisTransferTracking(), expected);
     }
 
     function testPositionSelectorManifestIncludesFeesAndOwnerIndex() public pure {
