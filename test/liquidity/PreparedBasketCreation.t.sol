@@ -177,7 +177,7 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         vm.prank(bob);
         PoolId id = IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params);
         assertEq(address(pools.protocolPool(id).key.hooks), address(_localBasketHook));
-        assertEq(pools.protocolPoolCreator(id), alice);
+        assertEq(pools.protocolPoolCreator(id), bob);
         assertTrue(PoolId.unwrap(basketLiquidity.canonicalPool(basketId, address(assetA)).poolId) != PoolId.unwrap(id));
 
         vm.prank(bob);
@@ -185,7 +185,7 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params);
     }
 
-    function testRestrictedPairAttributionUsesSortedFirstRestrictedCurrency() public {
+    function testRestrictedPairUsesSortedBasketAndCreditsMarketCreator() public {
         (uint256 firstBasketId, address firstToken) = _createDefaultBasket(0, 0);
 
         IStaticsBasket.CreateBasketParams memory secondParams = _defaultParams(0, 0);
@@ -211,11 +211,9 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
 
         bool firstSortsFirst = firstToken < secondToken;
         uint256 expectedBasketId = firstSortsFirst ? firstBasketId : secondBasketId;
-        address expectedCreator = firstSortsFirst ? alice : bob;
         IStaticsProtocolPools.ProtocolPoolView memory view_ = pools.protocolPool(id);
         assertEq(view_.basketId, expectedBasketId);
-        assertEq(view_.creator, expectedCreator);
-        assertTrue(view_.creator != caller);
+        assertEq(view_.creator, caller);
     }
 
     function testSamePairMayUseDifferentCompletePoolKey() public {
