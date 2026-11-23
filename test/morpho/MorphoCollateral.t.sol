@@ -118,7 +118,6 @@ contract MorphoCollateralTest is StaticsTestBase {
         morphoBlue = new MockMorphoBlue();
         usdStx = new MockERC20("Test USDstx", "USDstx", 18);
         morphoApi.initializeMorphoIntegration(address(morphoBlue), address(usdStx), 500);
-        basketAdmin.setBasketDistributor(address(morphoBlue), true);
         usdStx.mint(address(morphoBlue), 1_000_000 ether);
         MorphoGenesisHarnessFacet implementation = new MorphoGenesisHarnessFacet();
         bytes4[] memory selectors = new bytes4[](5);
@@ -897,6 +896,9 @@ contract MorphoCollateralTest is StaticsTestBase {
         private
         returns (bytes32 marketId)
     {
+        if (kind == IStaticsMorpho.CollateralKind.Basket) {
+            basketAdmin.setBasketDistributor(basketId, address(morphoBlue), true);
+        }
         MorphoMarketParams memory params = MorphoMarketParams({
             loanToken: address(usdStx),
             collateralToken: collateral,

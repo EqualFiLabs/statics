@@ -160,7 +160,7 @@ contract ConfigureStaticsMorpho is Script {
         if (
             integration.morpho() != config.morpho || integration.morphoUsdStx() != config.usdStx
                 || integration.morphoSyncBountyBps() != config.syncBountyBps
-                || !IStaticsBasketAdmin(diamond).isBasketDistributor(config.morpho)
+                || !IStaticsBasketAdmin(diamond).isBasketDistributor(config.basketId, config.morpho)
         ) revert MorphoConfigurationFailed();
         _validateRegisteredMarket(integration, marketId(staticsMarketParams(config)), config, false);
         _validateRegisteredMarket(integration, marketId(basketMarketParams(config)), config, true);
@@ -199,7 +199,7 @@ contract ConfigureStaticsMorpho is Script {
                 IStaticsMorpho.MarketMode.Active
             )
         );
-        payloads[3] = abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.morpho, true));
+        payloads[3] = abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.basketId, config.morpho, true));
     }
 
     function staticsMarketParams(StaticsMorphoConfig memory config) public pure returns (MorphoMarketParams memory) {

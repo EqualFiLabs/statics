@@ -33,7 +33,7 @@ contract ManagerSettlementProtocol is BasketSettlementFacet {
         return 0;
     }
 
-    function isBasketDistributor(address) external pure returns (bool) {
+    function isBasketDistributor(uint256, address) external pure returns (bool) {
         return false;
     }
 

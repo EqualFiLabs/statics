@@ -36,9 +36,10 @@ library LibBasket {
         mapping(uint256 basketId => mapping(address asset => uint256 amount)) vaultBalances;
         uint256 creationFeeAmount;
         address treasury;
-        mapping(address account => bool allowed) distributors;
+        mapping(address account => bool allowed) legacyDistributors;
         // Constituent ordering is immutable; one bit per configured asset (maximum 16).
         mapping(uint256 basketId => uint256 mask) impairedAssets;
+        mapping(uint256 basketId => mapping(address account => bool allowed)) basketDistributors;
     }
 
     function assetIndex(Basket storage configured, uint256 basketId, address asset) internal view returns (uint256) {

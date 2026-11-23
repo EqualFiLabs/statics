@@ -60,7 +60,7 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
         oracle = new RestrictedCollateralOracle();
         morphoApi = IStaticsMorpho(address(diamond));
         morphoApi.initializeMorphoIntegration(address(realMorpho), address(usd), 0);
-        basketAdmin.setBasketDistributor(address(realMorpho), true);
+        basketAdmin.setBasketDistributor(collateralBasket, address(realMorpho), true);
         realMorpho.enableIrm(address(0));
         realMorpho.enableLltv(0.77 ether);
         market = MorphoMarketParams(address(usd), collateralToken, address(oracle), address(0), 0.77 ether);
@@ -80,7 +80,7 @@ contract RestrictedMorphoCollateralTest is CanonicalPoolTestBase {
         realMorpho.supply(market, 1000 ether, 0, address(this), "");
         vm.prank(alice);
         morphoApi.borrowMorphoUsd(collateralPosition, marketId, 50 ether, type(uint256).max, alice);
-        assertTrue(basketAdmin.isBasketDistributor(address(realMorpho)));
+        assertTrue(basketAdmin.isBasketDistributor(collateralBasket, address(realMorpho)));
     }
 
     function testImpairedExitKeepsActualMorphoCollateralLocked() public {

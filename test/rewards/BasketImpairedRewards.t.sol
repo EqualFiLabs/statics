@@ -117,7 +117,7 @@ contract BasketImpairedRewardsTest is BasketImpairmentTestBase {
 
     function testAllConstituentsImpairedDoNotForfeitBasketTokenRewards() public {
         _mintTestShares(id, 1 ether);
-        basketAdmin.setBasketDistributor(address(this), true);
+        basketAdmin.setBasketDistributor(id, address(this), true);
         vm.prank(alice);
         IERC20(token).transfer(address(this), 1 ether);
         IERC20(token).approve(address(diamond), 1 ether);

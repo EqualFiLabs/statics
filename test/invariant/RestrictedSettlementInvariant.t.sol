@@ -47,7 +47,7 @@ contract InvariantRestrictedMarketProtocol is BasketSettlementFacet, RangeGaugeC
         return 0;
     }
 
-    function isBasketDistributor(address account) external view returns (bool) {
+    function isBasketDistributor(uint256, address account) external view returns (bool) {
         return distributors[account];
     }
 

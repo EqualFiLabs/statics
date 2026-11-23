@@ -16,7 +16,11 @@ contract RestrictedFormalPoolManager {
 /// @dev Explicit external registry/authorization model. Registry state lives outside
 /// the test runner so symbolic callbacks read the same committed model storage.
 contract RestrictedFormalProtocol {
-    mapping(address => bool) public isBasketDistributor;
+    mapping(address => bool) private distributors;
+
+    function isBasketDistributor(uint256 basketId, address account) external view returns (bool) {
+        return basketId == 7 && distributors[account];
+    }
     StaticsBasketToken public token;
 
     constructor(IPoolManager manager) {
@@ -29,7 +33,7 @@ contract RestrictedFormalProtocol {
     }
 
     function setDistributor(address account, bool allowed) external {
-        isBasketDistributor[account] = allowed;
+        distributors[account] = allowed;
     }
 
     function mint(address account, uint256 amount) external {

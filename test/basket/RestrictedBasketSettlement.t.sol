@@ -14,7 +14,7 @@ contract RestrictedSettlementProtocol {
     bytes32 private constant ACCOUNT = keccak256("statics.test.restricted.custody");
 
     function setDistributor(address account, bool allowed) external {
-        LibBasket.basketStorage().distributors[account] = allowed;
+        LibBasket.basketStorage().basketDistributors[0][account] = allowed;
     }
 
     // These focused settlement harnesses model an already active basket.
@@ -28,8 +28,8 @@ contract RestrictedSettlementProtocol {
         status = value;
     }
 
-    function isBasketDistributor(address account) external view returns (bool) {
-        return LibBasket.basketStorage().distributors[account];
+    function isBasketDistributor(uint256 basketId, address account) external view returns (bool) {
+        return LibBasket.basketStorage().basketDistributors[basketId][account];
     }
 
     function deploy(IPoolManager manager) external returns (StaticsBasketToken token) {
