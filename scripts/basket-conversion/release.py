@@ -129,15 +129,25 @@ def check_upgrade(directory, commit):
     return upgrade.check_report(directory, commit)
 
 
+def run_required_foundry_test(path, test, log_path, environment):
+    with log_path.open("w") as log:
+        base.run_logged(["forge", "test", "--match-path", path, "--match-test", "^" + test,
+                         "--color", "never", "-vv"], log, environment)
+    if f"[PASS] {test}()" not in log_path.read_text():
+        raise ValueError(f"required conversion qualification test did not pass: {test}")
+
+
 def qualify(destination, commit):
     environment = {**os.environ,"FOUNDRY_BYTECODE_HASH":"ipfs", "FOUNDRY_CBOR_METADATA":"true", "STATICS_CONVERSION_UPGRADE_FORK":"true"}
     output = destination/"conversion"
     output.mkdir(parents=True,exist_ok=False)
+    run_required_foundry_test("test/deployment/DeployStaticsPhases.t.sol",
+                              "testFreshStagedPhaseTwoInstallsConversionAndBasketFactory",
+                              destination/"conversion-fresh-stage.log", environment)
+    run_required_foundry_test("test/deployment/BasketConversionUpgradeFork.t.sol",
+                              "testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed",
+                              destination/"conversion-combined-cut.log", environment)
     commands = [
-        ["forge","test","--match-path","test/deployment/DeployStaticsPhases.t.sol",
-         "--match-test","^testFreshStagedPhaseTwoInstallsConversionAndBasketFactory$"],
-        ["forge","test","--match-path","test/deployment/BasketConversionUpgradeFork.t.sol",
-         "--match-test","^testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed$"],
         ["python3","scripts/basket-conversion/run-fork.py","--output",str(output/"strategy.log")],
         ["python3","scripts/basket-conversion/upgrade.py","--output",str(output/"upgrade")],
         ["python3","scripts/basket-conversion/execution.py","--output",str(output/"execution")],

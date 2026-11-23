@@ -85,14 +85,24 @@ class ConversionEvidenceGateTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "interrupted"):
                         r.qualify(first, "candidate")
                 self.assertTrue((first / "conversion").is_dir())
-                with patch.object(r.base, "run_logged") as run, patch.object(r, "check_upgrade", return_value={}):
+                def passing_log(command, log, _environment):
+                    if command[0] == "forge":
+                        test = command[command.index("--match-test") + 1].removeprefix("^")
+                        log.write(f"[PASS] {test}()\n")
+
+                with patch.object(r.base, "run_logged", side_effect=passing_log) as run, patch.object(r, "check_upgrade", return_value={}):
                     report = r.qualify(second, "candidate")
                 self.assertEqual(run.call_count, 6)
-                self.assertIn("testFreshStagedPhaseTwoInstallsConversionAndBasketFactory", run.call_args_list[0].args[0][-1])
-                self.assertIn("testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed", run.call_args_list[1].args[0][-1])
+                self.assertIn("^testFreshStagedPhaseTwoInstallsConversionAndBasketFactory", run.call_args_list[0].args[0])
+                self.assertIn("^testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed", run.call_args_list[1].args[0])
                 self.assertEqual(report["evidenceDirectory"], "conversion")
                 self.assertEqual(check.call_count, 2)
                 self.assertTrue((first / "conversion").is_dir())
+
+    def test_required_foundry_test_fails_on_no_match(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(r.base, "run_logged"):
+            with self.assertRaisesRegex(ValueError, "did not pass"):
+                r.run_required_foundry_test("Test.t.sol", "testRequired", Path(temporary)/"log", {})
 
     def test_missing_or_duplicate_execution_case_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
