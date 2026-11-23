@@ -118,11 +118,15 @@ The Safe transfers Diamond ownership to the timelock only afterward. Later publi
 pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,
 use the timelock.
 
-## Phase 2: baskets, credit, flash composition, and Genesis integration
+## Phase 2: baskets, conversion, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 318 selectors across 44 facets. It installs:
+The production release installs 362 selectors across 52 facets, including
+the conversion facet's six selectors. The basket foundation and conversion
+configuration enter the live Diamond through one governed cut.
+It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
+- [conversion markets](./basket-conversion.md) for USDG-funded buys and sells of supported unseeded baskets;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
 - basket and single-asset flash loans and their dedicated callbacks;
 - canonical basket pools, basket launch liquidity, liquidity unwind, and basket fee allocation

@@ -25,6 +25,12 @@ import {
 } from "../scripts/phase-one-rehearsal/helpers/PhaseTwoRehearsalActors.sol";
 
 /// @dev Local Anvil candidate deployments only. Never accepts a production node.
+import {StaticsBasketConversionHook} from "../src/liquidity/StaticsBasketConversionHook.sol";
+import {StaticsBasketConversionZap} from "../src/liquidity/StaticsBasketConversionZap.sol";
+import {StaticsBasketConversionRouter} from "../src/liquidity/StaticsBasketConversionRouter.sol";
+import {IStaticsBasket} from "../src/interfaces/IStaticsBasket.sol";
+import {BasketConversionFacet} from "../src/facets/BasketConversionFacet.sol";
+
 contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
     address private constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     uint160 private constant PUBLIC_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
@@ -36,6 +42,9 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         address diamond;
         address generalHook;
         address basketHook;
+        address conversionHook;
+        address conversionZap;
+        address conversionRouter;
         address basketTokenFactory;
         address manager;
         address initializer;
@@ -47,6 +56,15 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
     }
 
     function run() external {
+        _run(false);
+    }
+
+    /// @notice Export a complete Phase 2 candidate from a fresh or existing Phase 1 fixture.
+    function runCombined() external {
+        _run(true);
+    }
+
+    function _run(bool withConversion) private {
         vm.rpc("anvil_nodeInfo", "[]");
         require(block.chainid == 4663, "wrong rehearsal chain");
         Candidate memory c;
@@ -57,6 +75,7 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         IPoolManager pool = IPoolManager(old.poolManager());
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         StaticsProtocolParts memory parts = _deployPhaseTwoProtocolParts(_deployPhaseOneProtocolParts());
+        if (withConversion) parts.basketConversion = _deployConversion(c, pool);
         c.generalHook = legacyHook;
         c.basketHook = _deployBasket(pool, c.diamond, IStaticsSwapFeeHook(legacyHook).weth());
         c.basketTokenFactory = address(new StaticsBasketTokenFactory(c.diamond, pool));
@@ -73,6 +92,20 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         }
         vm.stopBroadcast();
         _write(c, parts);
+    }
+
+    function _deployConversion(Candidate memory c, IPoolManager manager) private returns (address) {
+        IStaticsBasket core = IStaticsBasket(c.diamond);
+        uint160 flags = Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
+            | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG;
+        (address expected, bytes32 salt) = HookMiner.find(
+            FOUNDRY_CREATE2_DEPLOYER, flags, type(StaticsBasketConversionHook).creationCode, abi.encode(manager, core)
+        );
+        c.conversionHook = address(new StaticsBasketConversionHook{salt: salt}(manager, core));
+        require(c.conversionHook == expected, "conversion hook mismatch");
+        c.conversionZap = address(new StaticsBasketConversionZap(manager, core, c.conversionHook));
+        c.conversionRouter = address(new StaticsBasketConversionRouter(manager, core, c.conversionHook));
+        return address(new BasketConversionFacet(c.conversionHook, c.conversionZap, c.conversionRouter, manager));
     }
 
     function _deployBasket(IPoolManager manager, address diamond, address weth) private returns (address result) {
@@ -96,6 +129,12 @@ contract DeployPhaseTwoRehearsal is Script, DeployStaticsProtocol {
         vm.serializeAddress(key, "diamond", c.diamond);
         vm.serializeAddress(key, "generalHook", c.generalHook);
         vm.serializeAddress(key, "basketHook", c.basketHook);
+        if (parts.basketConversion != address(0)) {
+            vm.serializeAddress(key, "conversionFacet", parts.basketConversion);
+            vm.serializeAddress(key, "conversionHook", c.conversionHook);
+            vm.serializeAddress(key, "conversionZap", c.conversionZap);
+            vm.serializeAddress(key, "conversionRouter", c.conversionRouter);
+        }
         vm.serializeAddress(key, "basketTokenFactory", c.basketTokenFactory);
         vm.serializeAddress(key, "manager", c.manager);
         vm.serializeAddress(key, "initializer", c.initializer);

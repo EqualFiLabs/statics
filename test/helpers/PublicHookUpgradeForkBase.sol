@@ -126,14 +126,37 @@ abstract contract PublicHookUpgradeForkBase is CanonicalPoolTestBase {
     }
 
     function _upgrade() internal returns (StaticsProtocolParts memory parts) {
+        return _upgradeWithConversion(address(0));
+    }
+
+    function _upgradeWithConversion(address conversionFacet) internal returns (StaticsProtocolParts memory parts) {
+        address manager;
+        address[] memory targets;
+        bytes[] memory payloads;
+        (parts, manager, targets, payloads) = _prepareUpgrade(conversionFacet);
+        for (uint256 i; i < targets.length; ++i) {
+            vm.prank(owner);
+            (bool success, bytes memory result) = targets[i].call(payloads[i]);
+            if (!success) {
+                assembly ("memory-safe") { revert(add(result, 32), mload(result)) }
+            }
+        }
+        _assertUpgrade(parts, manager);
+    }
+
+    function _prepareUpgrade(address conversionFacet)
+        internal
+        returns (StaticsProtocolParts memory parts, address manager, address[] memory targets, bytes[] memory payloads)
+    {
         _deployStandaloneHooks();
         bytes memory hookArgs = abi.encode(poolManager, DIAMOND, uint16(0), uint16(0), swapFeeHook.weth());
         _localBasketFactory = new StaticsBasketTokenFactory(DIAMOND, poolManager);
         (address previous,) = basketLiquidity.liquidityManager();
         IStaticsLiquidityManager old = IStaticsLiquidityManager(previous);
-        address manager =
+        manager =
             address(new StaticsLiquidityManager(DIAMOND, old.positionManager(), address(poolManager), old.permit2()));
         parts = new PublicHookCandidateDeployer().deployParts();
+        parts.basketConversion = conversionFacet;
         PrepareStaticsPublicHookUpgrade.Configuration memory config = PrepareStaticsPublicHookUpgrade.Configuration(
             DIAMOND,
             address(new StaticsPublicHookReleaseInit()),
@@ -144,7 +167,11 @@ abstract contract PublicHookUpgradeForkBase is CanonicalPoolTestBase {
             5
         );
         PrepareStaticsPublicHookUpgrade builder = new PrepareStaticsPublicHookUpgrade();
-        (address[] memory targets,, bytes[] memory payloads) = builder.build(config, parts);
+        if (conversionFacet == address(0)) {
+            (targets,, payloads) = builder.build(config, parts);
+        } else {
+            (targets,, payloads) = builder.buildCombined(config, parts);
+        }
         string memory safeJson = builder.buildSafeJson(config, parts);
         assertEq(vm.parseJsonAddress(safeJson, ".transactions[0].to"), DIAMOND);
         assertEq(vm.parseJsonBytes(safeJson, ".transactions[0].data"), payloads[0]);
@@ -165,13 +192,9 @@ abstract contract PublicHookUpgradeForkBase is CanonicalPoolTestBase {
         _record("StaticsPublicHookReleaseInit", config.initializer, "", type(StaticsPublicHookReleaseInit).creationCode);
         _recordFacets(parts);
         assertEq(_localBasketFactory.tokenCreationCodeHash(), keccak256(type(StaticsBasketToken).creationCode));
-        for (uint256 i; i < targets.length; ++i) {
-            vm.prank(owner);
-            (bool success, bytes memory result) = targets[i].call(payloads[i]);
-            if (!success) {
-                assembly ("memory-safe") { revert(add(result, 32), mload(result)) }
-            }
-        }
+    }
+
+    function _assertUpgrade(StaticsProtocolParts memory parts, address manager) internal view {
         IDiamondCut.FacetCut[] memory expected = StaticsProtocolPlan.cumulative(parts, 2);
         for (uint256 i; i < expected.length; ++i) {
             for (uint256 j; j < expected[i].functionSelectors.length; ++j) {

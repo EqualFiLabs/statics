@@ -134,11 +134,11 @@ contract BasketConversionTest is BasketConversionTestBase {
     function testZapDistributorRevocationAndAllowancesAreEnforced() public {
         Fixture memory f = _fixture(false);
         _trade(f, true, 10 ether, false, false);
-        basketAdmin.setBasketDistributor(address(conversionZap), false);
+        basketAdmin.setBasketDistributor(f.basketId, address(conversionZap), false);
         vm.prank(alice);
         vm.expectRevert();
         conversionZap.sell(f.poolId, 1 ether, alice, _request(f, false, false));
-        basketAdmin.setBasketDistributor(address(conversionZap), true);
+        basketAdmin.setBasketDistributor(f.basketId, address(conversionZap), true);
         vm.prank(alice);
         IERC20(f.token).approve(address(conversionZap), 0);
         vm.prank(alice);

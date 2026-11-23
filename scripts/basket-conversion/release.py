@@ -130,7 +130,7 @@ def check_upgrade(directory, commit):
 
 
 def qualify(destination, commit):
-    environment = {**os.environ,"FOUNDRY_BYTECODE_HASH":"ipfs", "STATICS_CONVERSION_UPGRADE_FORK":"true"}
+    environment = {**os.environ,"FOUNDRY_BYTECODE_HASH":"ipfs", "FOUNDRY_CBOR_METADATA":"true", "STATICS_CONVERSION_UPGRADE_FORK":"true"}
     output = destination/"conversion"
     output.mkdir(parents=True,exist_ok=False)
     commands = [

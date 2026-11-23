@@ -79,7 +79,6 @@ abstract contract BasketConversionTestBase is StaticsTestBase {
             IDiamondCut.FacetCut(address(facet), IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketConversion());
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         conversion = IStaticsBasketConversion(address(diamond));
-        basketAdmin.setBasketDistributor(address(conversionZap), true);
         IStaticsProtocolPools(address(diamond)).setPoolCreationFee(1);
         liquidityRouter = new CanonicalV4Router(pm);
     }
@@ -127,6 +126,7 @@ abstract contract BasketConversionTestBase is StaticsTestBase {
         vm.prank(alice);
         (f.basketId, f.token) =
             baskets.createBasket{value: creationFee}(params, pools, new uint256[](assets.length), block.timestamp);
+        basketAdmin.setBasketDistributor(f.basketId, address(conversionZap), true);
         uint256 marketFee = IStaticsProtocolPools(address(diamond)).poolCreationFee();
         f.poolId =
             conversion.createBasketConversionMarket{value: marketFee}(f.basketId, quote, marketFee, block.timestamp);

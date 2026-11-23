@@ -67,6 +67,7 @@ struct StaticsProtocolParts {
     address genesisNFT;
     address morphoActions;
     address morphoRecovery;
+    address basketConversion;
     address morphoSettlement;
     address morphoAdmin;
     address morphoView;
@@ -121,7 +122,7 @@ library StaticsProtocolPlan {
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](23);
+        cut = new IDiamondCut.FacetCut[](parts.basketConversion == address(0) ? 23 : 24);
         cut[0] = _add(parts.governance, StaticsSelectors.phaseTwoGovernance());
         cut[1] = _add(parts.custody, StaticsSelectors.phaseTwoCustody());
         cut[2] = _add(parts.basketAdmin, StaticsSelectors.phaseTwoBasketAdmin());
@@ -145,6 +146,9 @@ library StaticsProtocolPlan {
         cut[20] = _add(parts.basketSettlement, StaticsSelectors.basketSettlement());
         cut[21] = _add(parts.basketMarkets, StaticsSelectors.basketMarkets());
         cut[22] = _add(parts.basketArbitrageDeployment, StaticsSelectors.basketArbitrageDeployment());
+        if (parts.basketConversion != address(0)) {
+            cut[23] = _add(parts.basketConversion, StaticsSelectors.basketConversion());
+        }
     }
 
     function phaseThree(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

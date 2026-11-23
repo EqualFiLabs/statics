@@ -27,8 +27,8 @@ a basket valuation or quote.
 
 Registration requires an active finalized basket and non-basket ERC-20
 constituents/quote. WETH is supported; native ETH, nested baskets and basket
-quote/intermediate currencies are excluded. Conversion is an optional separate
-market creation action, not a change to basket launch.
+quote/intermediate currencies are excluded. Phase 2 requires conversion support. Governance registers a reviewed USDG conversion
+market after finalizing each initial unseeded basket.
 
 ## Settlement
 
@@ -76,8 +76,9 @@ composition. The atomic borrow-to-gauge helper is a separate feature.
 
 ## Release
 
-Deploy the Phase 2 facet bundle from the conversion candidate, then add the
-conversion facet's six selectors and interface declaration. The updated AMM
+Install the Phase 2 facet bundle and its conversion facet in one governed cut.
+The canonical selector plan includes the conversion facet and initialization
+registers its interface. The updated AMM
 resolver is inlined into its importing facets; an already installed older
 Phase 2 bundle must receive those candidate facet replacements before conversion
 registration. Installing only the new facet against an old bundle is insufficient.
@@ -86,8 +87,10 @@ Preserve the original Phase 2 fixtures and execute its existing qualification ga
 Deploy and fully verify the hook, zap, router and bound facet with solc 0.8.33,
 Cancun, optimizer 200, no IR and IPFS metadata. Freeze and reproduce exact source,
 creation/runtime bytes, constructor arguments, permission bits and selectors.
-Prepare the Diamond cut and explicit zap distributor approval for owner execution.
-Verify the configuration, selector routing and distributor approval after execution.
+Prepare the combined Diamond cut for owner execution. For each initial basket,
+prepare the token and obtain full-match verification. Finalize with zero seed
+and POL disabled, register the USDG market, and approve the zap for that basket.
+Verify routing, per-basket authorization and a USDG buy and sell before listing.
 No deployment or owner transaction is implied by local qualification.
 
 Qualify fresh pinned Robinhood fork execution and mined conversion transactions,
@@ -143,9 +146,8 @@ not satisfy this gate.
 
 Use `DeployStaticsBasketConversion` to deploy the shared hook, zap, router and
 constructor-bound facet only. It does not cut the Diamond or approve distributors.
-`PrepareStaticsBasketConversionUpgrade.buildSafeJson` accepts the complete reviewed
-Phase 2 facet parts, replaces installed selectors that still point to older facet
-implementations, adds the six conversion selectors and interface, and separately
-approves the zap as a distributor. For a Phase 1 installation, first prepare the
-existing Phase 2 cut from this candidate, then the conversion batch. Neither
-preparation helper broadcasts transactions. The existing General hook stays in use.
+Use `PrepareStaticsPublicHookUpgrade.buildCombined` for deployment from Phase 1.
+`PrepareStaticsBasketConversionUpgrade.buildSafeJson` remains a migration helper
+for an earlier basket-only state. It adds conversion selectors and replaces any
+overlapping selectors still running older facets. Governance approves the zap
+separately for each finalized basket. The existing General hook stays in use.

@@ -31,6 +31,7 @@ import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsHookAdministration} from "../interfaces/IStaticsHookAdministration.sol";
 import {IStaticsPublicHookPolicy} from "../interfaces/IStaticsPublicHookPolicy.sol";
+import {IStaticsBasketConversion} from "../interfaces/IStaticsBasketConversion.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
@@ -121,6 +122,12 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketArbitrage).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
+        if (
+            ds.selectorToFacetAndPosition[IStaticsBasketConversion.basketConversionConfiguration.selector].facetAddress
+                != address(0)
+        ) {
+            ds.supportedInterfaces[type(IStaticsBasketConversion).interfaceId] = true;
+        }
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsGenesisIntegration).interfaceId] = true;

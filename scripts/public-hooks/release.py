@@ -193,7 +193,7 @@ def simulate(destination, artifacts, commit):
     report_path.parent.mkdir(parents=True, exist_ok=True)
     if report_path.exists():
         raise ValueError("dry-run report already exists")
-    environment = {**os.environ, "FOUNDRY_BYTECODE_HASH": "ipfs",
+    environment = {**os.environ, "FOUNDRY_BYTECODE_HASH": "ipfs", "FOUNDRY_CBOR_METADATA": "true",
                    "STATICS_PUBLIC_HOOK_FORK": "true", "STATICS_RELEASE_COMMIT": commit,
                    "STATICS_PUBLIC_HOOK_REPORT": str(report_path)}
     with (destination / "dry-run.log").open("w") as log:
@@ -449,7 +449,7 @@ def freeze(destination, extra_roots=(), extra_names=(), qualification=None):
     with (destination / "build.log").open("w") as log:
         # Importers of IPFS-restricted roots use this profile in the typed dry run.
         # Pin the same metadata mode for every artifact in this isolated release.
-        environment = {**os.environ, "FOUNDRY_BYTECODE_HASH": "ipfs"}
+        environment = {**os.environ, "FOUNDRY_BYTECODE_HASH": "ipfs", "FOUNDRY_CBOR_METADATA": "true"}
         subprocess.run(["forge", "build", *roots, "--use", "0.8.33", "--out", str(build / "out"),
                         "--cache-path", str(build / "cache"), "--build-info", "--build-info-path", str(build / "info")],
                        cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)

@@ -8,6 +8,12 @@ import {IERC173} from "../src/interfaces/IERC173.sol";
 import {StaticsPublicHookReleaseInit} from "../src/diamond/StaticsPublicHookReleaseInit.sol";
 import {StaticsProtocolPlan, StaticsProtocolParts} from "./libraries/StaticsProtocolPlan.sol";
 
+import {IStaticsBasketConversion} from "../src/interfaces/IStaticsBasketConversion.sol";
+import {StaticsBasketConversionHook} from "../src/liquidity/StaticsBasketConversionHook.sol";
+import {StaticsBasketConversionZap} from "../src/liquidity/StaticsBasketConversionZap.sol";
+import {StaticsBasketConversionRouter} from "../src/liquidity/StaticsBasketConversionRouter.sol";
+import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManager.sol";
+
 /// @notice Read-only payload construction. Does not deploy, broadcast, or assume a timelock owner.
 contract PrepareStaticsPublicHookUpgrade is Script {
     error InvalidUpgradeContract(address target);
@@ -30,7 +36,13 @@ contract PrepareStaticsPublicHookUpgrade is Script {
         view
         returns (string memory)
     {
-        (address[] memory targets,, bytes[] memory payloads) = this.build(config, parts);
+        address[] memory targets;
+        bytes[] memory payloads;
+        if (parts.basketConversion == address(0)) {
+            (targets,, payloads) = this.build(config, parts);
+        } else {
+            (targets,, payloads) = this.buildCombined(config, parts);
+        }
         return string.concat(
             '{"version":"1.0","chainId":"',
             vm.toString(block.chainid),
@@ -42,6 +54,28 @@ contract PrepareStaticsPublicHookUpgrade is Script {
             _transactionJson(targets[0], payloads[0]),
             "]}"
         );
+    }
+
+    /// @notice Prepare the combined Phase 2 activation for the existing Diamond.
+    function buildCombined(Configuration memory config, StaticsProtocolParts memory parts)
+        external
+        view
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        if (parts.basketConversion.code.length == 0) revert InvalidUpgradeContract(parts.basketConversion);
+        IStaticsBasketConversion.Configuration memory conversion =
+            IStaticsBasketConversion(parts.basketConversion).basketConversionConfiguration();
+        StaticsBasketConversionHook hook = StaticsBasketConversionHook(conversion.hook);
+        StaticsBasketConversionZap zap = StaticsBasketConversionZap(conversion.zap);
+        StaticsBasketConversionRouter router = StaticsBasketConversionRouter(conversion.router);
+        if (
+            conversion.poolManager != IStaticsLiquidityManager(config.liquidityManager).poolManager()
+                || address(hook.poolManager()) != conversion.poolManager || address(hook.core()) != config.diamond
+                || address(zap.poolManager()) != conversion.poolManager || address(zap.core()) != config.diamond
+                || zap.hook() != conversion.hook || address(router.poolManager()) != conversion.poolManager
+                || address(router.core()) != config.diamond || router.hook() != conversion.hook
+        ) revert InvalidUpgradeContract(parts.basketConversion);
+        return this.build(config, parts);
     }
 
     function _transactionJson(address target, bytes memory payload) private pure returns (string memory) {

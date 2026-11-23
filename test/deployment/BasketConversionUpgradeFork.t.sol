@@ -6,6 +6,7 @@ import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketConversion} from "../../src/interfaces/IStaticsBasketConversion.sol";
 import {BasketConversionRoute, BasketConversionRequest} from "../../src/interfaces/IStaticsBasketConversionRoutes.sol";
@@ -94,6 +95,66 @@ contract BasketConversionUpgradeForkTest is PublicHookUpgradeForkBase, ForkSafe 
         _export();
     }
 
+    function testCombinedPhaseTwoCutFirstBuyAndSellWithoutSeed() public {
+        _deployConversion();
+        (StaticsProtocolParts memory parts, address manager, address[] memory targets, bytes[] memory payloads) =
+            _prepareUpgrade(facet);
+        _executeSafe(owner, targets, new uint256[](targets.length), payloads, "combined-phase-two-cut");
+        _assertUpgrade(parts, manager);
+        assertEq(
+            IDiamondLoupe(DIAMOND).facetAddress(IStaticsBasketConversion.basketConversionConfiguration.selector), facet
+        );
+        _prepareAndFinalizeUnseededBasket();
+        vm.prank(owner);
+        PoolId id = IStaticsBasketConversion(DIAMOND).createBasketConversionMarket(basketId, USDG, 0, block.timestamp);
+        assertEq(IERC20(token).totalSupply(), 0);
+        assertFalse(basketAdmin.isBasketDistributor(basketId, address(zap)));
+        vm.prank(owner);
+        basketAdmin.setBasketDistributor(basketId, address(zap), true);
+
+        address buyer = makeAddr("quote-funded buyer");
+        deal(USDG, buyer, 1000e6);
+        _exportCombined(id, buyer);
+        generalKey = _key(AAPL, USDG, address(0), 3000, 60);
+        BasketConversionRequest memory buy = _request(true);
+        buy.limit = 1000e6;
+        vm.startPrank(buyer);
+        IERC20(USDG).approve(address(zap), buy.limit);
+        uint256 paid = zap.buy(id, 1 ether, buyer, buy);
+        assertGt(paid, 0);
+        assertEq(IERC20(token).balanceOf(buyer), 1 ether);
+        IERC20(token).approve(address(zap), 1 ether);
+        BasketConversionRequest memory sell = _request(false);
+        sell.limit = 1;
+        uint256 received = zap.sell(id, 1 ether, buyer, sell);
+        vm.stopPrank();
+        assertGt(received, 0);
+        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(USDG).balanceOf(buyer), 1000e6 - paid + received);
+        assertEq(IDiamondLoupe(DIAMOND).facets().length, 52);
+    }
+
+    function _exportCombined(PoolId id, address buyer) private {
+        string memory directory = vm.envOr("STATICS_COMBINED_CONVERSION_OUT", string(""));
+        if (bytes(directory).length == 0) return;
+        vm.dumpState(string.concat(directory, "/state.json"));
+        string memory key = "combined";
+        vm.serializeAddress(key, "diamond", DIAMOND);
+        vm.serializeAddress(key, "facet", facet);
+        vm.serializeAddress(key, "hook", address(hook));
+        vm.serializeAddress(key, "zap", address(zap));
+        vm.serializeAddress(key, "router", address(router));
+        vm.serializeAddress(key, "poolManager", address(poolManager));
+        vm.serializeAddress(key, "token", token);
+        vm.serializeAddress(key, "quote", USDG);
+        vm.serializeAddress(key, "buyer", buyer);
+        vm.serializeAddress(key, "assets", baskets.basket(basketId).assets);
+        vm.serializeUint(key, "basketId", basketId);
+        vm.serializeUint(key, "timestamp", block.timestamp);
+        string memory json = vm.serializeBytes32(key, "poolId", PoolId.unwrap(id));
+        vm.writeJson(json, string.concat(directory, "/market.json"));
+    }
+
     function _assertRouting(StaticsProtocolParts memory parts, bool installed) private view {
         IDiamondCut.FacetCut[] memory expected = StaticsProtocolPlan.cumulative(parts, 2);
         for (uint256 i; i < expected.length; ++i) {
@@ -123,8 +184,8 @@ contract BasketConversionUpgradeForkTest is PublicHookUpgradeForkBase, ForkSafe 
         address init = address(new StaticsInterfaceInit());
         // The initializer must also be present in the pre-cut Anvil export.
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
-            builder.buildBatch(DIAMOND, facet, init, address(zap), parts);
-        string memory safe = builder.buildSafeJson(DIAMOND, facet, init, address(zap), parts);
+            builder.buildBatch(DIAMOND, facet, init, parts);
+        string memory safe = builder.buildSafeJson(DIAMOND, facet, init, parts);
         for (uint256 i; i < targets.length; ++i) {
             string memory path = string.concat(".transactions[", vm.toString(i), "]");
             assertEq(vm.parseJsonAddress(safe, string.concat(path, ".to")), targets[i]);
@@ -132,11 +193,11 @@ contract BasketConversionUpgradeForkTest is PublicHookUpgradeForkBase, ForkSafe 
         }
         if (bytes(output).length != 0) vm.dumpState(string.concat(output, "/upgrade-state.json"));
         _executeSafe(owner, targets, values, payloads, "conversion-cut");
-        assertTrue(basketAdmin.isBasketDistributor(address(zap)));
+        assertTrue(basketAdmin.isBasketDistributor(basketId, address(zap)));
         assertEq(IERC173(DIAMOND).owner(), owner);
     }
 
-    function _prepareBasketAndMarkets() private {
+    function _prepareAndFinalizeUnseededBasket() private {
         IStaticsBasket.CreateBasketParams memory p = _defaultParams(0.001 ether, 0.001 ether);
         p.assets[0] = AAPL;
         p.assets[1] = META;
@@ -146,8 +207,21 @@ contract BasketConversionUpgradeForkTest is PublicHookUpgradeForkBase, ForkSafe 
         for (uint256 i; i < 2; ++i) {
             launches[i] = IStaticsBasket.PoolLaunchParams(3000, 10, uint160(1 << 96), 0, false);
         }
+        uint256[] memory limits = new uint256[](2);
         vm.prank(owner);
-        (basketId, token) = baskets.createBasket(p, launches, new uint256[](2), block.timestamp);
+        (bytes32 preparationId, uint256 preparedId, address preparedToken) =
+            IStaticsBasketPreparation(DIAMOND).prepareBasketToken(p, launches, limits, block.timestamp, 0);
+        assertEq(IERC20(preparedToken).totalSupply(), 0);
+        vm.prank(owner);
+        (basketId, token) = baskets.createBasketPrepared(p, launches, limits, block.timestamp, preparationId);
+        assertEq(basketId, preparedId);
+        assertEq(token, preparedToken);
+    }
+
+    function _prepareBasketAndMarkets() private {
+        _prepareAndFinalizeUnseededBasket();
+        vm.prank(owner);
+        basketAdmin.setBasketDistributor(basketId, address(zap), true);
         deal(AAPL, alice, 100 ether);
         deal(META, alice, 100 ether);
         deal(USDG, alice, 1_000_000e6);

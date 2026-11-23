@@ -119,11 +119,9 @@ def check_report(directory, commit):
         labels.append(action["label"])
     if set(labels) != REQUIRED | {"safe-approval"} or any(labels.count(label) != 1 for label in REQUIRED):
         raise ValueError("conversion upgrade cases incomplete or duplicated")
-    # The Safe's normal delegatecall batch must reach both intended Diamond calls.
+    # The Safe's normal delegatecall batch must reach the verified Diamond cut.
     cut = json.loads((directory / f"upgrade-{labels.index('conversion-cut')}.json").read_text())
     diamond_calls = [c for c in cut["calls"] if c.get("to", "").lower() == fixture["core"].lower()]
-    if not any(c.get("input", "").startswith(e.calldata("setBasketDistributor(address,bool)", fixture["zap"], "true")[:10]) for c in diamond_calls):
-        raise ValueError("Safe batch omits distributor approval")
     if not any(c.get("type", "").upper() == "DELEGATECALL" and c.get("to", "").lower() == fixture["safeBatch"].lower() for c in cut["calls"]):
         raise ValueError("conversion upgrade did not execute the Safe batch")
     if not any(c.get("input", "").startswith("0x1f931c1c") for c in diamond_calls):
@@ -157,7 +155,7 @@ def run(directory, commit, endpoint, pin):
             (directory / f"upgrade-{index}.json").write_text(json.dumps(item, indent=2) + "\n")
             check_case(item)
             print(action["label"] + ": " + ("expected revert" if action["label"] in REJECTED else "passed"), flush=True)
-        if not e.read(url, fixture["core"], "isBasketDistributor(address)", fixture["zap"]):
+        if not e.read(url, fixture["core"], "isBasketDistributor(uint256,address)", fixture["basketId"], fixture["zap"]):
             raise ValueError("conversion zap approval missing")
     evidence = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in directory.glob("upgrade-*.json")
                 if p.name != "upgrade-report.json"}
