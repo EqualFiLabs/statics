@@ -40,9 +40,10 @@ contract ImmutablePublicHookUpgradeForkTest is PublicHookUpgradeForkBase {
     function testApprovedDistributorTransfersPreserveSettlementAfterUpgrade() public {
         _upgrade();
         IERC20 token = IERC20(_newBasketFlow());
-        assertFalse(basketAdmin.isBasketDistributor(owner));
-        assertFalse(basketAdmin.isBasketDistributor(DIAMOND));
-        assertFalse(basketAdmin.isBasketDistributor(bob));
+        uint256 id = StaticsBasketToken(address(token)).basketId();
+        assertFalse(basketAdmin.isBasketDistributor(id, owner));
+        assertFalse(basketAdmin.isBasketDistributor(id, DIAMOND));
+        assertFalse(basketAdmin.isBasketDistributor(id, bob));
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(StaticsBasketToken.TransferNotAuthorized.selector, alice, bob, 0.2 ether)
@@ -55,20 +56,20 @@ contract ImmutablePublicHookUpgradeForkTest is PublicHookUpgradeForkBase {
         token.transfer(owner, 0.2 ether);
 
         vm.prank(owner);
-        basketAdmin.setBasketDistributor(bob, true);
+        basketAdmin.setBasketDistributor(id, bob, true);
         vm.prank(alice);
         assertTrue(token.transfer(bob, 0.2 ether));
         vm.prank(bob);
         assertTrue(token.transfer(alice, 0.1 ether));
         assertEq(token.balanceOf(bob), 0.1 ether);
         vm.prank(owner);
-        basketAdmin.setBasketDistributor(address(poolManager), true);
+        basketAdmin.setBasketDistributor(id, address(poolManager), true);
         vm.prank(bob);
         vm.expectRevert(StaticsBasketToken.PoolManagerLocked.selector);
         token.transfer(address(poolManager), 1);
 
         vm.prank(owner);
-        basketAdmin.setBasketDistributor(bob, false);
+        basketAdmin.setBasketDistributor(id, bob, false);
         vm.prank(bob);
         vm.expectRevert(
             abi.encodeWithSelector(StaticsBasketToken.TransferNotAuthorized.selector, bob, alice, 0.1 ether)

@@ -81,7 +81,7 @@ REQUIRED_ACTIVE_INTERFACES = {
     "0xac17e214": "IStaticsBasketMarkets",
     "0xfd185b43": "IStaticsBasketArbitrage",
     "0x698bdc5a": "IStaticsBasketLiquidity",
-    "0xff1dc19e": "IStaticsBasketAdmin",
+    "0x4b0930a3": "IStaticsBasketAdmin",
     "0x70cd1869": "IStaticsBasketCollateral",
     "0x1e1e784e": "IStaticsBasketRewards",
     "0x2f79f7dc": "IStaticsGenesisIntegration",

@@ -14,16 +14,19 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 contract BasketAdminFacet is IStaticsBasketAdmin {
     error InvalidTreasury(address treasury);
     error InvalidDistributor(address account);
+    error UnknownDistributorBasket(uint256 basketId);
 
-    function setBasketDistributor(address account, bool allowed) external {
+    function setBasketDistributor(uint256 basketId, address account, bool allowed) external {
         LibDiamond.enforceIsContractOwner();
         if (account == address(0)) revert InvalidDistributor(account);
-        LibBasket.basketStorage().distributors[account] = allowed;
-        emit BasketDistributorSet(account, allowed);
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        if (bs.baskets[basketId].token == address(0)) revert UnknownDistributorBasket(basketId);
+        bs.basketDistributors[basketId][account] = allowed;
+        emit BasketDistributorSet(basketId, account, allowed);
     }
 
-    function isBasketDistributor(address account) external view returns (bool) {
-        return LibBasket.basketStorage().distributors[account];
+    function isBasketDistributor(uint256 basketId, address account) external view returns (bool) {
+        return LibBasket.basketStorage().basketDistributors[basketId][account];
     }
 
     function setCreationFee(uint256 amount) external {

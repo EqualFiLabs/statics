@@ -124,8 +124,8 @@ contract StaticsBasketToken is ERC20, ERC20Permit, IStaticsBasketToken {
                     slot.asBoolean().tstore(false);
                 } else if (
                     IStaticsBasket(protocol).basketStatus(basketId) == IStaticsBasket.BasketStatus.Pending
-                        || (!IStaticsBasketAdmin(protocol).isBasketDistributor(from)
-                            && !IStaticsBasketAdmin(protocol).isBasketDistributor(to))
+                        || (!IStaticsBasketAdmin(protocol).isBasketDistributor(basketId, from)
+                            && !IStaticsBasketAdmin(protocol).isBasketDistributor(basketId, to))
                 ) {
                     revert TransferNotAuthorized(from, to, amount);
                 }

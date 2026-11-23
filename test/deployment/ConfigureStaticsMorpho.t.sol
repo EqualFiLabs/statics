@@ -104,7 +104,10 @@ contract ConfigureStaticsMorphoTest is Test {
         assertEq(_selector(payloads[0]), IStaticsMorpho.initializeMorphoIntegration.selector);
         assertEq(_selector(payloads[1]), IStaticsMorpho.registerMorphoMarket.selector);
         assertEq(_selector(payloads[2]), IStaticsMorpho.registerMorphoMarket.selector);
-        assertEq(payloads[3], abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.morpho, true)));
+        assertEq(
+            payloads[3],
+            abi.encodeCall(IStaticsBasketAdmin.setBasketDistributor, (config.basketId, config.morpho, true))
+        );
     }
 
     function testSeedLiquidityMintsThroughPeggedGatewayAndSuppliesBothMarkets() public {

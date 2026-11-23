@@ -49,10 +49,10 @@ def exercise(run):
     market_id = '0x'+keccak(bytes.fromhex(encoded[2:])).hex()
     run.send(None,morpho,data('createMarket('+MARKET+')',market))
     config = [data('initializeMorphoIntegration(address,address,uint16)',morpho,run.weth,0),
-              data('setBasketDistributor(address,bool)',morpho,True),
+              data('setBasketDistributor(uint256,address,bool)',run.basket_id,morpho,True),
               data('registerMorphoMarket('+MARKET+',uint8,uint256,uint8)',market,1,run.basket_id,1)]
     run.safe('morpho-configuration',[run.diamond]*3,config,case_target=run.diamond,case_data=config[1])
-    require(run.scalar(run.diamond,'isBasketDistributor(address)(bool)',morpho), 'Morpho approval missing after batch')
+    require(run.scalar(run.diamond,'isBasketDistributor(uint256,address)(bool)',run.basket_id,morpho), 'Morpho approval missing after batch')
     run.send(None,run.weth,data('deposit()'),sender=run.executor,value=1000*10**18)
     run.approve(run.weth,morpho,sender=run.executor)
     run.send(None,morpho,data('supply('+MARKET+',uint256,uint256,address,bytes)',market,1000*10**18,0,run.executor,'0x'),sender=run.executor)

@@ -171,10 +171,13 @@ class Rehearsal:
             for account in (self.diamond, self.owner, self.pool_manager, self.candidate["manager"],
                             self.candidate["router"], self.liquidator)}
         state["positions"]["next"] = self.scalar(self.diamond, "nextPositionId()(uint256)")
-        registered = self.scalar(self.diamond, "facetAddress(bytes4)(address)", selector("isBasketDistributor(address)")) != ZERO
+        registered = self.scalar(self.diamond, "facetAddress(bytes4)(address)", selector("isBasketDistributor(uint256,address)")) != ZERO
         if registered:
-            state["topology"]["distributors"] = {account: self.scalar(self.diamond, "isBasketDistributor(address)(bool)", account)
-                for account in (self.owner, self.diamond, self.alice, self.bob, self.pool_manager, self.candidate["actor"])}
+            state["topology"]["distributors"] = {
+                str(basket_id): {account: self.scalar(self.diamond, "isBasketDistributor(uint256,address)(bool)", basket_id, account)
+                    for account in (self.owner, self.diamond, self.alice, self.bob, self.pool_manager, self.candidate["actor"])}
+                for basket_id, _ in self.baskets
+            }
             state["topology"]["basketCount"] = self.scalar(self.diamond, "basketCount()(uint256)")
             state["topology"]["preparations"] = {key: self.call(self.diamond,
                 "preparedBasketContracts(bytes32)(uint256,address,bool)", key) for key in self.preparations}
@@ -212,7 +215,7 @@ class Rehearsal:
                                                           basket_id, asset) for asset in (self.weth, self.statics)]
         if hasattr(self, "morpho_context"):
             context = self.morpho_context
-            state["morpho"] = dict(approval=self.scalar(self.diamond, "isBasketDistributor(address)(bool)", context["address"]),
+            state["morpho"] = dict(approval=self.scalar(self.diamond, "isBasketDistributor(uint256,address)(bool)", self.basket_id, context["address"]),
                 position=self.scalar(self.diamond, "morphoPositionMarket(uint256,bytes32)((uint256,uint256,uint256,uint256,bool))",
                                      context["position"], context["market"]),
                 stake=self.scalar(self.diamond, "basketCollateralPosition(uint256,uint256)((uint256,uint256,uint256))",

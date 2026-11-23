@@ -27,7 +27,8 @@ MANDATORY = {
     "distributor-outbound", "distributor-no-allowance", "distributor-transfer-from", "distributor-spender-only",
     "distributor-remove", "distributor-revoked", "manager-approval", "manager-locked", "settlement-forged",
     "second-basket-prepare", "second-basket-finalize", "second-basket-mint",
-    "second-basket-inbound", "second-basket-outbound", "second-basket-revoked",
+    "second-basket-isolated", "second-basket-approved", "second-basket-inbound",
+    "second-basket-outbound", "second-basket-approval-removed", "second-basket-revoked",
     "basket-swap-in", "basket-swap-out", "basket-exact-output", "same-unlock-replay", "multiple-unlock-replay",
     "basket-managed-ingress", "basket-managed-exit", "basket-collateral", "ticket-distributor-replay",
     "basket-raw-liquidity", "basket-claim-mint", "basket-claim-theft", "basket-claim-forged",
@@ -130,7 +131,7 @@ class PhaseTwo(Rehearsal):
             require(self.scalar(self.diamond, "facetAddress(bytes4)(address)", selector(signature)) == ZERO,
                     "deferred module activated")
         for address in (self.owner, self.diamond, self.pool_manager, self.alice, self.bob):
-            require(not self.scalar(self.diamond, "isBasketDistributor(address)(bool)", address), "registry not empty")
+            require(not self.scalar(self.diamond, "isBasketDistributor(uint256,address)(bool)", 0, address), "registry not empty")
         inventory = []
         artifacts = self.artifacts()
         for address, selectors in facets:
@@ -286,7 +287,8 @@ class PhaseTwo(Rehearsal):
         self.safe("second-basket-finalize", [self.diamond], [finalize], case_target=self.diamond, case_data=finalize)
         self.assets.append(token)
         self.baskets.append((int(basket_id), token))
-        require(self.scalar(self.diamond, "isBasketDistributor(address)(bool)", self.bob), "shared distributor approval lost")
+        require(not self.scalar(self.diamond, "isBasketDistributor(uint256,address)(bool)", basket_id, self.bob),
+                "approval leaked to the new basket")
         quote = self.scalar(self.diamond, "quoteMint(uint256,uint256)(uint256[])", basket_id, 10**18)
         self.send("second-basket-mint", self.diamond,
                   data("mint(uint256,uint256,address,uint256[])", basket_id, 10**18, self.alice, quote))
@@ -294,9 +296,9 @@ class PhaseTwo(Rehearsal):
         self.second_basket_id = int(basket_id)
 
     def distributors(self):
-        signature = "setBasketDistributor(address,bool)"
-        self.send("distributor-owner", self.diamond, data(signature, self.bob, True), error="NotContractOwner(address,address)")
-        self.govern("distributor-zero", signature, ZERO, True, error="InvalidDistributor(address)")
+        signature = "setBasketDistributor(uint256,address,bool)"
+        self.send("distributor-owner", self.diamond, data(signature, self.basket_id, self.bob, True), error="NotContractOwner(address,address)")
+        self.govern("distributor-zero", signature, self.basket_id, ZERO, True, error="InvalidDistributor(address)")
         self.send("distributor-peer-blocked", self.token, data("transfer(address,uint256)", self.bob, 10**17), error="TransferNotAuthorized(address,address,uint256)")
         self.send("distributor-owner-not-exempt", self.token,
                   data("transfer(address,uint256)", self.owner, 1),
@@ -304,12 +306,16 @@ class PhaseTwo(Rehearsal):
         self.send("distributor-diamond-not-exempt", self.token,
                   data("transfer(address,uint256)", self.diamond, 1),
                   error="TransferNotAuthorized(address,address,uint256)")
-        receipt = self.govern("distributor-add", signature, self.bob, True)
-        topic = "0x" + keccak(b"BasketDistributorSet(address,bool)").hex()
+        receipt = self.govern("distributor-add", signature, self.basket_id, self.bob, True)
+        topic = "0x" + keccak(b"BasketDistributorSet(uint256,address,bool)").hex()
         require(any(log["address"].lower() == self.diamond.lower() and log["topics"][0] == topic for log in receipt["logs"]),
                 "distributor event absent")
         self.second_basket()
         self.send("distributor-inbound", self.token, data("transfer(address,uint256)", self.bob, 10**18))
+        self.send("second-basket-isolated", self.second_token,
+                  data("transfer(address,uint256)", self.bob, 10**17),
+                  error="TransferNotAuthorized(address,address,uint256)")
+        self.govern("second-basket-approved", signature, self.second_basket_id, self.bob, True)
         self.send("second-basket-inbound", self.second_token,
                   data("transfer(address,uint256)", self.bob, 10**17))
         self.send("second-basket-outbound", self.second_token,
@@ -322,13 +328,14 @@ class PhaseTwo(Rehearsal):
         self.send("distributor-spender-only", self.token,
                   data("transferFrom(address,address,uint256)", self.alice, self.candidate["actor"], 10**17), sender=self.bob,
                   error="TransferNotAuthorized(address,address,uint256)")
-        self.govern("distributor-remove", signature, self.bob, False)
+        self.govern("distributor-remove", signature, self.basket_id, self.bob, False)
+        self.govern("second-basket-approval-removed", signature, self.second_basket_id, self.bob, False)
         self.send("second-basket-revoked", self.second_token,
                   data("transfer(address,uint256)", self.alice, 1), sender=self.bob,
                   error="TransferNotAuthorized(address,address,uint256)")
         self.send("distributor-revoked", self.token, data("transfer(address,uint256)", self.alice, 10**17), sender=self.bob,
                   error="TransferNotAuthorized(address,address,uint256)")
-        self.govern("manager-approval", signature, self.pool_manager, True)
+        self.govern("manager-approval", signature, self.basket_id, self.pool_manager, True)
         self.send("manager-locked", self.token, data("transfer(address,uint256)", self.pool_manager, 1), error="PoolManagerLocked()")
 
     def settlement(self):
@@ -363,7 +370,7 @@ class PhaseTwo(Rehearsal):
         self.positions.append(self.collateral_position)
         # The Safe owns this helper's approval lifecycle but the helper remains an ordinary token holder.
         actor = self.candidate["actor"]
-        self.govern(None, "setBasketDistributor(address,bool)", actor, True)
+        self.govern(None, "setBasketDistributor(uint256,address,bool)", self.basket_id, actor, True)
         self.send(None, self.token, data("transfer(address,uint256)", actor, 10**18))
         self.send(None, actor, data("execute(address,bytes)", self.token, data("approve(address,uint256)", self.diamond, MAX)))
         self.actor_position = int(self.scalar(self.diamond, "nextPositionId()(uint256)"))
@@ -374,11 +381,11 @@ class PhaseTwo(Rehearsal):
         replay = data("transfer(address,uint256)", self.diamond, 10**17)
         self.safe("ticket-distributor-replay", [actor, self.diamond, actor],
                   [data("execute(address,bytes)", self.diamond, deposit),
-                   data("setBasketDistributor(address,bool)", actor, False), data("execute(address,bytes)", self.token, replay)],
+                   data("setBasketDistributor(uint256,address,bool)", self.basket_id, actor, False), data("execute(address,bytes)", self.token, replay)],
                   error="TransferNotAuthorized(address,address,uint256)", case_target=self.token, case_data=replay,
                   required_calls=[dict(to=self.diamond, selector=deposit[:10]),
-                                  dict(to=self.diamond, selector=selector("setBasketDistributor(address,bool)"))])
-        self.govern(None, "setBasketDistributor(address,bool)", actor, False)
+                                  dict(to=self.diamond, selector=selector("setBasketDistributor(uint256,address,bool)"))])
+        self.govern(None, "setBasketDistributor(uint256,address,bool)", self.basket_id, actor, False)
 
     def independent_market(self):
         params = (self.token, self.second_token, 3000, 60, Q96, 0, self.deadline(), False)

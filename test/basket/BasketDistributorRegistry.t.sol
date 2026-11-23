@@ -29,52 +29,59 @@ contract BasketDistributorRegistryTest is CanonicalPoolTestBase {
     function testOnlyOwnerApprovesAndOwnershipDoesNotExemptTransfers() public {
         vm.prank(alice);
         vm.expectRevert();
-        basketAdmin.setBasketDistributor(bob, true);
+        basketAdmin.setBasketDistributor(basketId, bob, true);
         vm.expectRevert(abi.encodeWithSelector(BasketAdminFacet.InvalidDistributor.selector, address(0)));
-        basketAdmin.setBasketDistributor(address(0), true);
+        basketAdmin.setBasketDistributor(basketId, address(0), true);
         vm.prank(alice);
         vm.expectRevert();
         token.transfer(address(this), 1 ether);
-        vm.expectEmit(true, false, false, true, address(diamond));
-        emit IStaticsBasketAdmin.BasketDistributorSet(address(this), true);
-        basketAdmin.setBasketDistributor(address(this), true);
+        vm.expectEmit(true, true, false, true, address(diamond));
+        emit IStaticsBasketAdmin.BasketDistributorSet(basketId, address(this), true);
+        basketAdmin.setBasketDistributor(basketId, address(this), true);
         vm.prank(alice);
         token.transfer(address(this), 1 ether);
         token.transfer(bob, 1 ether);
         assertEq(token.balanceOf(bob), 1 ether);
     }
 
-    function testApprovalAppliesAcrossExistingAndNewBaskets() public {
-        basketAdmin.setBasketDistributor(bob, true);
+    function testApprovalIsIsolatedFromExistingAndFutureBaskets() public {
         (uint256 secondId, address secondToken) = _createDefaultBasket(0, 0);
         _mintToAlice(secondId);
+        basketAdmin.setBasketDistributor(basketId, bob, true);
+        (uint256 thirdId, address thirdToken) = _createDefaultBasket(0, 0);
+        _mintToAlice(thirdId);
         vm.startPrank(alice);
-        token.transfer(bob, 1 ether);
-        IERC20(secondToken).transfer(bob, 2 ether);
+        assertTrue(token.transfer(bob, 1 ether));
+        vm.expectRevert();
+        IERC20(secondToken).transfer(bob, 1 ether);
+        vm.expectRevert();
+        IERC20(thirdToken).transfer(bob, 1 ether);
         vm.stopPrank();
-        assertEq(IERC20(secondToken).balanceOf(bob), 2 ether);
-        basketAdmin.setBasketDistributor(bob, false);
+        assertEq(token.balanceOf(bob), 1 ether);
+        assertEq(IERC20(secondToken).balanceOf(bob), 0);
+        assertEq(IERC20(thirdToken).balanceOf(bob), 0);
+        basketAdmin.setBasketDistributor(basketId, bob, false);
         vm.prank(bob);
         vm.expectRevert();
         token.transfer(alice, 1 ether);
     }
 
     function testDistributorTransferFromRequiresAllowanceAndUnapprovedEndpointsFail() public {
-        basketAdmin.setBasketDistributor(bob, true);
+        basketAdmin.setBasketDistributor(basketId, bob, true);
         vm.expectRevert();
         token.transferFrom(alice, bob, 1 ether);
         vm.prank(alice);
         token.approve(address(this), 2 ether);
         token.transferFrom(alice, bob, 1 ether);
         assertEq(token.allowance(alice, address(this)), 1 ether);
-        basketAdmin.setBasketDistributor(bob, false);
-        basketAdmin.setBasketDistributor(address(this), true);
+        basketAdmin.setBasketDistributor(basketId, bob, false);
+        basketAdmin.setBasketDistributor(basketId, address(this), true);
         vm.expectRevert();
         token.transferFrom(alice, bob, 1 ether);
     }
 
     function testDistributorTransfersRemainAvailableDuringProtocolPause() public {
-        basketAdmin.setBasketDistributor(bob, true);
+        basketAdmin.setBasketDistributor(basketId, bob, true);
         governance.pause(LibGovernance.PAUSE_MINT | LibGovernance.PAUSE_LIQUIDITY);
         vm.prank(alice);
         token.transfer(bob, 1 ether);

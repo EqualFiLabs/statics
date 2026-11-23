@@ -165,7 +165,7 @@ contract DeployStaticsPhasesTest is Test {
         _assertManifest(diamond, 51, PHASE_TWO_SELECTORS);
         assertEq(_activePhase(diamond), 2);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
-        assertFalse(IStaticsBasketAdmin(diamond).isBasketDistributor(address(fixture.timelock)));
+        assertFalse(IStaticsBasketAdmin(diamond).isBasketDistributor(0, address(fixture.timelock)));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketAdmin).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketStaging).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketPreparation).interfaceId));

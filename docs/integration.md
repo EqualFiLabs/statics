@@ -113,10 +113,10 @@ loading full pool or basket views. The cumulative selector counts are 229, 356,
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
-Phase 2 also installs `setBasketDistributor(address,bool)` and
-`isBasketDistributor(address)`, with the `BasketDistributorSet` event. The Diamond
-owner controls a shared registry for baskets; either transfer endpoint
-must be approved unless an exact protocol ticket authorizes the transfer. ERC-20
+Phase 2 also installs `setBasketDistributor(uint256,address,bool)` and
+`isBasketDistributor(uint256,address)`, with the `BasketDistributorSet` event. The Diamond
+owner approves endpoints separately for each basket. Either endpoint must be
+approved for the token’s basket unless an exact protocol ticket authorizes the transfer. ERC-20
 allowances remain independent and PoolManager settlement restrictions take
 precedence. Approval of a caller alone does not approve the transfer endpoints.
 The basket-admin ERC-165 interface includes the distributor selectors.
