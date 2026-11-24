@@ -24,8 +24,8 @@ migration or modify the already deployed Genesis system.
 
 GitHub Actions is the release-evidence runner. It pins Python 3.12, Foundry
 `nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab` (`1.8.2-nightly`), and
-Slither 0.11.6 and publishes the complete `slither-results/` directory. The
-same campaign can be reproduced with:
+Slither 0.11.6. The public check reports aggregate counts and the gate result.
+Run the same campaign locally to collect private review evidence.
 
 ```sh
 python3.12 -m venv .slither-venv
@@ -43,24 +43,26 @@ disables Foundry's dynamic test linker because its ephemeral `foundry-pp`
 sources cannot be reopened from cached build-info by Crytic Compile. Ignoring
 Slither's compile step is still required because the default Slither Foundry
 adapter invokes `forge clean` and a forced build, which are not allowed by this
-repository. Raw machine-specific output is written to the ignored
-`slither-results/` directory.
+repository.
 
-`baseline.json` contains a classification and rationale for each exact reviewed
-finding fingerprint; detector-wide defaults are not applied. Repeated findings
-from multiple Foundry compile units are collapsed into one fingerprint with an
-occurrence count. Fingerprints use detector names and scoped source identities
-including source spans. CI fails when a new high/medium finding is absent
-from the baseline or when a current high/medium finding remains `CONFIRMED` or
-`INVESTIGATE`. New low/informational findings are printed for review but do not
-block the gate. `current.json` retains the complete normalized result and
-`scope.json` records the exact files covered by that run.
+## Reviewed baseline
 
-## Evidence boundary
+`baseline.json` tracks only exact finding IDs, detector names, severity,
+reviewed dispositions, and occurrence counts. Its approved dispositions are
+`FALSE POSITIVE` and `INTENTIONAL`. Review exact source evidence before adding
+a disposition or increasing an approved count. A move that changes a
+fingerprint requires review against its new source location.
 
-The baseline is a reviewed static-analysis result, not a claim that Slither
-proves protocol correctness. `triage.md` summarizes common detector families;
-the authoritative decision remains attached to each fingerprint in
-`baseline.json`. Halmos, Certora, Foundry fuzz and invariant suites separately
-check the accounting and composed callback properties that static analysis
-cannot prove.
+The gate rejects new or unresolved High and Medium findings and increases
+in their occurrence counts. It also rejects detector or severity changes for
+an existing ID. New Low and Informational findings remain nonblocking.
+The scope, fingerprint, and comparison rules apply to every run.
+
+Keep raw scan output, normalized findings, and detailed rationales in private
+storage outside Git. The runner writes its local evidence to the ignored
+`slither-results/` directory, or to `SLITHER_RESULTS_DIR` if set. Public CI
+emits aggregate results and leaves the detailed files on its ephemeral runner.
+
+The baseline records reviewed static-analysis results. Halmos, Certora, and
+Foundry fuzz and invariant suites separately check accounting and composed
+callback properties.
