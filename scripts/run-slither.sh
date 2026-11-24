@@ -35,6 +35,11 @@ fi
 if [[ -n "${FOUNDRY_OUT:-}" ]]; then
   slither_build_args+=(--foundry-out-directory "$FOUNDRY_OUT")
 fi
+# A reused results directory may contain logs created before private permissions.
+if [[ -e "$RUN_LOG" ]]; then
+  chmod 600 "$RUN_LOG"
+fi
+
 set +e
 rm -f "$RAW_JSON_TMP"
 "$SLITHER_BIN" . \

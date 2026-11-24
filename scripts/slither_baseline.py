@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -31,6 +32,7 @@ def load_json(path: Path) -> Any:
 def write_json(value: Any, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as handle:
+        os.fchmod(handle.fileno(), 0o600)
         json.dump(value, handle, indent=2)
         handle.write("\n")
 
