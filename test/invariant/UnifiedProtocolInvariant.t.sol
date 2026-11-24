@@ -33,6 +33,7 @@ import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketRewards} from "src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
@@ -736,6 +737,13 @@ contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
         assertEq(address(deployment.diamond).balance, 0);
     }
 
+    function testRecoveryThenRedemptionReconcilesBasketAndTreasuryRewards() public {
+        handler.recoverLoan(2235);
+        handler.redeemBasketFromSharedPosition(128, 4304);
+        assertGt(_basketRewardLiability(firstBasketId, address(senderExtra)), 0);
+        invariantEveryModuleReservationEqualsItsInternalBooks();
+    }
+
     function invariantEveryModuleReservationEqualsItsInternalBooks() public view {
         _assertBasketBooks(firstBasketId, firstBasketToken);
         _assertBasketBooks(secondBasketId, secondBasketToken);
@@ -750,9 +758,17 @@ contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), address(senderExtra)),
             globalRewards.treasuryAccrued(address(senderExtra))
+                + _basketRewardLiability(firstBasketId, address(senderExtra))
+                + _basketRewardLiability(secondBasketId, address(senderExtra))
         );
         assertEq(custody.reservedByAccount(custody.stakingCustodyAccount(), address(weth)), globalRewards.totalStaked());
         assertEq(staticsDollar.totalSupply(), IStaticsDollarCore(deployment.core).seniorLiabilities());
+    }
+
+    function _basketRewardLiability(uint256 basketId, address asset) private view returns (uint256) {
+        IStaticsBasketRewards.BasketRewardState memory state =
+            IStaticsBasketRewards(deployment.diamond).basketRewardState(basketId, asset);
+        return state.indexedReserve - state.crystallizedReserve + state.totalClaimable;
     }
 
     function invariantCrossModuleAndSiblingActionsRemainIsolated() public view {
