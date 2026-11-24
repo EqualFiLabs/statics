@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,9 @@ BASELINE_PATH = ROOT / "verification/slither/baseline.json"
 BLOCKING_IMPACTS = {"High", "Medium"}
 UNRESOLVED = {"CONFIRMED", "INVESTIGATE"}
 REVIEWED_CLASSIFICATIONS = {"FALSE POSITIVE", "INTENTIONAL"}
-ALL_CLASSIFICATIONS = REVIEWED_CLASSIFICATIONS | UNRESOLVED
+BASELINE_SCHEMA = 3
+BASELINE_FIELDS = {"id", "check", "impact", "classification", "occurrences"}
+IMPACT_ORDER = {"High": 0, "Medium": 1, "Low": 2, "Informational": 3, "Optimization": 4}
 
 
 def load_json(path: Path) -> Any:
@@ -225,7 +228,6 @@ def normalize(raw: dict[str, Any], root: Path = ROOT, scope_path: Path = SCOPE_P
                 "passes": passes,
                 "paths": paths,
                 "summary": summary,
-                "rationale": "No reviewed finding-level decision exists.",
                 "occurrences": 1,
             }
         )
@@ -248,8 +250,7 @@ def normalize(raw: dict[str, Any], root: Path = ROOT, scope_path: Path = SCOPE_P
             del finding["base_id"]
             del finding["occurrence_key"]
             findings.append(finding)
-    impact_order = {"High": 0, "Medium": 1, "Low": 2, "Informational": 3, "Optimization": 4}
-    findings.sort(key=lambda item: (impact_order.get(item["impact"], 9), item["check"], item["id"]))
+    findings.sort(key=lambda item: (IMPACT_ORDER.get(item["impact"], 9), item["check"], item["id"]))
     counts: dict[str, int] = {}
     for finding in findings:
         counts[finding["impact"]] = counts.get(finding["impact"], 0) + 1
@@ -260,26 +261,31 @@ def normalize(raw: dict[str, Any], root: Path = ROOT, scope_path: Path = SCOPE_P
 
 
 def validate_baseline(baseline: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    if baseline.get("schema") != 2:
-        raise ValueError("Slither baseline must use schema 2")
+    if baseline.get("schema") != BASELINE_SCHEMA:
+        raise ValueError(f"Slither baseline must use schema {BASELINE_SCHEMA}")
+    if baseline.keys() != {"schema", "findings"}:
+        raise ValueError("Slither baseline must contain only its schema and findings")
     findings = baseline.get("findings")
     if not isinstance(findings, list):
         raise ValueError("Slither baseline findings must be a list")
     by_id: dict[str, dict[str, Any]] = {}
     for finding in findings:
-        finding_id = finding.get("id")
-        classification = finding.get("classification")
-        rationale = finding.get("rationale")
-        if not isinstance(finding_id, str) or not finding_id:
-            raise ValueError("Every Slither baseline finding needs an id")
+        if not isinstance(finding, dict) or finding.keys() != BASELINE_FIELDS:
+            raise ValueError("Slither baseline records must use the minimal reviewed fields")
+        finding_id = finding["id"]
+        if not isinstance(finding_id, str) or not re.fullmatch(r"[0-9a-f]{24}", finding_id):
+            raise ValueError("Every Slither baseline finding needs an exact id")
         if finding_id in by_id:
             raise ValueError(f"Duplicate Slither baseline finding id: {finding_id}")
-        if classification not in ALL_CLASSIFICATIONS:
-            raise ValueError(f"Invalid Slither classification for {finding_id}: {classification}")
-        if not isinstance(rationale, str) or not rationale.strip():
-            raise ValueError(f"Slither finding {finding_id} needs a rationale")
-        occurrences = finding.get("occurrences", 1)
-        if not isinstance(occurrences, int) or occurrences < 1:
+        classification = finding["classification"]
+        if not isinstance(classification, str) or classification not in REVIEWED_CLASSIFICATIONS:
+            raise ValueError(f"Slither baseline finding {finding_id} needs a reviewed disposition")
+        check = finding["check"]
+        impact = finding["impact"]
+        if not isinstance(check, str) or not check.strip() or not isinstance(impact, str) or impact not in IMPACT_ORDER:
+            raise ValueError(f"Slither baseline finding {finding_id} needs valid detector metadata")
+        occurrences = finding["occurrences"]
+        if type(occurrences) is not int or occurrences < 1:
             raise ValueError(f"Slither finding {finding_id} needs a positive occurrence count")
         by_id[finding_id] = finding
     return by_id
@@ -290,10 +296,9 @@ def apply_reviewed_decisions(current: dict[str, Any], baseline_by_id: dict[str, 
         reviewed = baseline_by_id.get(finding["id"])
         if reviewed is None:
             continue
-        if reviewed.get("check") != finding["check"] or reviewed.get("impact") != finding["impact"]:
+        if reviewed["check"] != finding["check"] or reviewed["impact"] != finding["impact"]:
             raise ValueError(f"Slither finding metadata changed and needs review: {finding['id']}")
         finding["classification"] = reviewed["classification"]
-        finding["rationale"] = reviewed["rationale"]
 
 
 def command_scope(args: argparse.Namespace) -> int:
@@ -338,7 +343,7 @@ def command_check(args: argparse.Namespace) -> int:
         for key, finding in current_by_id.items()
         if key in baseline_by_id
         and finding["impact"] in BLOCKING_IMPACTS
-        and finding.get("occurrences", 1) > baseline_by_id[key].get("occurrences", 1)
+        and finding["occurrences"] > baseline_by_id[key]["occurrences"]
     ]
     unresolved = [
         finding
@@ -347,18 +352,7 @@ def command_check(args: argparse.Namespace) -> int:
     ]
 
     print(f"Slither baseline: {len(current_by_id)} current, {len(new_findings)} new, {len(missing_findings)} resolved")
-    for finding in new_findings:
-        print(f"NEW {finding['impact']} {finding['check']} {finding['id']}: {finding['summary']}")
-    for finding in missing_findings:
-        print(f"RESOLVED {finding['impact']} {finding['check']} {finding['id']}: {finding['summary']}")
-    for finding in expanded:
-        previous = baseline_by_id[finding["id"]].get("occurrences", 1)
-        print(
-            f"EXPANDED {finding['impact']} {finding['check']} {finding['id']}: "
-            f"{previous} -> {finding['occurrences']} occurrences"
-        )
-    for finding in unresolved:
-        print(f"UNRESOLVED {finding['impact']} {finding['check']} {finding['id']}: {finding['summary']}")
+    print(f"Blocking findings: {len(blocking_new)} new, {len(expanded)} expanded, {len(unresolved)} unresolved")
 
     if blocking_new or expanded or unresolved:
         print("Slither baseline check failed", file=sys.stderr)
@@ -377,7 +371,7 @@ def parse_args() -> argparse.Namespace:
 
     normalize_parser = subparsers.add_parser("normalize")
     normalize_parser.add_argument("--raw", type=Path, required=True)
-    normalize_parser.add_argument("--output", type=Path, default=BASELINE_PATH)
+    normalize_parser.add_argument("--output", type=Path, required=True)
     normalize_parser.set_defaults(func=command_normalize)
 
     check_parser = subparsers.add_parser("check")
