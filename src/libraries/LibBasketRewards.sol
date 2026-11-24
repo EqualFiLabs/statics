@@ -11,9 +11,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketCollateral} from "./LibBasketCollateral.sol";
+import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibIndexMath} from "./LibIndexMath.sol";
 import {LibMorpho} from "./LibMorpho.sol";
+import {LibRewardPolicy} from "./LibRewardPolicy.sol";
 
 library LibBasketRewards {
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.basket.rewards");
@@ -92,8 +94,7 @@ library LibBasketRewards {
     }
 
     function canAccrue(uint256 basketId) internal view returns (bool) {
-        RewardStorage storage rs = rewardStorage();
-        return rs.totalEligibleShares[basketId] + _duePendingShares(rs.eligibility[basketId]) != 0;
+        return effectiveEligibleShares(basketId) != 0;
     }
 
     function effectiveEligibleShares(uint256 basketId) internal view returns (uint256) {
@@ -103,21 +104,45 @@ library LibBasketRewards {
 
     function accrueReserved(uint256 basketId, LibBasket.Basket storage configured, address asset, uint256 amount)
         internal
-        returns (uint256 indexRay)
     {
-        if (amount == 0) return 0;
+        if (amount == 0) return;
         if (!isRewardAsset(configured, asset)) revert InvalidBasketRewardAsset(basketId, asset);
         RewardStorage storage rs = rewardStorage();
         _rollMatured(rs, basketId, configured);
         uint256 total = rs.totalEligibleShares[basketId];
         if (total == 0) revert BasketHasNoEligibleShares(basketId);
-        RewardBook storage book = rs.books[basketId][asset];
+        _accrue(rs.books[basketId][asset], basketId, asset, amount, total);
+    }
+
+    /// @dev The asset is the configured constituent being settled by the caller.
+    function accrueMintRedemptionFee(
+        uint256 basketId,
+        LibBasket.Basket storage configured,
+        address asset,
+        uint256 grossFee
+    ) internal {
+        if (grossFee == 0) return;
+        LibCustody.moveReservation(LibCustody.basketAccount(basketId), LibCustody.feeAccount(), asset, grossFee);
+        uint256 stakerAmount;
+        uint16 shareBps = LibBasket.mintRedemptionStakerShareBps(basketId);
+        if (shareBps != 0 && !LibRewardPolicy.isRestricted(asset)) {
+            RewardStorage storage rs = rewardStorage();
+            _rollMatured(rs, basketId, configured);
+            uint256 total = rs.totalEligibleShares[basketId];
+            if (total != 0) {
+                stakerAmount = Math.mulDiv(grossFee, shareBps, LibBasket.BPS);
+                if (stakerAmount != 0) _accrue(rs.books[basketId][asset], basketId, asset, stakerAmount, total);
+            }
+        }
+        LibGlobalRewards.accrueReservedTreasuryFee(asset, grossFee - stakerAmount);
+    }
+
+    function _accrue(RewardBook storage book, uint256 basketId, address asset, uint256 amount, uint256 total) private {
         (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, total, book.indexRemainder);
         book.indexRay += delta;
         book.indexRemainder = remainder;
         book.indexedAmount += amount;
         emit IStaticsBasketRewards.BasketRewardAccrued(basketId, asset, amount, book.indexRay);
-        return book.indexRay;
     }
 
     function settle(uint256 positionId, uint256 basketId, LibBasket.Basket storage configured) internal {

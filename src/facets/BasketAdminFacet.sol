@@ -15,6 +15,8 @@ contract BasketAdminFacet is IStaticsBasketAdmin {
     error InvalidTreasury(address treasury);
     error InvalidDistributor(address account);
     error UnknownDistributorBasket(uint256 basketId);
+    error BasketNotFound(uint256 basketId);
+    error InvalidBasketMintRedemptionStakerShareBps(uint16 shareBps);
 
     function setBasketDistributor(uint256 basketId, address account, bool allowed) external {
         LibDiamond.enforceIsContractOwner();
@@ -27,6 +29,21 @@ contract BasketAdminFacet is IStaticsBasketAdmin {
 
     function isBasketDistributor(uint256 basketId, address account) external view returns (bool) {
         return LibBasket.basketStorage().basketDistributors[basketId][account];
+    }
+
+    function setBasketMintRedemptionStakerShareBps(uint256 basketId, uint16 shareBps) external {
+        LibDiamond.enforceIsContractOwner();
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        if (bs.baskets[basketId].token == address(0)) revert BasketNotFound(basketId);
+        if (shareBps > LibBasket.BPS) revert InvalidBasketMintRedemptionStakerShareBps(shareBps);
+        uint16 previous = LibBasket.mintRedemptionStakerShareBps(basketId);
+        bs.mintRedemptionStakerShare[basketId] = shareBps + 1;
+        emit BasketMintRedemptionStakerShareSet(basketId, previous, shareBps);
+    }
+
+    function basketMintRedemptionStakerShareBps(uint256 basketId) external view returns (uint16) {
+        if (LibBasket.basketStorage().baskets[basketId].token == address(0)) revert BasketNotFound(basketId);
+        return LibBasket.mintRedemptionStakerShareBps(basketId);
     }
 
     function setCreationFee(uint256 amount) external {

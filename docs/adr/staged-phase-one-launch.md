@@ -120,7 +120,7 @@ use the timelock.
 
 ## Phase 2: baskets, conversion, credit, flash composition, and Genesis integration
 
-The production release installs 362 selectors across 52 facets, including
+The production release installs 364 selectors across 52 facets, including
 the conversion facet's six selectors. The basket foundation and conversion
 configuration enter the live Diamond through one governed cut.
 It installs:

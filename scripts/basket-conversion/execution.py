@@ -58,6 +58,14 @@ def pending_rewards(url, f):
         totals=[a+b for a,b in zip(totals,words[2:])]
     return totals
 
+def basket_reward_state(url, f, asset):
+    raw = rpc(url, 'eth_call', [{'to':f['core'], 'data':calldata('basketRewardState(uint256,address)',
+        f['basketId'], asset)}, 'latest'])[2:]
+    words = [int(raw[i:i+64],16) for i in range(0,len(raw),64)]
+    assert len(words) == 5
+    return dict(eligibleShares=words[0], indexRay=words[1], indexedReserve=words[2],
+                crystallizedReserve=words[3], claimable=words[4])
+
 def snapshot_books(url, f):
     return {
         'supply':read(url,f['basket'],'totalSupply()'),
@@ -73,6 +81,7 @@ def snapshot_books(url, f):
             'hookAllowance':read(url,a,'allowance(address,address)',f['hook'],f['core']),
             'zapAllowance':read(url,a,'allowance(address,address)',f['zap'],f['core']),
             'treasuryAccrued':read(url,f['core'],'treasuryAccrued(address)',a),
+            'basketRewards':basket_reward_state(url, f, a),
         } for a in f['assets']]
     }
 
@@ -152,9 +161,12 @@ def qualify(before, after, fixture, receipt, path):
         assert after["stakerPending"][i] >= before["stakerPending"][i], "reward ownership"
         if mode in ("buy", "sell"):
             charged = (int(fixture["bundleAmounts"][i]) * 10**15 + 10**18 - 1) // 10**18
-            indexed = after["stakerPending"][i] - before["stakerPending"][i]
+            indexed = asset["basketRewards"]["indexedReserve"] - before["assets"][i]["basketRewards"]["indexedReserve"]
             treasury = asset["treasuryAccrued"] - before["assets"][i]["treasuryAccrued"]
-            assert 0 <= charged - indexed - treasury <= len(fixture["eligibleStakingPositions"]) + 1, "fee conservation"
+            assert asset["basketRewards"]["eligibleShares"] > 0, "basket stake is missing"
+            assert indexed == charged * fixture["basketFeeStakerShareBps"] // 10_000, "basket fee allocation"
+            assert indexed + treasury == charged, "fee conservation"
+            assert after["stakerPending"][i] == before["stakerPending"][i], "primary fee accrued to global stake"
     swaps = [entry for entry in receipt["logs"] if entry["address"].lower() == PM.lower() and entry["topics"][0].lower() == SWAP]
     # The four-asset fixture includes the quote as a zero-hop constituent.
     underlying = sum(fixture["routeLengths"])

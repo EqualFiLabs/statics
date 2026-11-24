@@ -119,7 +119,7 @@ def check_execution(directory, commit, evidence, deep=False):
             raise ValueError("conversion hook permission bits differ")
     return {"manifestSha256":base.sha((directory/"manifest.json").read_bytes()),"receipts":len(actual),
         "maximumGas":max(row["gasUsed"] for row in report["results"]),"qualifiedGasMaximum":2**24*9//10,
-        "facetCount":52,"selectorCount":362}
+        "facetCount":52,"selectorCount":364}
 
 
 def check_upgrade(directory, commit):

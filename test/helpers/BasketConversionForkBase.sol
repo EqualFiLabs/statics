@@ -166,6 +166,15 @@ abstract contract BasketConversionForkBase is BasketConversionTestBase {
         return f;
     }
 
+    function _addPendingBasketStakerCohorts(Fixture memory f) internal returns (uint256 firstEpoch) {
+        firstEpoch = (block.timestamp / 1 hours + 1) * 1 hours;
+        for (uint256 i; i < 24; ++i) {
+            vm.warp(firstEpoch + i * 1 hours);
+            vm.prank(alice);
+            basketCollateral.createAndDepositBasketCollateral(f.basketId, 1 ether, alice);
+        }
+    }
+
     function _activateStakers(address[] memory assets) internal returns (uint256[] memory positions) {
         uint256 batches = (assets.length + 7) / 8;
         positions = new uint256[](batches);

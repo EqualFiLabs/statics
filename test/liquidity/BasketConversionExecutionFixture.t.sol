@@ -23,6 +23,7 @@ import {StaticsBasketConversionZap} from "../../src/liquidity/StaticsBasketConve
 contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
+    uint16 private constant BASKET_FEE_STAKER_SHARE_BPS = 7_500;
     string internal output;
 
     function setUp() public override {
@@ -43,9 +44,15 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
         bool buy = keccak256(bytes(e.mode)) == keccak256("buy");
         require(buy || sell || premium || keccak256(bytes(e.mode)) == keccak256("discount"));
         e.f = _fixture(vm.envUint("CONVERSION_ASSETS"));
-        if (vm.envOr("CONVERSION_ROUTE_HOPS", uint256(1)) == 4) e.f = _fourHopRoutes(e.f);
+        bool deep = vm.envOr("CONVERSION_ROUTE_HOPS", uint256(1)) == 4;
+        if (deep) e.f = _fourHopRoutes(e.f);
         e.positions = _activateStakers(baskets.basket(e.f.basketId).assets);
         _trade(e.f, true, 100 ether, false, false);
+        vm.prank(alice);
+        basketCollateral.createAndDepositBasketCollateral(e.f.basketId, 10 ether, alice);
+        vm.warp(block.timestamp + 25 hours);
+        basketAdmin.setBasketMintRedemptionStakerShareBps(e.f.basketId, BASKET_FEE_STAKER_SHARE_BPS);
+        if (deep) _trade(e.f, true, 10 ether, false, false);
         uint256 snap = vm.snapshotState();
         int256 q = _trade(e.f, true, 10 ether, false, false);
         assertTrue(vm.revertToState(snap));
@@ -84,6 +91,7 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
             e.steps[0] = premium ? conversion : ordinary;
             e.steps[1] = premium ? ordinary : conversion;
         }
+        if (deep) _addPendingBasketStakerCohorts(e.f);
         _serialize(e);
         vm.dumpState(string.concat(output, _prefix(), "-state.json"));
     }
@@ -163,6 +171,7 @@ contract BasketConversionExecutionFixtureTest is BasketConversionForkBase {
         vm.serializeAddress(k, "deployer", address(this));
         vm.serializeBytes32(k, "hookSalt", conversionSalt);
         vm.serializeUint(k, "basketId", e.f.basketId);
+        vm.serializeUint(k, "basketFeeStakerShareBps", BASKET_FEE_STAKER_SHARE_BPS);
         vm.serializeUint(k, "gaugePosition", e.gaugePosition);
         vm.serializeBytes32(k, "gaugePool", PoolId.unwrap(e.market.toId()));
         vm.serializeUint(k, "eligibleStakingPositions", e.positions);

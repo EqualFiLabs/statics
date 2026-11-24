@@ -13,7 +13,8 @@ class ConversionUpgradeEvidenceTest(unittest.TestCase):
         swap = u.subprocess.check_output(["cast", "sig", "swap((address,address,uint24,int24,address),(bool,int256,uint160),bytes)"], text=True).strip()
         action = dict(label="late-sell-bound", target="0x01", sender="0x02", data="0x1234",
                       expectedError=u.e.calldata("ConversionBound()"))
-        state = dict(supply=10, basket="0x1234", pending="0x00", tokens={"asset": 123}, pools={"pool": 456})
+        state = dict(supply=10, basket="0x1234", pending="0x00", basketRewards={"asset": "0x00"},
+                     tokens={"asset": 123}, pools={"pool": 456})
         return dict(action=action, receipt=dict(status="0x0", gasUsed="0x10000", transactionHash="tx", blockHash="block"),
                     transaction=dict(hash="tx", blockHash="block", to="0x01", input="0x1234", **{"from": "0x02"}),
                     calls=[dict(to="0x01", input="0x1234"), dict(to="0x03", input=swap)],
@@ -32,6 +33,10 @@ class ConversionUpgradeEvidenceTest(unittest.TestCase):
     def test_late_failure_requires_exact_error_and_financial_rollback(self):
         item = self.case()
         u.check_case(item)
+        bad = copy.deepcopy(item)
+        bad["after"]["basketRewards"]["asset"] = "0x01"
+        with self.assertRaisesRegex(ValueError, "rollback"):
+            u.check_case(bad)
         for field in ("output", "after", "before"):
             bad = copy.deepcopy(item)
             bad[field] = None if field == "before" else {} if field == "after" else "0xdeadbeef"

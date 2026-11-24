@@ -31,6 +31,10 @@ def books(url, f):
         "supply": e.read(url, f["basket"], "totalSupply()"),
         "basket": raw(url, core, "basket(uint256)", f["basketId"]),
         "pending": raw(url, core, "pendingRewards(uint256,address[])", f["stake"], "[" + ",".join(f["assets"] + [f["quote"]]) + "]"),
+        "basketRewards": {
+            asset: raw(url, core, "basketRewardState(uint256,address)", f["basketId"], asset)
+            for asset in f["assets"] + [f["basket"]]
+        },
         "tokens": {a: {
             "balances": [e.read(url, a, "balanceOf(address)", h) for h in holders + [pm]],
             "reserved": e.read(url, core, "globalReservedByToken(address)", a),
@@ -66,7 +70,9 @@ def check_case(item):
     if action["label"] not in {"safe-approval", "conversion-cut"} and int(receipt["gasUsed"],16) >= e.CAP:
         raise ValueError("conversion upgrade user transaction exceeds gas headroom")
     if rejected:
-        if not isinstance(item["before"], dict) or not {"supply", "basket", "pending", "tokens", "pools"}.issubset(item["before"]):
+        if not isinstance(item["before"], dict) or not {
+            "supply", "basket", "pending", "basketRewards", "tokens", "pools"
+        }.issubset(item["before"]):
             raise ValueError("conversion upgrade rollback state missing")
         if (action["expectedError"] != e.calldata("ConversionBound()")
                 or item["output"].lower() != action["expectedError"].lower() or item["before"] != item["after"]):

@@ -7,8 +7,11 @@ library. Existing General and Basket AMM hooks remain separate.
 Conversion buys exact BasketToken output and sells exact BasketToken input.
 It uses real constituent swaps and the existing Diamond mint/redemption paths.
 There is no oracle, NAV calculation, LP inventory, rebalance, or additional outer
-conversion charge. Mint/redemption fees follow the existing governed non-swap
-fee route. Ordinary underlying/secondary swaps charge their own pool fees.
+conversion charge. The basket's governed mint and redemption split applies
+to each constituent fee, with the staker share funding eligible BasketToken
+positions and the remainder funding Treasury. Treasury receives the full fee
+when no shares are eligible or the constituent is reward restricted. Ordinary
+underlying and secondary swaps charge their own pool fees.
 
 ## Identity and authorization
 
@@ -139,7 +142,7 @@ must preserve the generation-time reward index.
 `scripts/basket-conversion/release.py <new-isolated-directory>` runs the original
 Phase 2 freeze, bytecode reproduction and Cast/Anvil rehearsal unchanged, then
 adds the conversion upgrade, strategy and receipt gates. The conversion extension
-has 52 facets and 362 selectors (51/356 before extension). Every qualified user
+has 52 facets and 364 selectors (51/358 before extension). Every qualified user
 transaction must consume less than 90% of 16,777,216 gas. The gate checks actual
 receipt status, gas, transaction and call-trace binding; exact shared hook identity;
 constructor/immutable values and CREATE2 permission bits; metadata and reproduced

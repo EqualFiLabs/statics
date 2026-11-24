@@ -67,7 +67,7 @@ creation code.
 The same command runs all three pinned Forge fork tests and validates the mandatory Cast/Anvil Phase 2 and later Morpho rehearsals. It captures the simulated
 deployments, exact constructor arguments and initcode hashes, runtime bytes and
 immutable substitutions, the token creation code embedded in the factory runtime, all 51 facet
-destinations and 356 selectors, and the simulated Safe transaction. It compares this evidence with
+destinations and 358 selectors, and the simulated Safe transaction. It compares this evidence with
 the independently reproduced artifacts before writing a release manifest. A
 failed test, source/metadata mismatch, missing deployment, or selector mismatch
 fails the gate. `dry-run.json`, `simulated-contracts.json`, and `dry-run.log` retain
@@ -80,7 +80,7 @@ stale copies of the rehearsal from other workspace compiler profiles.
 The Cast/Anvil run starts at the original pre-upgrade Diamond fixture and uses
 real Safe owner approvals and `execTransaction` to execute the cut.
 It proves that a late failed call rolls the whole cut and financial state back;
-then checks the actual cut and 51 facets / 356 selectors. The
+then checks the actual cut and 51 facets / 358 selectors. The
 same persistent fork opens a legacy stake and LP leg before the cut, creates two
 General pools against the General hook and two prepared restricted baskets against the Basket hook,
 plus an independent two-basket market, and exercises
@@ -200,7 +200,7 @@ fee allocations. The preflight checks those values before the cut and checks the
 unchanged General-hook values and seeded Basket-hook values immediately after the cut and after all smoke actions.
 It then requires a real General pool creation and swap plus prepared-token deployment,
 finalization, mint and swap using the supplied production calldata. Post-cut state
-must contain 51 facets and 356 selectors and point to the reviewed General and Basket hooks,
+must contain 51 facets and 358 selectors and point to the reviewed General and Basket hooks,
 token factory and liquidity manager while retaining the same owner, zero General and basket creation
 fees, Phase 2 state, flash fee, every Phase 1 and Phase 2 interface, and no Phase 3
 or Morpho interface. Mandatory smoke actions must succeed. The smoke file freezes

@@ -130,64 +130,29 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertLe(type(GovernanceFacet).runtimeCode.length, 24_576);
     }
 
-    function testConfiguredFullShareWithoutEligibleStakeStillRoutesToTreasury() external {
-        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(10_000);
-        _createDefaultBasket(0.1 ether, 0);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
-    }
-
-    function testConfiguredNonSwapShareUsesRealBasketFees() external {
-        _checkConfiguredBasketFees(6_000);
-    }
-
-    function testZeroNonSwapShareRoutesRealBasketFeesToTreasury() external {
-        _checkConfiguredBasketFees(0);
-    }
-
-    function testFullNonSwapShareStillRoutesUnselectedAssetsToTreasury() external {
-        _checkConfiguredBasketFees(10_000);
-    }
-
-    function testNonSwapShareRoundingRemainsInTreasury() external {
-        _checkConfiguredBasketFees(3_333);
-    }
-
-    function _checkConfiguredBasketFees(uint16 share) private {
-        address[] memory selected = _asset(address(assetA));
+    function testFuzzNonSwapShareOnlyAppliesToFutureFees(uint16 share) external {
+        share = uint16(bound(share, 0, 10_000));
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        address asset = address(assetA);
+        address[] memory selected = _asset(asset);
         stakingAsset.mint(alice, 100 ether);
+        _fundAndApprove(bob, 2 ether + 1, 0);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 100 ether);
-        uint256 id = globalRewards.createAndStake(100 ether, alice, selected);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, selected);
         vm.stopPrank();
-        _warpEligible(id, address(assetA), alice);
-        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(share);
-        _createDefaultBasket(0.1 ether, 0);
-        uint256 expected = Math.mulDiv(0.2 ether, share, 10_000);
-        assertEq(globalRewards.pendingRewards(id, selected)[0], expected);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether - expected);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
-        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), share);
-    }
+        _warpEligible(positionId, asset, alice);
 
-    function testNonSwapShareChangeDoesNotReclassifyAccruedRewards() external {
-        address[] memory selected = _asset(address(assetA));
-        stakingAsset.mint(alice, 100 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 100 ether);
-        uint256 id = globalRewards.createAndStake(100 ether, alice, selected);
-        vm.stopPrank();
-        _warpEligible(id, address(assetA), alice);
-        (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
-        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.18 ether);
-        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(6_000);
-        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.18 ether);
-        uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
-        _fundAndApprove(bob, quote[0], quote[1]);
         vm.prank(bob);
-        baskets.mint(basketId, 10 ether, bob, quote);
-        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.3 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1 ether);
+        harness.accrueNonSwapFee(asset, 1 ether);
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(share);
+        assertEq(globalRewards.pendingRewards(positionId, selected)[0], 0.9 ether);
+
+        vm.prank(bob);
+        harness.accrueNonSwapFee(asset, 1 ether + 1);
+        uint256 stakers = Math.mulDiv(1 ether + 1, share, 10_000);
+        assertEq(globalRewards.pendingRewards(positionId, selected)[0], 0.9 ether + stakers);
+        assertEq(globalRewards.treasuryAccrued(asset), 1.1 ether + 1 - stakers);
     }
 
     function testFinancialViewsArePublicAndControlFollowsPositionTransfer() external {
@@ -254,61 +219,12 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(stakingAsset.balanceOf(alice), 20 ether);
     }
 
-    function testBasketFeesAccrueAgainstSingleStakingBalanceAndRemainInKind() external {
-        address[] memory selectedAssets = _assets(address(assetA), address(assetB));
-        stakingAsset.mint(alice, 100 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), type(uint256).max);
-        uint256 positionId = globalRewards.createAndStake(100 ether, alice, selectedAssets);
-        vm.stopPrank();
-        _warpEligible(positionId, address(assetA), alice);
-
-        (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
-        vm.prank(alice);
-        uint256[] memory launchPending = globalRewards.pendingRewards(positionId, selectedAssets);
-        assertEq(launchPending[0], 0.18 ether);
-        assertEq(launchPending[1], 0.45 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.02 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.05 ether);
-
-        uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
-        _fundAndApprove(bob, quote[0], quote[1]);
+    function testEmptyGlobalStakeRoutesNonSwapFeeToTreasury() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        _fundAndApprove(bob, 1 ether, 0);
         vm.prank(bob);
-        baskets.mint(basketId, 10 ether, bob, quote);
-
-        vm.prank(alice);
-        uint256[] memory pending = globalRewards.pendingRewards(positionId, selectedAssets);
-        assertEq(pending[0], 0.36 ether);
-        assertEq(pending[1], 0.9 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.04 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.1 ether);
-
-        uint256[] memory minimums = new uint256[](2);
-        vm.prank(alice);
-        uint256[] memory claimed = globalRewards.claimRewards(positionId, selectedAssets, alice, minimums);
-        assertEq(claimed[0], pending[0]);
-        assertEq(claimed[1], pending[1]);
-        assertEq(assetA.balanceOf(alice), pending[0]);
-        assertEq(assetB.balanceOf(alice), pending[1]);
-
-        globalRewards.distributeTreasuryFees(address(assetA));
-        globalRewards.distributeTreasuryFees(address(assetB));
-        assertEq(assetA.balanceOf(treasury), 0.04 ether);
-        assertEq(assetB.balanceOf(treasury), 0.1 ether);
-    }
-
-    function testEmptyStakeRoutesNonSwapFeeToTreasury() external {
-        (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
-
-        uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
-        _fundAndApprove(bob, quote[0], quote[1]);
-        vm.prank(bob);
-        baskets.mint(basketId, 10 ether, bob, quote);
-
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.4 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 1 ether);
+        harness.accrueNonSwapFee(address(assetA), 1 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 1 ether);
     }
 
     function testGuardianCanPauseTreasuryDistributionUntilOwnerUnpauses() external {

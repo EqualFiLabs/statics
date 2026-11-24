@@ -270,6 +270,8 @@ contract BasketConversionForkTest is BasketConversionForkBase {
                     lending.outstandingPrincipal(f.basketId, aa[i]),
                     custody.globalReservedByToken(aa[i]),
                     globalRewards.rewardAsset(aa[i]).indexRay,
+                    globalRewards.treasuryAccrued(aa[i]),
+                    basketRewards.basketRewardState(f.basketId, aa[i]),
                     price,
                     tick
                 )
@@ -515,24 +517,55 @@ contract BasketConversionForkTest is BasketConversionForkBase {
 
     function testEvalConversionMintRevenueIsIndexedOnce() public {
         Fixture memory f = _fixture(2);
-        uint256[] memory positions = _activateStakers(baskets.basket(f.basketId).assets);
+        uint256 position = _stakeForPrimaryFees(f);
+        uint16 share = 7_500;
+        basketAdmin.setBasketMintRedemptionStakerShareBps(f.basketId, share);
+        address[] memory assets = baskets.basket(f.basketId).assets;
         uint256[] memory required = baskets.quoteMint(f.basketId, 10 ether);
-        address[] memory aa = baskets.basket(f.basketId).assets;
-        uint256[] memory treasuryBefore = new uint256[](2);
-        uint256[] memory pendingBefore = globalRewards.pendingRewards(positions[0], aa);
-        for (uint256 i; i < 2; ++i) {
-            treasuryBefore[i] = globalRewards.treasuryAccrued(aa[i]);
+        uint256[] memory treasuryBefore = new uint256[](assets.length);
+        for (uint256 i; i < assets.length; ++i) {
+            treasuryBefore[i] = globalRewards.treasuryAccrued(assets[i]);
         }
         _trade(f, true, 10 ether, false, false);
-        uint256[] memory afterPending = globalRewards.pendingRewards(positions[0], aa);
-        for (uint256 i; i < 2; ++i) {
+        (, uint256[] memory rewards) = basketRewards.getBasketRewards(position, f.basketId);
+        for (uint256 i; i < assets.length; ++i) {
             uint256 fee = required[i] - 0.01 ether;
-            assertApproxEqAbs(
-                afterPending[i] - pendingBefore[i] + globalRewards.treasuryAccrued(aa[i]) - treasuryBefore[i], fee, 1
-            );
+            uint256 stakerAmount = fee * share / 10_000;
+            assertEq(rewards[i + 1], stakerAmount);
+            assertEq(globalRewards.treasuryAccrued(assets[i]) - treasuryBefore[i], fee - stakerAmount);
+            assertEq(basketRewards.basketRewardState(f.basketId, assets[i]).indexedReserve, stakerAmount);
         }
-        globalRewards.checkpointRewardAssets(aa);
-        assertEq(globalRewards.pendingRewards(positions[0], aa), afterPending);
+        _creditBooks(f);
+    }
+
+    function _stakeForPrimaryFees(Fixture memory f) internal returns (uint256 position) {
+        _trade(f, true, 1000 ether, false, false);
+        vm.prank(alice);
+        position = basketCollateral.createAndDepositBasketCollateral(f.basketId, 10 ether, alice);
+        vm.warp(block.timestamp + 25 hours);
+    }
+
+    function testEvalDeepConversionWithMaturingBasketStakers() public {
+        Fixture memory f = _fourHopRoutes(_fixture(16));
+        _stakeForPrimaryFees(f);
+        _trade(f, true, 10 ether, false, false);
+        uint256 firstEpoch = _addPendingBasketStakerCohorts(f);
+        vm.warp(firstEpoch + 48 hours);
+        uint256 snapshot = vm.snapshotState();
+        _assertDeepConversionGas(f, true);
+        assertTrue(vm.revertToState(snapshot));
+        _assertDeepConversionGas(f, false);
+    }
+
+    function _assertDeepConversionGas(Fixture memory f, bool buying) private {
+        BasketConversionRequest memory request = _request(f, buying, false);
+        vm.prank(alice);
+        uint256 beforeGas = gasleft();
+        if (buying) conversionZap.buy(f.poolId, 1 ether, alice, request);
+        else conversionZap.sell(f.poolId, 1 ether, alice, request);
+        uint256 used = beforeGas - gasleft();
+        emit log_named_uint(buying ? "deep buy gas" : "deep sell gas", used);
+        assertLt(used, (uint256(2 ** 24) * 9) / 10);
         _creditBooks(f);
     }
 
@@ -593,15 +626,15 @@ contract BasketConversionForkTest is BasketConversionForkBase {
         shares = bound(shares, 1 ether, 10 ether);
         idle = bound(idle, 0, 48 hours);
         Fixture memory f = _fixture(2);
-        uint256[] memory positions = _activateStakers(baskets.basket(f.basketId).assets);
-        _trade(f, true, 1000 ether, false, false);
+        uint256 position = _stakeForPrimaryFees(f);
+        basketAdmin.setBasketMintRedemptionStakerShareBps(f.basketId, 7_500);
         vm.warp(block.timestamp + idle);
         uint256 baseline = vm.snapshotState();
         for (uint256 direction; direction < 2; ++direction) {
             if (direction != 0) assertTrue(vm.revertToState(baseline));
             bool premium = direction == 0;
             PoolKey memory market = _secondaryMarket(f, premium);
-            _assertConversionRevenue(f, market, premium, shares, positions[0]);
+            _assertConversionRevenue(f, market, premium, shares, position);
         }
     }
 
@@ -615,24 +648,21 @@ contract BasketConversionForkTest is BasketConversionForkBase {
         address[] memory aa = baskets.basket(f.basketId).assets;
         uint256[] memory quote =
             premium ? baskets.quoteMint(f.basketId, shares) : baskets.quoteRedeem(f.basketId, shares);
-        uint256[] memory pending = globalRewards.pendingRewards(position, aa);
+        (, uint256[] memory pending) = basketRewards.getBasketRewards(position, f.basketId);
         uint256[2] memory treasuryBefore;
         for (uint256 i; i < 2; ++i) {
             treasuryBefore[i] = globalRewards.treasuryAccrued(aa[i]);
         }
         uint256 backingBefore = baskets.vaultBalance(f.basketId, aa[0]);
         _cycle(f, market, premium, shares);
-        uint256[] memory next = globalRewards.pendingRewards(position, aa);
+        (, uint256[] memory next) = basketRewards.getBasketRewards(position, f.basketId);
         uint256 backingAfter = baskets.vaultBalance(f.basketId, aa[0]);
         uint256 base = premium ? backingAfter - backingBefore : backingBefore - backingAfter;
         for (uint256 i; i < 2; ++i) {
             uint256 fee = premium ? quote[i] - base : base - quote[i];
-            assertApproxEqAbs(
-                next[i] - pending[i] + globalRewards.treasuryAccrued(aa[i]) - treasuryBefore[i],
-                fee,
-                1,
-                "one conversion fee per constituent"
-            );
+            uint256 stakerAmount = fee * 7_500 / 10_000;
+            assertEq(next[i + 1] - pending[i + 1], stakerAmount, "single basket reward credit");
+            assertEq(globalRewards.treasuryAccrued(aa[i]) - treasuryBefore[i], fee - stakerAmount);
         }
         _creditBooks(f);
     }

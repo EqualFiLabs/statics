@@ -120,7 +120,7 @@ class PhaseTwo(Rehearsal):
         )
         self.record_gas("upgrade-cut", receipt)
         facets = self.scalar(self.diamond, "facets()((address,bytes4[])[])")
-        require(len(facets) == 51 and sum(len(f[1]) for f in facets) == 356, "incomplete Phase 2 cut")
+        require(len(facets) == 51 and sum(len(f[1]) for f in facets) == 358, "incomplete Phase 2 cut")
         require(self.scalar(self.diamond, "owner()(address)").lower() == self.owner.lower(), "owner changed")
         require(self.scalar(self.diamond, "liquidityManager()(address,bool)").lower() == self.candidate["manager"].lower(),
                 "replacement manager disconnected")

@@ -91,7 +91,7 @@ contract BasketConversionUpgradeForkTest is PublicHookUpgradeForkBase, ForkSafe 
         for (uint256 i; i < installed.length; ++i) {
             count += installed[i].functionSelectors.length;
         }
-        assertEq(count, 362);
+        assertEq(count, 364);
         _export();
     }
 
