@@ -40,6 +40,12 @@ library LibBasket {
         // Constituent ordering is immutable; one bit per configured asset (maximum 16).
         mapping(uint256 basketId => uint256 mask) impairedAssets;
         mapping(uint256 basketId => mapping(address account => bool allowed)) basketDistributors;
+        mapping(uint256 basketId => uint16 shareBpsPlusOne) mintRedemptionStakerShare;
+    }
+
+    function mintRedemptionStakerShareBps(uint256 basketId) internal view returns (uint16) {
+        uint16 encoded = basketStorage().mintRedemptionStakerShare[basketId];
+        return encoded == 0 ? BPS : encoded - 1;
     }
 
     function assetIndex(Basket storage configured, uint256 basketId, address asset) internal view returns (uint256) {

@@ -295,12 +295,15 @@ settle the exact Uniswap v4 liquidity amount fail launch atomically.
 
 ### Multi-asset basket reward index
 
-The canonical hook's basket-staker allocation accrues to a separate reward
-reserve. It can be denominated in the BasketToken or any constituent and is
-isolated by both basket and reward asset. Primary mint and redemption fees,
-loan origination fees, extension fees, and the protocol share of recovery
-penalties instead use the global Statics-staker route. The basket reward
-accounting shape is:
+The canonical hook's basket-staker allocation and the configured staker
+share of primary mint and redemption fees accrue to the same basket reward
+index. That index supports the BasketToken and its constituents and is isolated
+by basket and reward asset. The primary fee split is governed per basket and
+defaults to 100% to eligible basket stakers. Treasury receives the remainder,
+including the full primary fee for a reward-restricted constituent or a basket
+with no eligible shares. Loan origination fees, extension fees, and the
+protocol share of recovery penalties use the global Statics-staker route.
+The basket reward accounting shape is:
 
 ```text
 basketRewardIndex[basketId][asset]

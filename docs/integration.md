@@ -108,8 +108,8 @@ non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
 Morpho. The Basket hook queries currency reward eligibility directly, without
-loading full pool or basket views. The cumulative selector counts are 229, 356,
-414, and 441. Integrators
+loading full pool or basket views. The cumulative selector counts are 229, 358,
+416, and 443. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
@@ -303,8 +303,13 @@ of the requested action.
 4. No constituent approval is needed for redemption; the Diamond burns the
    caller's BasketTokens through the token's protocol authority.
 
-Mint and redemption fees route into global Statics-staker rewards. Holding
-BasketTokens in a wallet does not itself earn rewards.
+The same basket-specific split applies to mint and redemption fees in each
+constituent. Use `basketMintRedemptionStakerShareBps(basketId)` to read it.
+Governance sets the staker share with
+`setBasketMintRedemptionStakerShareBps(basketId, shareBps)` for later accruals.
+It defaults to 10,000 bps. Treasury receives the remainder and the full fee
+when the basket has no eligible shares or the constituent is reward restricted.
+Deposit BasketTokens into a PositionNFT to qualify for basket rewards.
 
 ## Basket collateral and global staking
 

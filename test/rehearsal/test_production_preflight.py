@@ -307,10 +307,10 @@ class ProductionPreflightInputTest(unittest.TestCase):
                 broken._assert_action_semantics("basket-prepare", missing_factory)
 
     def test_release_manifest_and_artifact_digests_are_recomputed(self):
-        selectors = {f"0x{index:08x}": "Facet" for index in range(356)}
+        selectors = {f"0x{index:08x}": "Facet" for index in range(358)}
         simulated = {
             "facetCount": 51,
-            "selectorCount": 356,
+            "selectorCount": 358,
             "contracts": {
                 **{f"facet-{index}": {"artifact": "Facet", "selectors": []} for index in range(51)},
             },

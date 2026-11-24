@@ -163,7 +163,7 @@ The preflight refuses placeholders, omitted cases, changed Safe
 or smoke bytes, expected failures in a mandatory lifecycle action, an outdated
 unqualified cut facets, runtime drift, wrong embedded token creation code,
 changed bindings, topology changes during smoke execution, or anything other than
-the frozen 51-facet/356-selector deployment-address routing after the cut. It also recomputes
+the frozen 51-facet/358-selector deployment-address routing after the cut. It also recomputes
 the release and artifact digests, binds the exact initializer arguments, and checks
 the Phase 2 deployment phase, zero basket and General creation fees, five-basis-point
 single-asset flash fee, every retained Phase 1 and activated Phase 2 ERC-165

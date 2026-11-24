@@ -81,7 +81,7 @@ REQUIRED_ACTIVE_INTERFACES = {
     "0xac17e214": "IStaticsBasketMarkets",
     "0xfd185b43": "IStaticsBasketArbitrage",
     "0x698bdc5a": "IStaticsBasketLiquidity",
-    "0x4b0930a3": "IStaticsBasketAdmin",
+    "0x32fe3866": "IStaticsBasketAdmin",
     "0x70cd1869": "IStaticsBasketCollateral",
     "0x1e1e784e": "IStaticsBasketRewards",
     "0x2f79f7dc": "IStaticsGenesisIntegration",
@@ -234,7 +234,7 @@ def load_json(path, label):
 
 
 def selector_inventory(simulated):
-    require(simulated.get("facetCount") == 51 and simulated.get("selectorCount") == 356,
+    require(simulated.get("facetCount") == 51 and simulated.get("selectorCount") == 358,
             "frozen selector inventory count drift")
     contracts = simulated.get("contracts")
     require(isinstance(contracts, dict), "frozen selector inventory missing")
@@ -252,7 +252,7 @@ def selector_inventory(simulated):
             selector = selector.lower()
             require(len(selector) == 10 and selector not in result, "duplicate frozen selector")
             result[selector] = entry["artifact"]
-    require(facets == 51 and len(result) == 356, "frozen selector inventory incomplete")
+    require(facets == 51 and len(result) == 358, "frozen selector inventory incomplete")
     return result
 
 
@@ -579,7 +579,7 @@ class Preflight:
 
     def _assert_topology(self):
         facets = self.scalar(self.candidate["diamond"], "facets()((address,bytes4[])[])")
-        require(len(facets) == 51 and sum(len(item[1]) for item in facets) == 356, "post-cut selector drift")
+        require(len(facets) == 51 and sum(len(item[1]) for item in facets) == 358, "post-cut selector drift")
         candidate_artifacts = {
             entry["address"].lower(): entry["artifact"] for entry in self.candidate["contracts"].values()
         }
@@ -820,7 +820,7 @@ class Preflight:
         save(self.root / "summary.json", dict(status="pass", kind="current-head-production-preflight",
              sourceCommit=self.candidate["sourceCommit"], releaseId=self.candidate["releaseId"], chainId=4663,
              forkBlock=int(os.environ["FORK_BLOCK"]), forkBlockHash=os.environ["FORK_BLOCK_HASH"],
-             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=51, selectorCount=356,
+             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=51, selectorCount=358,
              candidateSha256=digest(self.candidate), safeSha256=digest(self.safe_json),
              smokeSha256=digest(self.smoke), smokeCases=self.smoke_cases))
 

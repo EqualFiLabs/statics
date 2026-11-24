@@ -582,13 +582,15 @@ library StaticsSelectors {
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](8);
         selectors[0] = IStaticsBasketAdmin.setCreationFee.selector;
         selectors[1] = IStaticsBasketAdmin.setTreasury.selector;
         selectors[2] = IStaticsBasketAdmin.creationFee.selector;
         selectors[3] = IStaticsBasketAdmin.treasury.selector;
         selectors[4] = IStaticsBasketAdmin.setBasketDistributor.selector;
         selectors[5] = IStaticsBasketAdmin.isBasketDistributor.selector;
+        selectors[6] = IStaticsBasketAdmin.setBasketMintRedemptionStakerShareBps.selector;
+        selectors[7] = IStaticsBasketAdmin.basketMintRedemptionStakerShareBps.selector;
     }
 
     function phaseOneTreasuryAdmin() internal pure returns (bytes4[] memory selectors) {
@@ -598,11 +600,13 @@ library StaticsSelectors {
     }
 
     function phaseTwoBasketAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsBasketAdmin.setCreationFee.selector;
         selectors[1] = IStaticsBasketAdmin.creationFee.selector;
         selectors[2] = IStaticsBasketAdmin.setBasketDistributor.selector;
         selectors[3] = IStaticsBasketAdmin.isBasketDistributor.selector;
+        selectors[4] = IStaticsBasketAdmin.setBasketMintRedemptionStakerShareBps.selector;
+        selectors[5] = IStaticsBasketAdmin.basketMintRedemptionStakerShareBps.selector;
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {

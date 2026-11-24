@@ -308,17 +308,21 @@ contract SelectorManifestTest is Test {
         _assertExact(StaticsSelectors.phaseTwoProtocolPoolAdmin(), admin);
     }
 
-    function testBasketDistributorSelectorsAreInstalledInPhaseTwo() public pure {
-        bytes4[] memory expected = new bytes4[](4);
+    function testBasketAdminSelectorsAreInstalledInPhaseTwo() public pure {
+        bytes4[] memory expected = new bytes4[](6);
         expected[0] = IStaticsBasketAdmin.setCreationFee.selector;
         expected[1] = IStaticsBasketAdmin.creationFee.selector;
         expected[2] = IStaticsBasketAdmin.setBasketDistributor.selector;
         expected[3] = IStaticsBasketAdmin.isBasketDistributor.selector;
+        expected[4] = IStaticsBasketAdmin.setBasketMintRedemptionStakerShareBps.selector;
+        expected[5] = IStaticsBasketAdmin.basketMintRedemptionStakerShareBps.selector;
         _assertExact(StaticsSelectors.phaseTwoBasketAdmin(), expected);
         bytes4[] memory full = StaticsSelectors.basketAdmin();
-        assertEq(full.length, 6);
+        assertEq(full.length, 8);
         assertEq(full[4], expected[2]);
         assertEq(full[5], expected[3]);
+        assertEq(full[6], expected[4]);
+        assertEq(full[7], expected[5]);
     }
 
     function testRestrictedBasketSelectorManifestsAreExact() public pure {

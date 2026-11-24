@@ -15,7 +15,6 @@ import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.s
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
-import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
@@ -200,7 +199,7 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         uint256 available = bs.vaultBalances[settlement.basketId][asset];
         if (baseOut > available) revert InsufficientVaultBalance(asset, baseOut, available);
         bs.vaultBalances[settlement.basketId][asset] = available - baseOut;
-        LibGlobalRewards.accrueNonSwapFee(settlement.custodyAccount, asset, baseOut - payout);
+        LibBasketRewards.accrueMintRedemptionFee(settlement.basketId, configured, asset, baseOut - payout);
         uint256 received;
         if (payout != 0) {
             (, received) =
