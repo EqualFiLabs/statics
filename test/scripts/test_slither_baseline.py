@@ -57,6 +57,13 @@ def reviewed_finding(finding: dict) -> dict:
 
 
 class SlitherBaselineTest(unittest.TestCase):
+    def test_rewriting_existing_evidence_restores_private_permissions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "current.json"
+            report.touch(mode=0o644)
+            slither_baseline.write_json({"findings": []}, report)
+            self.assertEqual(report.stat().st_mode & 0o777, 0o600)
+
     def test_verification_profiles_disable_dynamic_test_linking(self) -> None:
         with (ROOT / "foundry.toml").open("rb") as config_file:
             config = tomllib.load(config_file)
