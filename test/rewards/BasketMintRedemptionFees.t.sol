@@ -109,6 +109,34 @@ contract BasketMintRedemptionFeesTest is StaticsTestBase {
         assertEq(claimed[2], ASSET_B_FEE);
     }
 
+    function testSeparateCohortsMaturingTogetherEarnTheSameNewFees() public {
+        (uint256 basketId,) = _createDefaultBasket(FEE_SHARES, FEE_SHARES);
+        uint256 original = _deposit(basketId);
+        vm.warp(block.timestamp + 25 hours);
+        _mint(basketId);
+        uint256 first = _deposit(basketId);
+        vm.warp(block.timestamp + 1 hours);
+        uint256 second = _deposit(basketId);
+        _mint(basketId);
+        _assertRewards(first, basketId, 0, 0);
+        _assertRewards(second, basketId, 0, 0);
+        (, uint256[] memory originalBefore) = basketRewards.getBasketRewards(original, basketId);
+
+        vm.warp(block.timestamp + 25 hours);
+        _mint(basketId);
+        (, uint256[] memory firstRewards) = basketRewards.getBasketRewards(first, basketId);
+        (, uint256[] memory secondRewards) = basketRewards.getBasketRewards(second, basketId);
+        (, uint256[] memory originalAfter) = basketRewards.getBasketRewards(original, basketId);
+        assertEq(firstRewards, secondRewards);
+        assertApproxEqAbs(firstRewards[1], ASSET_A_FEE / 3, 1);
+        assertApproxEqAbs(firstRewards[2], ASSET_B_FEE / 3, 1);
+        assertEq(originalAfter[1] - originalBefore[1], firstRewards[1]);
+        assertEq(originalAfter[2] - originalBefore[2], firstRewards[2]);
+        vm.prank(alice);
+        (, uint256[] memory claimed) = basketRewards.claimBasketRewards(second, basketId, alice);
+        assertEq(claimed, secondRewards);
+    }
+
     function testRewardRestrictedConstituentFeeGoesToTreasury() public {
         (uint256 basketId,) = _createDefaultBasket(FEE_SHARES, FEE_SHARES);
         uint256 stake = _deposit(basketId);

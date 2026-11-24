@@ -335,6 +335,10 @@ newly claimable = eligible shares * (global index - checkpoint) / 1e27
 The checkpoint is then advanced before shares are added or removed. New
 deposits cannot claim historical fees, so no historical fee buy-in is needed.
 
+Each maturity roll records the basket's per-asset indexes once before the next
+fee accrual. Every cohort processed by that roll starts from this checkpoint.
+Catch-up work grows with the number of cohorts plus the number of reward assets.
+
 If no eligible shares exist when a hook fee is received, the basket-staker
 share redirects to POL rather than becoming a windfall for the first future
 depositor.
