@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {console2} from "forge-std/Script.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 import {CoreGovernanceFacet} from "../src/dollar/core/facets/CoreGovernanceFacet.sol";
 import {CoreHealthFacet} from "../src/dollar/core/facets/CoreHealthFacet.sol";
@@ -28,6 +29,7 @@ import {StaticsInterfaceInit} from "../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsPhaseFourInit} from "../src/diamond/StaticsPhaseFourInit.sol";
 import {StaticsPhaseThreeInit} from "../src/diamond/StaticsPhaseThreeInit.sol";
 import {StaticsPhaseTwoInit} from "../src/diamond/StaticsPhaseTwoInit.sol";
+import {StaticsPublicHookReleaseInit} from "../src/diamond/StaticsPublicHookReleaseInit.sol";
 import {BasketAdminFacet} from "../src/facets/BasketAdminFacet.sol";
 import {BasketCollateralFacet} from "../src/facets/BasketCollateralFacet.sol";
 import {BasketCreationFacet} from "../src/facets/BasketCreationFacet.sol";
@@ -78,6 +80,7 @@ import {IDiamondCut} from "../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasketAdmin} from "../src/interfaces/IStaticsBasketAdmin.sol";
+import {IStaticsBasketConversion} from "../src/interfaces/IStaticsBasketConversion.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "../src/interfaces/IStaticsGlobalRewards.sol";
@@ -95,6 +98,7 @@ import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {PositionNFTFacet} from "../src/position/PositionNFTFacet.sol";
 import {CoreBootstrapConfig, DeployCoreBootstrap} from "./dollar/DeployCoreBootstrap.s.sol";
 import {StaticsPhaseOneVerifier} from "./libraries/StaticsPhaseOneVerifier.sol";
+import {DeployBasketConversion} from "./libraries/DeployBasketConversion.sol";
 import {StaticsProtocolParts, StaticsProtocolPlan} from "./libraries/StaticsProtocolPlan.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
@@ -126,6 +130,9 @@ struct PhaseTwoDeployment {
     StaticsProtocolParts parts;
     address initializer;
     address genesisInitializer;
+    address basketHook;
+    address basketTokenFactory;
+    IStaticsBasketConversion.Configuration conversion;
 }
 
 struct PhaseThreeDeployment {
@@ -147,6 +154,7 @@ struct PhaseFourDeployment {
 /// advance one Phase 1 Diamond through the complete current protocol surface.
 contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
+    address private constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     struct PhaseTwoConfig {
         address diamond;
@@ -229,7 +237,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             singleAssetFlashFeeBps: vm.envUint("STATICS_SINGLE_ASSET_FLASH_FEE_BPS")
         });
         vm.startBroadcast(privateKey);
-        deployment = deployPhaseTwo(config);
+        deployment = deployPhaseTwoWithConversion(config, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
         _logPhaseTwo(config.diamond, deployment, config, vm.envBytes32("STATICS_PHASE_TWO_TIMELOCK_SALT"));
     }
@@ -299,12 +307,33 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
     }
 
     function deployPhaseTwo(PhaseTwoConfig memory config) public returns (PhaseTwoDeployment memory deployment) {
+        deployment = _deployPhaseTwoFacets(config);
+        deployment.initializer = address(new StaticsPhaseTwoInit());
+    }
+
+    function deployPhaseTwoWithConversion(PhaseTwoConfig memory config, address create2Deployer)
+        public
+        returns (PhaseTwoDeployment memory deployment)
+    {
+        if (config.creationFeeAmount != 0) revert InvalidConfiguration();
+        deployment = _deployPhaseTwoFacets(config);
+        IPoolManager manager = IPoolManager(config.poolManager);
+        (deployment.parts.basketConversion, deployment.conversion) =
+            DeployBasketConversion.deploy(config.diamond, manager, create2Deployer);
+        (deployment.basketHook, deployment.basketTokenFactory) = DeployBasketConversion.deployBasketLiquidity(
+            config.diamond, manager, StaticsSwapFeeHook(config.swapFeeHook).weth(), create2Deployer
+        );
+        deployment.initializer = address(new StaticsPublicHookReleaseInit());
+    }
+
+    function _deployPhaseTwoFacets(PhaseTwoConfig memory config)
+        private
+        returns (PhaseTwoDeployment memory deployment)
+    {
         _validatePhaseDiamond(config.diamond, 1);
         _validatePhaseTwoConfig(config);
-
         deployment.parts = _phaseTwoBaseParts(config.diamond);
         deployment.parts = _deployPhaseTwoProtocolParts(deployment.parts);
-        deployment.initializer = address(new StaticsPhaseTwoInit());
         deployment.genesisInitializer = address(new StaticsGenesisIntegrationInit());
     }
 
@@ -461,19 +490,23 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         values = new uint256[](1);
         payloads = new bytes[](1);
         targets[0] = diamond;
-        payloads[0] = abi.encodeCall(
-            IDiamondCut.diamondCut,
-            (
-                StaticsProtocolPlan.phaseTwo(deployment.parts),
-                deployment.initializer,
-                abi.encodeCall(
-                    StaticsPhaseTwoInit.initialize,
-                    (StaticsPhaseTwoInit.InitArgs({
-                            creationFeeAmount: config.creationFeeAmount,
-                            singleAssetFlashFeeBps: config.singleAssetFlashFeeBps
-                        }))
-                )
+        bytes memory initData = deployment.parts.basketConversion == address(0)
+            ? abi.encodeCall(
+                StaticsPhaseTwoInit.initialize,
+                (StaticsPhaseTwoInit.InitArgs(config.creationFeeAmount, config.singleAssetFlashFeeBps))
             )
+            : abi.encodeCall(
+                StaticsPublicHookReleaseInit.initialize,
+                (
+                    deployment.basketHook,
+                    deployment.basketTokenFactory,
+                    config.liquidityManager,
+                    0,
+                    config.singleAssetFlashFeeBps
+                )
+            );
+        payloads[0] = abi.encodeCall(
+            IDiamondCut.diamondCut, (StaticsProtocolPlan.phaseTwo(deployment.parts), deployment.initializer, initData)
         );
     }
 
@@ -638,6 +671,10 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
 
         bytes4[] memory actual = _diamondSelectors(diamond);
         StaticsProtocolParts memory empty;
+        if (expectedPhase >= 2) {
+            empty.basketConversion =
+                IDiamondLoupe(diamond).facetAddress(IStaticsBasketConversion.basketConversionConfiguration.selector);
+        }
         bytes4[] memory expected = _cutSelectors(StaticsProtocolPlan.cumulative(empty, expectedPhase));
         _sort(actual);
         _sort(expected);
@@ -929,6 +966,11 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         console2.log("STATICS_GENESIS_INTEGRATION_INIT_ADDRESS", deployment.genesisInitializer);
         console2.log("STATICS_GENESIS_INTEGRATION_INIT_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.genesisInitializer.codehash);
+        console2.log("STATICS_BASKET_HOOK_ADDRESS", deployment.basketHook);
+        console2.log("STATICS_BASKET_TOKEN_FACTORY_ADDRESS", deployment.basketTokenFactory);
+        console2.log("STATICS_CONVERSION_HOOK_ADDRESS", deployment.conversion.hook);
+        console2.log("STATICS_CONVERSION_ZAP_ADDRESS", deployment.conversion.zap);
+        console2.log("STATICS_CONVERSION_ROUTER_ADDRESS", deployment.conversion.router);
         _logFacetCut(StaticsProtocolPlan.phaseTwo(deployment.parts));
         (,, bytes[] memory payloads) = buildPhaseTwoBatch(diamond, deployment, config);
         console2.log("STATICS_PHASE_TWO_DIAMOND_CUT_CALLDATA");

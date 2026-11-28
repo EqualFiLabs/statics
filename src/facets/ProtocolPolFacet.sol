@@ -29,7 +29,6 @@ contract ProtocolPolFacet is ReentrancyGuard {
     error ActionPaused(uint256 action);
     error OnlyProtocolPolOperator(address caller);
     error InvalidProtocolPolOperator(address operator);
-    error PublicProtocolPoolRequired(PoolId poolId);
     error OnlyPoolCreator(address caller, address creator);
     error ProtocolPolAlreadyActivated(PoolId poolId);
     error IncorrectProtocolPolActivationFee(uint256 expected, uint256 provided);
@@ -56,7 +55,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         if (params.closes.length > 8 || params.opens.length == 0 || params.opens.length > 8) {
             revert InvalidProtocolPolRebalanceLegs();
         }
-        _enforcePublicPool(params.poolId);
+        LibProtocolPools.enforcePublicPool(params.poolId);
         uint256 debit0;
         uint256 debit1;
         for (uint256 i; i < params.opens.length; ++i) {
@@ -145,7 +144,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
     }
 
     function activateProtocolPoolPol(PoolId poolId) external payable nonReentrant {
-        _enforcePublicPool(poolId);
+        LibProtocolPools.enforcePublicPool(poolId);
         uint256 fee = LibProtocolPools.protocolPoolStorage().polActivationFeeAmount;
         if (msg.value != fee) revert IncorrectProtocolPolActivationFee(fee, msg.value);
         LibProtocolPol.activate(poolId, msg.sender, fee);
@@ -167,7 +166,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         nonReentrant
         returns (uint256 amount)
     {
-        (, PoolKey memory key,,) = _enforcePublicPool(poolId);
+        (, PoolKey memory key) = LibProtocolPools.enforcePublicPool(poolId);
         Currency currency;
         if (asset == Currency.unwrap(key.currency0)) currency = key.currency0;
         else if (asset == Currency.unwrap(key.currency1)) currency = key.currency1;
@@ -282,7 +281,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
     }
 
     function _setPolShare(PoolId poolId, uint16 shareBps, bool overridden) private {
-        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key,,) = _enforcePublicPool(poolId);
+        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key) = LibProtocolPools.enforcePublicPool(poolId);
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
         uint16 maximum;
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
@@ -297,17 +296,6 @@ contract ProtocolPolFacet is ReentrancyGuard {
         config.overrideSet = overridden;
         config.shareBps = overridden ? shareBps : 0;
         emit IStaticsProtocolPools.ProtocolPolShareSet(poolId, shareBps, overridden);
-    }
-
-    function _enforcePublicPool(PoolId poolId)
-        private
-        view
-        returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
-    {
-        (kind, key, basketId, basketAsset) = LibProtocolPools.enforceRegistered(poolId);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
-            revert PublicProtocolPoolRequired(poolId);
-        }
     }
 
     function _enforcePolOperator() private view {

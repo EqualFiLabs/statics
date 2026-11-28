@@ -623,8 +623,8 @@ be confiscated by governance, and survive decommissioning.
 Additional basket markets record the caller of `createBasketMarket` as the pool
 creator, independently of either basket's creator and token address ordering.
 That account receives creator revenue and controls paid POL activation. Canonical
-launch pools retain their designated basket creator. Basket creator claims remain
-creator-only through `claimCreatorRevenue`.
+launch pools retain their designated basket creator. Revenue claims remain
+restricted to the recorded pool creator through `claimCreatorRevenue`.
 
 For a basket A / basket B market, the basket-staker allocation collected in A
 enters A's existing basket reward index; the allocation collected in B enters

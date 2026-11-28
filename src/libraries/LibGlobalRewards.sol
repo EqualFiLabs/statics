@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -498,11 +504,6 @@ library LibGlobalRewards {
             _rollMatured(asset, rs.books[asset]);
             emit IStaticsGlobalRewards.RewardBookCheckpointed(asset);
         }
-    }
-
-    function enforcePositionRewardBooksFresh(uint256 positionId) internal view {
-        RewardStorage storage rs = rewardStorage();
-        _enforcePositionBooksFresh(rs, rs.positions[positionId]);
     }
 
     function rewardBookNeedsCheckpoint(address asset) internal view returns (bool) {

@@ -29,6 +29,7 @@ import {V4Quoter} from "@uniswap/v4-periphery/src/lens/V4Quoter.sol";
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
 import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
+import {LibProtocolPools} from "../../src/libraries/LibProtocolPools.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsMarketTape} from "../../src/interfaces/IStaticsMarketTape.sol";
 import {IStaticsMarketObservations} from "../../src/interfaces/IStaticsMarketObservations.sol";
@@ -474,6 +475,27 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(address(permissionedKey.hooks), address(permissionedHook));
         assertEq(uint256(publicPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.General));
         assertEq(uint256(permissionedPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral));
+    }
+
+    function testPublicPoolOperationsRejectPermissionedAndUnknownPools() public {
+        (PoolId permissionedId,,) = _createDefaultPool(address(assetA), address(assetB), 3_000, 100);
+        PoolId[2] memory ids = [permissionedId, PoolId.wrap(keccak256("unknown pool"))];
+        for (uint256 i; i < ids.length; ++i) {
+            bytes memory expected = abi.encodeWithSelector(
+                i == 0
+                    ? LibProtocolPools.PublicProtocolPoolRequired.selector
+                    : LibProtocolPools.ProtocolPoolNotRegistered.selector,
+                ids[i]
+            );
+            vm.expectRevert(expected);
+            protocolPools.setProtocolPoolFeeRate(ids[i], IStaticsProtocolPools.PoolSwapFeeRate(25, 25));
+            vm.expectRevert(expected);
+            protocolPools.clearProtocolPoolFeeRate(ids[i]);
+            vm.expectRevert(expected);
+            protocolPools.settleProtocolPoolRevenue(ids[i], address(assetA));
+            vm.expectRevert(expected);
+            protocolPools.setProtocolPoolPolShare(ids[i], 1_000);
+        }
     }
 
     function testPermissionedRevenueAuthenticatesItsHookAndRejectsBasketShare() public {

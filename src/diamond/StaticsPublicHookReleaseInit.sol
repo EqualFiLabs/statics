@@ -1,11 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {PublicHookPolicyFacet} from "../facets/PublicHookPolicyFacet.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibDeploymentPhases} from "../libraries/LibDeploymentPhases.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
+import {IStaticsBasketConversion} from "../interfaces/IStaticsBasketConversion.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 
 /// @notice Atomic Phase 2 basket activation; no Dollar or Morpho initialization.
 contract StaticsPublicHookReleaseInit is PublicHookPolicyFacet {
@@ -18,6 +26,13 @@ contract StaticsPublicHookReleaseInit is PublicHookPolicyFacet {
     ) external {
         LibDiamond.enforceIsContractOwner();
         LibDeploymentPhases.initializePhaseTwo(basketFee, flashFeeBps);
+        if (
+            LibDiamond.diamondStorage().supportedInterfaces[type(IStaticsBasketConversion).interfaceId]
+                && LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount != 0
+        ) {
+            LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount = 0;
+            emit IStaticsProtocolPools.PoolCreationFeeSet(0);
+        }
         installBasketHook(basketHook, basketTokenFactory);
         _replaceManager(manager);
     }

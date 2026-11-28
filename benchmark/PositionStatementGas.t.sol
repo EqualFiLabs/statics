@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockERC20} from "../test/mocks/MockERC20.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
-import {BatchRewardsFlowTestBase} from "../helpers/BatchRewardsFlowTestBase.sol";
+import {IStaticsRangeGauge} from "../src/interfaces/IStaticsRangeGauge.sol";
+import {BatchRewardsFlowTestBase} from "../test/helpers/BatchRewardsFlowTestBase.sol";
 
 /// @dev ABI-neutral baseline/candidate benchmark: includes only the external action,
 /// not pool/NFT fixture construction. Run with the repository's unchanged profile.

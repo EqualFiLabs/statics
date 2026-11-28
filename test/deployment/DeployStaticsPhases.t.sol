@@ -28,6 +28,7 @@ import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketStaging} from "../../src/interfaces/IStaticsBasketStaging.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
+import {IStaticsBasketConversion} from "../../src/interfaces/IStaticsBasketConversion.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
@@ -37,6 +38,8 @@ import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
+import {IStaticsPublicHookPolicy} from "../../src/interfaces/IStaticsPublicHookPolicy.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -137,6 +140,36 @@ contract DeployStaticsPhasesTest is Test {
         for (uint256 i = 1; i < selectors.length; ++i) {
             assertNotEq(selectors[i - 1], selectors[i], "selector assigned to multiple phases");
         }
+    }
+
+    function testFreshStagedPhaseTwoInstallsConversionAndBasketFactory() public {
+        vm.pauseGasMetering();
+        string memory createX = vm.readFile("test/fixtures/createx-v1.json");
+        vm.etch(vm.parseJsonAddress(createX, ".address"), vm.parseJsonBytes(createX, ".runtime"));
+        Fixture memory fixture = _phaseOneFixture();
+        address diamond = fixture.phaseOne.diamond;
+        assertGt(IStaticsProtocolPools(diamond).poolCreationFee(), 0);
+        DeployStaticsPhases.PhaseTwoConfig memory config = _phaseTwoConfig(fixture, 0);
+        PhaseTwoDeployment memory phaseTwo =
+            fixture.phases.deployPhaseTwoWithConversion(config, address(fixture.phases));
+        vm.resumeGasMetering();
+        (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
+            fixture.phases.buildPhaseTwoBatch(diamond, phaseTwo, config);
+        assertEq(targets.length, 1);
+        _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("combined phase two"));
+
+        _assertManifest(diamond, 52, PHASE_TWO_SELECTORS + 6);
+        assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0);
+        assertEq(IStaticsProtocolPools(diamond).poolCreationFee(), 0);
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketConversion).interfaceId));
+        IStaticsBasketConversion.Configuration memory installed =
+            IStaticsBasketConversion(diamond).basketConversionConfiguration();
+        assertEq(keccak256(abi.encode(installed)), keccak256(abi.encode(phaseTwo.conversion)));
+        (address hook, address factory) = IStaticsPublicHookPolicy(diamond).basketHookConfiguration();
+        assertEq(hook, phaseTwo.basketHook);
+        assertEq(factory, phaseTwo.basketTokenFactory);
+        assertFalse(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
+        assertFalse(IERC165(diamond).supportsInterface(type(IStaticsMorpho).interfaceId));
     }
 
     function testStagedDeploymentReachesFreshDeploymentParity() public {

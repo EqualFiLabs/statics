@@ -17,6 +17,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 
 contract GovernanceFacet is IStaticsGovernance, IStaticsNonSwapRevenue {
     error InvalidActions(uint256 actions);
@@ -137,20 +138,24 @@ contract GovernanceFacet is IStaticsGovernance, IStaticsNonSwapRevenue {
 
     function quarantineProtocolPool(PoolId poolId) external {
         _enforceGuardianOrOwner();
-        LibProtocolPools.enforceRegistered(poolId);
+        _enforceSwapPool(poolId);
         LibGovernance.governanceStorage().swapQuarantined[poolId] = true;
         emit ProtocolPoolQuarantineSet(poolId, msg.sender, true);
     }
 
     function releaseProtocolPoolQuarantine(PoolId poolId) external {
         LibDiamond.enforceIsContractOwner();
-        LibProtocolPools.enforceRegistered(poolId);
+        _enforceSwapPool(poolId);
         LibGovernance.governanceStorage().swapQuarantined[poolId] = false;
         emit ProtocolPoolQuarantineSet(poolId, msg.sender, false);
     }
 
     function protocolSwapsPaused() external view returns (bool paused) {
         return LibGovernance.governanceStorage().swapQuarantined[PoolId.wrap(bytes32(0))];
+    }
+
+    function _enforceSwapPool(PoolId poolId) private view {
+        if (!LibBasketMarkets.marketStorage().markets[poolId].conversion) LibProtocolPools.enforceRegistered(poolId);
     }
 
     function isProtocolPoolQuarantined(PoolId poolId) external view returns (bool quarantined) {

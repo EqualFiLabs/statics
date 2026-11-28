@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity ^0.8.28;
 
 /// @notice Canonical WETH9-compatible mock for local deployments and tests.

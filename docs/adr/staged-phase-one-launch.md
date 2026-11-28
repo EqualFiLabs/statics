@@ -118,30 +118,35 @@ The Safe transfers Diamond ownership to the timelock only afterward. Later publi
 pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,
 use the timelock.
 
-## Phase 2: baskets, credit, flash composition, and Genesis integration
+## Phase 2: baskets, conversion, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 318 selectors across 44 facets. It installs:
+The production release installs 364 selectors across 52 facets, including
+the conversion facet's six selectors. The basket foundation and conversion
+configuration enter the live Diamond through one governed cut.
+It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
+- [conversion markets](./basket-conversion.md) for USDG-funded buys and sells of supported unseeded baskets;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
 - basket and single-asset flash loans and their dedicated callbacks;
 - canonical basket pools, basket launch liquidity, liquidity unwind, and basket fee allocation
   through the Phase 1 liquidity manager; and
 - the Diamond-side Genesis Operator linkage, reward, transition, and recovery surface.
 
-The phase deploys 12 new facet implementations, `StaticsPhaseTwoInit`, and
-`StaticsGenesisIntegrationInit`: 14 contracts total. Remaining
-basket-dependent selectors are added to seven Phase 1 facet addresses; those facets are not
-redeployed merely to expose their deferred selectors. Basket ERC-20s are deployed later per basket,
-not during phase activation.
+For a newly staged Diamond, `DeployStaticsPhases.runPhaseTwo` builds the timelock batch from
+the canonical selector plan and deploys the basket hook, token factory, and conversion
+periphery. For the original deployed Diamond, use the historical Phase 1 verification inputs and
+`PrepareStaticsPublicHookUpgrade.buildCombined` to prepare the owner cut. This cut includes the
+facet replacements required by the release and preserves the existing selector surface.
 
-The Phase 2 timelock batch atomically installs the selector delta and initializes the basket
-creation fee and runtime-configured single-asset flash-loan fee. Genesis
-binding remains a separate ordered handoff because the deployed Genesis system and the new Diamond
-can have different governance authorities. Preparation revalidates the exact expanded Phase 1
-facet runtimes, deployed hook runtime and immutable bindings, installed liquidity-manager runtime
-and four immutable bindings, and the chain-manifest PoolManager, PositionManager, and Permit2
-runtimes and bindings.
+The initializer sets both basket creation and shared pool registration fees to zero for the
+governance-only rollout. This also makes ordinary protocol pool creation owner-only while its
+shared fee remains zero. Governance prepares each basket ERC-20 separately, verifies it,
+finalizes it with zero seed and POL disabled, registers its USDG conversion market and authorizes
+the zap for that basket. Genesis binding remains a separate ordered handoff because the deployed
+Genesis system and the Diamond can have different governance authorities. Preparation verifies
+the earlier runtime bindings and the combined release preflight checks the installed selectors,
+interfaces and USDG-funded round trip.
 
 ## Phase 3: Statics Dollar
 

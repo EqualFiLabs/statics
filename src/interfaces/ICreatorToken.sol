@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: MIT
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 /// @notice Current creator-token transfer-validator discovery interface.

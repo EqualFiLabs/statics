@@ -108,7 +108,7 @@ STATICS_PHASE_TWO_SMOKE_JSON=/absolute/path/to/smoke.json \
 scripts/phase-two-rehearsal/run-production-preflight.sh
 ```
 
-The candidate uses format `statics-phase-two-production-candidate-v3`. It binds
+The candidate uses format `statics-phase-two-production-candidate-v4`. It binds
 the frozen `sourceCommit` and `releaseId`, chain `4663`, Diamond, owner, canonical
 PoolManager/PositionManager/Permit2 bindings, the canonical SHA-256 digest of the
 Safe JSON, the canonical SHA-256 digest of the smoke JSON, and a `contracts` object.
@@ -136,7 +136,7 @@ reviewed current-head reads:
 }
 ```
 
-The smoke file uses format `statics-phase-two-production-smoke-v3` and binds the
+The smoke file uses format `statics-phase-two-production-smoke-v4` and binds the
 same commit and release ID. `safeBatches` contains exact `to`, `value`, and `data`
 items executed atomically by the real Safe on the fork. `transactions` contains
 exact impersonated `from`, `to`, `value`, `data`, expected status, and optional
@@ -163,7 +163,7 @@ The preflight refuses placeholders, omitted cases, changed Safe
 or smoke bytes, expected failures in a mandatory lifecycle action, an outdated
 unqualified cut facets, runtime drift, wrong embedded token creation code,
 changed bindings, topology changes during smoke execution, or anything other than
-the frozen 51-facet/358-selector deployment-address routing after the cut. It also recomputes
+the combined 52-facet/364-selector deployment-address routing after the cut. It also recomputes
 the release and artifact digests, binds the exact initializer arguments, and checks
 the Phase 2 deployment phase, zero basket and General creation fees, five-basis-point
 single-asset flash fee, every retained Phase 1 and activated Phase 2 ERC-165
@@ -185,3 +185,16 @@ This runner becomes usable only after exact production deployment transactions,
 Safe JSON, and smoke calldata have been reviewed. Its presence alone is not
 current-head evidence; only a passing `summary.json` tied to the captured block
 hash and input digests is evidence.
+
+The production preflight also requires the conversion hook, zap, router and facet
+as frozen deployment roles. Use the combined cut from
+`PrepareStaticsPublicHookUpgrade.buildCombined` for production. The basket-only
+rehearsal remains a narrower regression gate.
+
+Add a `conversion` object to the reviewed smoke JSON. It contains `buyer`,
+`quote`, `basketToken`, `basketId`, `poolId`, `shares`, `deadline`, two Safe
+`setup` transactions (prepare, then finalize the unseeded basket), and the
+exact bounded zap calldata in `buy` and `sell`. The production preflight runs
+these on the isolated fork and requires the reviewed AAPL/META paths, checked
+balances, scoped authorization, and a complete round trip. For live activation,
+obtain full-match explorer verification of the prepared token before finalizing.

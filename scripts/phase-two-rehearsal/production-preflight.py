@@ -16,14 +16,29 @@ from chain_gas_policy import transaction_limit
 from execution_evidence import append, capture, local_rpc, require, save  # noqa: E402
 from phase_two_runtime import ZERO, abi, command, data, decoded, keccak, selector  # noqa: E402
 
-FORMAT = "statics-phase-two-production-candidate-v3"
-SMOKE_FORMAT = "statics-phase-two-production-smoke-v3"
+FORMAT = "statics-phase-two-production-candidate-v4"
+SMOKE_FORMAT = "statics-phase-two-production-smoke-v4"
 ROLES = {
     "basketHook": "StaticsBasketHook",
     "basketTokenFactory": "StaticsBasketTokenFactory",
     "manager": "StaticsLiquidityManager",
     "initializer": "StaticsPublicHookReleaseInit",
+    "conversionFacet": "BasketConversionFacet",
+    "conversionHook": "StaticsBasketConversionHook",
+    "conversionZap": "StaticsBasketConversionZap",
+    "conversionRouter": "StaticsBasketConversionRouter",
 }
+CONVERSION_SIGNATURES = (
+    "basketConversionConfiguration()", "basketConversionMarket(bytes32)",
+    "createBasketConversionMarket(uint256,address,uint256,uint256)",
+    "decommissionBasketConversionMarket(bytes32)",
+    "mintBasketConversion(bytes32,uint256,address,uint256[])",
+    "prefundBasketConversion(bytes32,address,uint256)",
+)
+CONVERSION_ARGS = "(bytes32,uint256,address,(uint256,uint256,uint256[],bool,(address[],(address,address,uint24,int24,address)[],bytes[])[]))"
+CONVERSION_MARKET = "basketConversionMarket(bytes32)(((address,address,uint24,int24,address),uint256,address,address,bool))"
+DEPLOYER = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
+DEPLOYER_RUNTIME = "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989"
 REQUIRED_SMOKE_SEQUENCE = (
     "general-create", "general-swap", "basket-prepare",
     "basket-finalize", "basket-mint", "basket-swap",
@@ -412,6 +427,13 @@ class Preflight:
         self.simulated, _ = load_json(self.release_dir / "simulated-contracts.json",
                                       "frozen selector inventory")
         self.expected_selector_artifacts = validate_release_manifest(self.release, self.simulated)
+        conversion = self.release.get("conversion", {})
+        require(conversion.get("facetCount") == 52 and conversion.get("selectorCount") == 364,
+                "release evidence does not cover conversion")
+        for signature in CONVERSION_SIGNATURES:
+            selected = selector(signature)
+            require(selected not in self.expected_selector_artifacts, "conversion selector collision")
+            self.expected_selector_artifacts[selected] = "BasketConversionFacet"
         require(c.get("format") == FORMAT and c.get("chainId") == 4663, "production candidate format drift")
         require(c.get("sourceCommit") == self.release.get("commit")
                 and c.get("releaseId") == self.release.get("releaseId"), "candidate release identity drift")
@@ -435,6 +457,8 @@ class Preflight:
             c, self.safe_json, self.expected_selector_artifacts)
         require(c.get("smokeSha256") == digest(self.smoke), "smoke JSON digest differs from candidate")
         self.smoke_cases, self.smoke_entities, self.smoke_view_requirements = validate_smoke(c, self.smoke)
+        self.conversion_smoke = self.smoke.get("conversion")
+        require(isinstance(self.conversion_smoke, dict), "missing USDG round-trip smoke")
         self.lifecycle_step = 0
         bindings = c.get("bindings")
         require(isinstance(bindings, dict), "candidate bindings missing")
@@ -463,10 +487,19 @@ class Preflight:
             expected_init = creation + args
             tx = self.rpc("eth_getTransactionByHash", [entry["transactionHash"]])
             receipt = self.rpc("eth_getTransactionReceipt", [entry["transactionHash"]])
-            require(tx is not None and receipt is not None and receipt["status"] == "0x1"
-                    and tx.get("to") is None and tx["input"].lower() == "0x" + expected_init.hex()
-                    and receipt.get("contractAddress", "").lower() == entry["address"].lower(),
-                    "candidate deployment transaction drift: " + role)
+            require(tx is not None and receipt is not None and receipt["status"] == "0x1",
+                    "candidate deployment failed: " + role)
+            if role in ("conversionHook", "basketHook") and (tx.get("to") or "").lower() == DEPLOYER:
+                actual = bytes.fromhex(tx["input"][2:])
+                deployer = bytes.fromhex(self.rpc("eth_getCode", [DEPLOYER, receipt["blockNumber"]])[2:])
+                predicted = keccak(b"\xff" + bytes.fromhex(DEPLOYER[2:]) + actual[:32] + keccak(expected_init))[-20:]
+                require(actual[32:] == expected_init and "0x" + predicted.hex() == entry["address"].lower()
+                        and "0x" + keccak(deployer).hex() == DEPLOYER_RUNTIME,
+                        "candidate CREATE2 deployment drift: " + role)
+            else:
+                require(tx.get("to") is None and tx["input"].lower() == "0x" + expected_init.hex()
+                        and receipt.get("contractAddress", "").lower() == entry["address"].lower(),
+                        "candidate deployment transaction drift: " + role)
             runtime = bytes.fromhex(self.rpc("eth_getCode", [entry["address"], "latest"])[2:])
             immutable_values = release_gate.check_runtime(artifact, runtime)
             checked.append(dict(role=role, artifact=entry["artifact"], address=entry["address"],
@@ -579,7 +612,8 @@ class Preflight:
 
     def _assert_topology(self):
         facets = self.scalar(self.candidate["diamond"], "facets()((address,bytes4[])[])")
-        require(len(facets) == 51 and sum(len(item[1]) for item in facets) == 358, "post-cut selector drift")
+        require(len(facets) == 52 and sum(len(item[1]) for item in facets) == 364, "post-cut selector drift")
+        self._assert_conversion_configuration()
         candidate_artifacts = {
             entry["address"].lower(): entry["artifact"] for entry in self.candidate["contracts"].values()
         }
@@ -621,6 +655,111 @@ class Preflight:
         for interface_id, name in REQUIRED_INACTIVE_INTERFACES.items():
             require(not self.scalar(self.candidate["diamond"], "supportsInterface(bytes4)(bool)", interface_id),
                     "later-phase interface activated early: " + name + " " + interface_id)
+
+    def _assert_conversion_configuration(self):
+        core = self.candidate["diamond"]
+        addresses = self.candidate["contracts"]
+        expected = [addresses[role]["address"].lower()
+                    for role in ("conversionHook", "conversionZap", "conversionRouter")]
+        expected.append(self.candidate["bindings"]["poolManager"].lower())
+        actual = self.scalar(core, "basketConversionConfiguration()((address,address,address,address))")
+        require([address.lower() for address in actual] == expected, "conversion configuration drift")
+        hook, zap, router, manager = expected
+        require(int(hook, 16) & ((1 << 14) - 1) == 0x2888, "conversion hook flags drift")
+        for contract in (hook, zap, router):
+            require(self.scalar(contract, "core()(address)").lower() == core.lower()
+                    and self.scalar(contract, "poolManager()(address)").lower() == manager,
+                    "conversion periphery binding drift")
+        for contract in (zap, router):
+            require(self.scalar(contract, "hook()(address)").lower() == hook, "conversion hook binding drift")
+        interface = 0
+        for signature in CONVERSION_SIGNATURES:
+            interface ^= int(selector(signature), 16)
+        require(self.scalar(core, "supportsInterface(bytes4)(bool)", f"0x{interface:08x}"),
+                "missing conversion interface")
+
+    def _conversion_round_trip(self):
+        smoke = self.conversion_smoke
+        core = self.candidate["diamond"]
+        zap = self.candidate["contracts"]["conversionZap"]["address"]
+        buyer = address(smoke.get("buyer"), "conversion buyer")
+        quote = address(smoke.get("quote"), "conversion quote")
+        chain = json.loads((ROOT / "deployments/robinhood-chain-4663.json").read_text())
+        require(quote.lower() == chain["contracts"]["usdg"]["address"].lower(), "unreviewed launch quote")
+        token = address(smoke.get("basketToken"), "conversion basket token")
+        basket = int(smoke["basketId"])
+        pool = hash_data(smoke.get("poolId"), "conversion market")
+        shares = int(smoke["shares"])
+        require(shares > 0 and shares < 2**127, "invalid conversion smoke amount")
+
+        def balance(asset):
+            return int(self.scalar(asset, "balanceOf(address)(uint256)", buyer))
+
+        def supply():
+            return int(self.scalar(token, "totalSupply()(uint256)"))
+
+        setup = smoke.get("setup")
+        require(isinstance(setup, list) and len(setup) == 2, "expected token preparation and finalization")
+        for index, transaction in enumerate(setup):
+            calldata = hex_data(transaction.get("data"), "conversion basket setup")
+            require(transaction.get("to", "").lower() == core.lower()
+                    and int(transaction.get("value", "0")) == 0, "conversion basket setup target drift")
+            expected = ("0x5a9200ab", "0x1ee65d26")[index]
+            require(calldata[:10].lower() == expected, "conversion basket setup selector drift")
+            self._safe(("conversion-prepare", "conversion-finalize")[index], [transaction])
+        basket_id, exists = self.call(core, "basketIdOf(address)(uint256,bool)", token)
+        require(exists and int(basket_id) == basket and supply() == 0 and balance(token) == 0,
+                "conversion smoke must start with a newly finalized unseeded basket")
+        require(not self.scalar(core, "isBasketDistributor(uint256,address)(bool)", basket, zap),
+                "zap approved before basket authorization")
+
+        deadline = int(smoke["deadline"])
+        self._safe("conversion-register", [
+            {"to": core, "data": data(CONVERSION_SIGNATURES[2], basket, quote, 0, deadline)},
+            {"to": core, "data": data("setBasketDistributor(uint256,address,bool)", basket, zap, True)},
+        ])
+        market = self.scalar(core, CONVERSION_MARKET, pool)
+        require(int(market[1]) == basket and market[2].lower() == token.lower()
+                and market[3].lower() == quote.lower() and market[4], "conversion smoke market drift")
+        require(self.scalar(core, "isBasketDistributor(uint256,address)(bool)", basket, zap),
+                "scoped zap approval is missing")
+        reviewed = json.loads((ROOT / "test/fixtures/basket-conversion/routes-16.json").read_text())["routes"][:2]
+        state_view = chain["contracts"]["stateView"]["address"]
+        for leg in reviewed:
+            require(balance(leg["token"]) == 0, "conversion payer already holds a constituent")
+            require(int(self.scalar(state_view, "getLiquidity(bytes32)(uint128)", leg["poolId"])) > 0,
+                    "no liquidity on reviewed conversion route")
+        starting_quote = balance(quote)
+        for mode, asset in (("buy", quote), ("sell", token)):
+            signature = mode + CONVERSION_ARGS
+            calldata = hex_data(smoke.get(mode), "conversion " + mode)
+            require(calldata[:10].lower() == selector(signature), "conversion trade selector drift")
+            pool_arg, amount, receiver, request = decoded(command(
+                "cast", "decode-calldata", "--json", signature, calldata))
+            require(pool_arg.lower() == pool.lower() and int(amount) == shares
+                    and receiver.lower() == buyer.lower() and int(request[1]) > 0 and not request[3],
+                    "conversion trade terms drift")
+            require(len(request[2]) == len(request[4]) == len(reviewed), "conversion route count drift")
+            for (currencies, keys, hook_data), leg in zip(request[4], reviewed):
+                currency_pair = sorted([quote.lower(), leg["token"].lower()])
+                require([entry.lower() for entry in currencies] == [quote.lower(), leg["token"].lower()]
+                        and len(keys) == 1 and hook_data == ["0x"], "conversion route drift")
+                a, b, fee, spacing, hook = keys[0]
+                require([a.lower(), b.lower()] == currency_pair and int(fee) == leg["fee"]
+                        and int(spacing) == leg["tickSpacing"] and hook.lower() == ZERO,
+                        "conversion PoolKey drift")
+            approval = int(request[1]) if mode == "buy" else shares
+            require(balance(asset) >= approval, "conversion smoke payer cannot cover reviewed spending")
+            self._send(asset, data("approve(address,uint256)", zap, approval), buyer, case=mode + "-approval")
+            receipt, _, _ = self._send(zap, calldata, buyer, case="conversion-" + mode)
+            require(int(receipt["gasUsed"], 16) < 2**24 * 9 // 10, "conversion trade lacks gas headroom")
+            if mode == "buy":
+                require(balance(token) == shares and supply() == shares
+                        and 0 < starting_quote - balance(quote) <= int(request[1]), "conversion buy readback drift")
+                after_buy = balance(quote)
+            else:
+                require(balance(token) == 0 and supply() == 0 and balance(quote) - after_buy >= int(request[1]),
+                        "conversion sale readback drift")
 
     def _require_smoke_target_code(self, requirement, label):
         require(self.rpc("eth_getCode", [requirement["to"], "latest"]) != "0x",
@@ -815,12 +954,13 @@ class Preflight:
         require(self.lifecycle_step == len(REQUIRED_SMOKE_SEQUENCE), "production smoke lifecycle incomplete")
         self._assert_general_entity()
         self._assert_basket_entity(require_supply=True)
+        self._conversion_round_trip()
         self._assert_topology()
         head = self.rpc("eth_getBlockByNumber", ["latest", False])
         save(self.root / "summary.json", dict(status="pass", kind="current-head-production-preflight",
              sourceCommit=self.candidate["sourceCommit"], releaseId=self.candidate["releaseId"], chainId=4663,
              forkBlock=int(os.environ["FORK_BLOCK"]), forkBlockHash=os.environ["FORK_BLOCK_HASH"],
-             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=51, selectorCount=358,
+             finalBlock=int(head["number"], 16), finalBlockHash=head["hash"], facetCount=52, selectorCount=364,
              candidateSha256=digest(self.candidate), safeSha256=digest(self.safe_json),
              smokeSha256=digest(self.smoke), smokeCases=self.smoke_cases))
 
