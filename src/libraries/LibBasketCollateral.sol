@@ -6,7 +6,7 @@ import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 
 library LibBasketCollateral {
-    bytes32 internal constant COLLATERAL_STORAGE_POSITION = keccak256("statics.storage.basket.collateral.v1");
+    bytes32 internal constant COLLATERAL_STORAGE_POSITION = keccak256("statics.storage.basket.collateral");
 
     struct PositionBasketCollateral {
         uint256 depositedShares;

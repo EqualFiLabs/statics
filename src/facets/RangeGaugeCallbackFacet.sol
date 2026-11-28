@@ -25,6 +25,7 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibSwapRewardSources} from "../libraries/LibSwapRewardSources.sol";
 
 /// @notice Swap-critical dispatcher for canonical market accounting and public range topology.
 /// @dev Ordinary swaps avoid routing work. A managed-boundary crossing performs one bounded
@@ -59,7 +60,7 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
         if (state.permissioned) {
             if (staticsStakerFeesPacked != 0) revert InvalidPermissionedSwapFlags(flags);
         } else {
-            _crystallizeStakerFees(state.key, staticsStakerFeesPacked);
+            _crystallizeStakerFees(poolId, state.key, staticsStakerFeesPacked);
         }
         if (!state.permissioned) {
             LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
@@ -78,19 +79,17 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
         if (flags & LibMarketTape.FLAG_INTERNAL == 0) _tryRecordObservation(poolId, state.sequence);
     }
 
-    function _crystallizeStakerFees(PoolKey memory key, uint256 packed) private {
+    function _crystallizeStakerFees(PoolId poolId, PoolKey memory key, uint256 packed) private {
         uint256 amount0 = uint128(packed);
         uint256 amount1 = uint128(packed >> 128);
-        if (amount0 != 0) {
-            LibGlobalRewards.crystallizeUnfundedSwapFee(
-                LibPoolRewards.rewardAsset(Currency.unwrap(key.currency0)), amount0
-            );
-        }
-        if (amount1 != 0) {
-            LibGlobalRewards.crystallizeUnfundedSwapFee(
-                LibPoolRewards.rewardAsset(Currency.unwrap(key.currency1)), amount1
-            );
-        }
+        if (amount0 != 0) _crystallize(poolId, Currency.unwrap(key.currency0), amount0);
+        if (amount1 != 0) _crystallize(poolId, Currency.unwrap(key.currency1), amount1);
+    }
+
+    function _crystallize(PoolId poolId, address source, uint256 amount) private {
+        address asset = LibPoolRewards.rewardAsset(source);
+        LibSwapRewardSources.record(asset, msg.sender, poolId, source, amount);
+        LibGlobalRewards.crystallizeUnfundedSwapFee(asset, amount);
     }
 
     function _recordAuthenticatedSwap(PoolId poolId, BalanceDelta poolDelta, uint256 staticsFeesPacked, uint8 flags)
@@ -102,11 +101,11 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
         bool installed = state.permissioned ? ls.permissionedIntegrationInstalled : ls.integrationInstalled;
         if (!installed) revert LiquidityIntegrationNotInstalled(state.permissioned);
 
-        address expectedHook = state.permissioned ? ls.permissionedHook : ls.hook;
-        if (msg.sender != expectedHook) revert OnlyInstalledSwapHook(msg.sender, expectedHook);
-
         IStaticsProtocolPools.ProtocolPoolKind kind;
         (kind, state.key,,) = LibProtocolPools.enforceRegistered(poolId);
+        address expectedHook = state.permissioned ? ls.permissionedHook : address(state.key.hooks);
+        if (msg.sender != expectedHook) revert OnlyInstalledSwapHook(msg.sender, expectedHook);
+
         bool publicKind = kind == IStaticsProtocolPools.ProtocolPoolKind.General
             || kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical;
         if (state.permissioned ? kind != IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral : !publicKind) {

@@ -8,16 +8,13 @@
 pragma solidity 0.8.33;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
-import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibPermissionedPools} from "../libraries/LibPermissionedPools.sol";
@@ -170,9 +167,9 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         view
         returns (bool activated, bool overridden, uint16 shareBps)
     {
-        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = LibProtocolPools.enforceRegistered(poolId);
+        LibProtocolPools.enforceRegistered(poolId);
         LibProtocolPools.PolFundingConfig storage config = LibProtocolPools.protocolPoolStorage().polFunding[poolId];
-        activated = kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || config.activated;
+        activated = config.activated;
         overridden = config.overrideSet;
         shareBps = config.shareBps;
     }

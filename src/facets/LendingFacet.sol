@@ -65,8 +65,13 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         bytes32 custodyAccount = LibCustody.basketAccount(current.basketId);
 
         uint256 length = configured.assets.length;
+        uint256 impairedMask = bs.impairedAssets[current.basketId];
         for (uint256 i; i < length; ++i) {
             address asset = configured.assets[i];
+            if (impairedMask & (uint256(1) << i) != 0) {
+                _writeOffPrincipal(ls, loanId, current.basketId, asset);
+                continue;
+            }
             uint256 principal = ls.principals[loanId][asset];
             uint256 received =
                 principal == 0 ? 0 : LibCustody.pullAndReserve(custodyAccount, asset, msg.sender, principal);
@@ -161,6 +166,10 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         uint256 index
     ) private {
         address asset = configured.assets[index];
+        if (bs.impairedAssets[context.basketId] & (uint256(1) << index) != 0) {
+            _writeOffPrincipal(ls, context.loanId, context.basketId, asset);
+            return;
+        }
         uint256 principal = ls.principals[context.loanId][asset];
         ls.outstandingPrincipal[context.basketId][asset] -= principal;
         delete ls.principals[context.loanId][asset];
@@ -177,6 +186,15 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         }
         LibGlobalRewards.accrueNonSwapFee(context.custodyAccount, asset, protocolAmount);
         emit RecoveryPenaltyDistributed(context.loanId, asset, callerAmount, callerReceived, protocolAmount);
+    }
+
+    function _writeOffPrincipal(LibLending.LendingStorage storage ls, uint256 loanId, uint256 basketId, address asset)
+        private
+    {
+        uint256 principal = ls.principals[loanId][asset];
+        ls.outstandingPrincipal[basketId][asset] -= principal;
+        delete ls.principals[loanId][asset];
+        emit LoanImpairedPrincipalWrittenOff(loanId, basketId, asset, principal);
     }
 
     function quoteBorrow(uint256 basketId, uint256 sharesIn) external view returns (BorrowQuote memory result) {
@@ -281,7 +299,9 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         result.callerAmounts = new uint256[](length);
         result.protocolAmounts = new uint256[](length);
         uint256 supply = IERC20(configured.token).totalSupply();
+        uint256 impairedMask = LibBasket.basketStorage().impairedAssets[current.basketId];
         for (uint256 i; i < length; ++i) {
+            if (impairedMask & (uint256(1) << i) != 0) continue;
             uint256 backingRemoved = LibBasket.backingReduction(configured.bundleAmounts[i], supply, result.burnShares);
             uint256 penaltyAmount = backingRemoved - ls.principals[loanId][result.assets[i]];
             uint256 callerAmount = Math.mulDiv(penaltyAmount, LibLending.RECOVERY_CALLER_SHARE_BPS, LibBasket.BPS);

@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import {IStaticsAggregatedBatchRewards} from "../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {GlobalRewardsFacet} from "../src/facets/GlobalRewardsFacet.sol";
 import {RangeGaugeLivenessFacet} from "../src/facets/RangeGaugeLivenessFacet.sol";
-import {GaugeIncentiveFacet} from "../src/facets/GaugeIncentiveFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../src/facets/GaugeAllocatorRewardFacet.sol";
 import {Script} from "forge-std/Script.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IDiamondCut} from "../src/interfaces/IDiamondCut.sol";
@@ -88,7 +88,7 @@ contract PrepareStaticsBatchRewardsUpgrade is Script {
         );
         if (global.codehash != keccak256(type(GlobalRewardsFacet).runtimeCode)) revert InvalidClaimFacet(global);
         if (lp.codehash != keccak256(type(RangeGaugeLivenessFacet).runtimeCode)) revert InvalidClaimFacet(lp);
-        if (allocator.codehash != keccak256(type(GaugeIncentiveFacet).runtimeCode)) {
+        if (allocator.codehash != keccak256(type(GaugeAllocatorRewardFacet).runtimeCode)) {
             revert InvalidClaimFacet(allocator);
         }
         IDiamondCut.FacetCut[] memory cut = _cut(loupe, facet, global, lp, allocator, existing);
@@ -125,7 +125,7 @@ contract PrepareStaticsBatchRewardsUpgrade is Script {
         uint256 count = 0;
         count = _replacement(loupe, cut, count, global, StaticsSelectors.globalRewards());
         count = _replacement(loupe, cut, count, lp, StaticsSelectors.rangeGaugeLiveness());
-        count = _replacement(loupe, cut, count, allocator, StaticsSelectors.gaugeIncentiveActions());
+        count = _replacement(loupe, cut, count, allocator, StaticsSelectors.gaugeAllocatorRewards());
         if (existing) {
             bytes4[] memory prior = new bytes4[](2);
             prior[0] = selectors[0];

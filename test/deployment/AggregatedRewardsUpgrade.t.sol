@@ -14,7 +14,7 @@ import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncenti
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
-import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
@@ -35,7 +35,7 @@ contract AggregatedRewardsUpgradeTest is BatchRewardsUpgradeTest {
         upgrade = new PrepareStaticsAggregatedRewardsUpgrade();
         globalFacet = address(new GlobalRewardsFacet());
         lpFacet = address(new RangeGaugeLivenessFacet());
-        allocatorFacet = address(new GaugeIncentiveFacet());
+        allocatorFacet = address(new GaugeAllocatorRewardFacet());
     }
 
     // Execute the pinned #115 runtime against real funded state before the atomic upgrade.
@@ -86,7 +86,7 @@ contract AggregatedRewardsUpgradeTest is BatchRewardsUpgradeTest {
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsAggregatedBatchRewards).interfaceId));
         _assertRoutes(StaticsSelectors.globalRewards(), globalFacet);
         _assertRoutes(StaticsSelectors.rangeGaugeLiveness(), lpFacet);
-        _assertRoutes(StaticsSelectors.gaugeIncentiveActions(), allocatorFacet);
+        _assertRoutes(StaticsSelectors.gaugeAllocatorRewards(), allocatorFacet);
         _assertRoutes(StaticsSelectors.batchRewards(), facet);
         vm.prank(alice);
         (, uint256[][] memory amounts,) = IStaticsAggregatedBatchRewards(address(diamond))
@@ -138,7 +138,7 @@ contract AggregatedRewardsUpgradeTest is BatchRewardsUpgradeTest {
         vm.expectPartialRevert(PrepareStaticsBatchRewardsUpgrade.InvalidClaimFacet.selector);
         upgrade.buildAggregatedBatch(address(diamond), facet, globalFacet, lpFacet, alice);
         bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = StaticsSelectors.gaugeIncentiveActions()[0];
+        selectors[0] = StaticsSelectors.gaugeAllocatorRewards()[0];
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut(allocatorFacet, IDiamondCut.FacetCutAction.Replace, selectors);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");

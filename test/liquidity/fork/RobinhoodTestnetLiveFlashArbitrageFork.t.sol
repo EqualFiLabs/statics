@@ -49,9 +49,13 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
             vm.skip(true, "ROBINHOOD_TESTNET is not configured");
             return;
         }
-        uint256 forkId = vm.createSelectFork(rpcUrl, DISTORTED_STATE_BLOCK + 1);
-        assertEq(blockhash(DISTORTED_STATE_BLOCK), DISTORTED_STATE_BLOCK_HASH, "fork block hash drift");
-        vm.rollFork(forkId, DISTORTED_STATE_BLOCK);
+        string memory header = vm.rpcJson(
+            rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(DISTORTED_STATE_BLOCK_HASH), "\",false]")
+        );
+        assertEq(vm.parseJsonBytes32(header, ".hash"), DISTORTED_STATE_BLOCK_HASH, "fork block hash drift");
+        assertEq(vm.parseJsonUint(header, ".number"), DISTORTED_STATE_BLOCK);
+        vm.createSelectFork(rpcUrl, DISTORTED_STATE_BLOCK);
+        assertEq(vm.getBlockNumber(), vm.parseJsonUint(header, ".l1BlockNumber"));
 
         string memory basketConfig = vm.readFile(BASKET_CONFIG_PATH);
         assertEq(block.chainid, ROBINHOOD_TESTNET_CHAIN_ID);
@@ -73,7 +77,7 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
         hook = ILegacyStaticsSwapFeeHook(hookAddress);
     }
 
-    function testProductionReceiverCorrectsObservedTpa1PltrDistortion() public {
+    function testHistoricalReceiverCorrectsObservedTpa1PltrDistortion() public {
         uint256 shares = 127 ether;
         PoolKey[] memory pools = _canonicalPools();
         uint256[] memory allocations = new uint256[](3);
@@ -89,7 +93,7 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
         uint128 lockedLiquidityBefore = hook.lockedLiquidity(PoolId.unwrap(pools[1].toId()));
         uint256 vaultBefore = baskets.vaultBalance(basketId, basketAssets[1]);
         uint256[] memory executorBalancesBefore = _balances(executor);
-        StaticsFlashArbitrageReceiver receiver = new StaticsFlashArbitrageReceiver(address(baskets));
+        StaticsFlashArbitrageReceiver receiver = _historicalReceiver();
         (, uint256[] memory flashAmounts,) = flashLoans.quoteFlashLoan(basketId, shares);
         uint256[] memory mintMaximums = baskets.quoteMint(basketId, shares);
 
@@ -119,6 +123,19 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
             assertEq(IERC20(basketAssets[i]).balanceOf(address(receiver)), 0);
         }
         assertEq(IERC20(baskets.basket(basketId).token).balanceOf(address(receiver)), 0);
+    }
+
+    // Replay the archived Diamond with its compatible production receiver. Current receiver
+    // settlement is exercised against the current Diamond in RestrictedBasketArbitrage.t.sol.
+    function _historicalReceiver() private returns (StaticsFlashArbitrageReceiver receiver) {
+        string memory fixture = vm.readFile("test/fixtures/tpa1-arbitrage-receiver.json");
+        bytes memory creationCode = vm.parseJsonBytes(fixture, ".creationCode");
+        assertEq(keccak256(creationCode), 0xaae6752f321193cddfc6e459a4ef0098a7fd2488c945cd801a3be054376d1c94);
+        bytes memory initCode = abi.encodePacked(creationCode, abi.encode(address(baskets)));
+        address deployed;
+        assembly ("memory-safe") { deployed := create(0, add(initCode, 32), mload(initCode)) }
+        assertTrue(deployed != address(0));
+        receiver = StaticsFlashArbitrageReceiver(deployed);
     }
 
     function _canonicalPools() private view returns (PoolKey[] memory pools) {

@@ -61,7 +61,10 @@ contract RangeGaugePoolInitializationTest is CanonicalPoolTestBase {
             nonce: 0,
             deadline: type(uint256).max
         });
-        PoolId poolId = IStaticsProtocolPools(address(diamond)).createPool(params, "");
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        uint256 creationFee = pools.poolCreationFee();
+        vm.prank(alice);
+        PoolId poolId = pools.createPool{value: creationFee}(params, "");
 
         (, int24 liveTick,,) = poolManager.getSlot0(poolId);
         (bool initialized, int24 referenceTick, uint8 slotCount, address statics) = probe.gaugeInitialization(poolId);

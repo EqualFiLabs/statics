@@ -45,6 +45,7 @@ SCENARIOS=(
 )
 : >"$RUN_DIR/scenario-summary.jsonl"
 for scenario in "${SCENARIOS[@]}"; do
+    export REHEARSAL_SCENARIO="${scenario%.sh}"
     results_before=$(wc -l <"$RUN_DIR/results.jsonl")
     receipts_before=$(find "$RUN_DIR" -maxdepth 1 -type f -name '*.json' -print0 \
         | xargs -0 -r jq -r 'if type == "object" and has("status") then .status else empty end' 2>/dev/null \

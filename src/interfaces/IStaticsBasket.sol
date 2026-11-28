@@ -5,7 +5,8 @@ interface IStaticsBasket {
     enum BasketStatus {
         Active,
         Quarantined,
-        ExitOnly
+        ExitOnly,
+        Pending
     }
 
     struct FeeTier {
@@ -32,7 +33,9 @@ interface IStaticsBasket {
         uint24 lpFee;
         int24 tickSpacing;
         uint160 sqrtPriceAssetPerBasketX96;
+        /// @dev Zero initializes the market without contributing a POL seed.
         uint256 pairedAssetAmount;
+        bool activateManagedPol;
     }
 
     struct BasketView {
@@ -83,6 +86,13 @@ interface IStaticsBasket {
         PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
         uint256 launchDeadline
+    ) external payable returns (uint256 basketId, address token);
+    function createBasketPrepared(
+        CreateBasketParams calldata params,
+        PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline,
+        bytes32 preparationId
     ) external payable returns (uint256 basketId, address token);
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
         external

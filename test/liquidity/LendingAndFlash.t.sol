@@ -758,8 +758,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
+        uint256[] memory receiverBacking = baskets.quoteMint(basketId, 1 ether);
+        _fundAndApprove(alice, receiverBacking[0], receiverBacking[1]);
         vm.prank(alice);
-        IERC20(token).transfer(address(receiver), 1 ether);
+        baskets.mint(basketId, 1 ether, address(receiver), receiverBacking);
         receiver.setReentryData(
             abi.encodeCall(IStaticsBasket.redeem, (basketId, 1 ether, address(receiver), new uint256[](2)))
         );

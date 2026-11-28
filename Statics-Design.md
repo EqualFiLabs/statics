@@ -83,7 +83,7 @@ backing or let one basket consume another basket's assets.
 | Source | Initial routing | Fallback or secondary routing |
 | --- | --- | --- |
 | Basket creation fee | Native asset sent directly to configured treasury | Creation reverts if the exact fee cannot be forwarded |
-| Basket mint and redemption fees | Constituent assets enter global non-swap rewards | 90% to matured selected global stake and 10% to treasury; 100% treasury if no eligible stake |
+| Basket mint and redemption fees | Constituent assets fund the originating basket's reward index and treasury | Governance configures one split per basket, defaulting to 100% to eligible basket stakers. Treasury gets the remainder and the full fee when eligibility or the reward restriction excludes the asset. |
 | Basket-loan origination fee | Backing represented by burned fee shares enters global non-swap rewards | Same global 90/10 or treasury-only rule |
 | Extension payment, repayment excess, and quoted flash fee | Full fee receipt enters global non-swap rewards | Same global 90/10 or treasury-only rule |
 | Canonical swap hook fee | Effective global or pool-specific rates and five-way split | Disabled POL and unavailable Statics-staker shares redirect to treasury; unavailable basket-staker shares redirect to active POL or treasury |
@@ -395,7 +395,7 @@ separate.
 `quoteMint` returns each asset's backing increase plus the selected flat fee.
 The caller supplies per-asset maximums. The Diamond measures inbound receipts,
 credits only the backing increase to the basket vault, moves the measured fee
-to the global fee account, and mints the requested BasketTokens.
+to the fee account, and mints the requested BasketTokens.
 
 The ordinary collateral paths are:
 
@@ -409,15 +409,16 @@ They apply the same quote and fee rules as wallet minting.
 `quoteRedeem` returns each asset's backing reduction less the selected flat
 fee. The Diamond burns BasketTokens, reduces basket backing, transfers the
 receiver's net assets subject to per-asset minimums, and moves the fee to the
-global fee account.
+fee account.
 
 The position path is `redeemBasketCollateral`. Locked collateral cannot be
 withdrawn or redeemed.
 
-Loose BasketToken ownership alone does not earn protocol fees. A user may
-deposit BasketTokens into a PositionNFT to earn that basket's configured
-canonical swap-fee allocation, or stake the configured global staking token
-and select reward assets to enter their global eligible-stake denominators.
+Depositing BasketTokens into a PositionNFT starts eligibility for the basket's
+share of mint, redemption, and canonical swap fees. Governance can change
+`basketMintRedemptionStakerShareBps` for future fees without changing user fee
+tiers or accrued rewards. Staking the configured global staking token and
+selecting reward assets qualifies the position for global rewards.
 
 ## Basket Position Rewards
 
@@ -489,8 +490,8 @@ settled claims.
 
 ### Non-swap fee routing
 
-Primary mint and redemption fees, lending origination backing
-reclassification, extension payments, repayment excess, exact quoted flash
+Lending origination backing reclassification, extension payments,
+repayment excess, exact quoted flash
 fees, the protocol share of mature-loan recovery penalties, pegged-profile
 fees, and the global share of eligible volatile-series fees enter the same
 non-swap ledger. If the asset has nonzero matured eligible selected stake:
@@ -1181,6 +1182,19 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
+Restricted BasketTokens share an owner-governed distributor registry in the
+Diamond. Ordinary transfers require an approved endpoint or an exact protocol
+ticket; spender approval alone does not authorize the endpoints. PoolManager
+settlement checks run before distributor approval. Phase 2 installs the registry
+empty. The later Morpho configuration batch explicitly approves Morpho, replacing
+per-token bindings and ingress tickets without adding special revocation guards.
+Direct Morpho top-ups count toward Morpho health without increasing tracked
+collateral or Statics stake. Only collateral above the tracked amount is untracked
+surplus. Loss recognition compares the current balance with tracked collateral,
+so replenishment before synchronization can offset a deficit and its reward
+forfeiture. Existing authorized surplus recovery and empty-account closure
+requirements remain unchanged.
+
 Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; later phases retain
 that Diamond and add selectors through reviewed timelocked cuts. The fresh full
 stack reference uses the same timelock ownership model for both Diamonds. The
@@ -1620,7 +1634,7 @@ remainder. Clearing the rate override restores the latest global rates.
 8. Inbound accounting credits measured receipts, not requested amounts.
 9. Outbound accounting never exceeds its named reservation and authorized debit.
 10. Flat fee tiers select the greatest qualifying threshold; later duplicates win.
-11. Primary mint, redemption, flash, origination, and extension fees never create basket-specific holder claims; only the configured canonical hook basket-staker allocation enters basket position indexes.
+11. Primary mint and redemption fees conserve across the original basket's reward index and treasury. Flash, origination, and extension fees use the global non-swap ledger.
 12. Non-swap fees conserve across global staker and treasury books.
 13. No staker liability is created unless that asset has nonzero matured eligible stake.
 14. Reward opt-in and top-ups wait until an hourly boundary at least 24 hours later.

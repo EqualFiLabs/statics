@@ -12,13 +12,13 @@ contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
     function testUserPositionMintsDirectlyToRecipientAndRefundsWithoutPersistentBook() public {
         address token0 = Currency.unwrap(canonicalKey.currency0);
         address token1 = Currency.unwrap(canonicalKey.currency1);
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
 
         uint256 alice0Before = IERC20(token0).balanceOf(alice);
         uint256 alice1Before = IERC20(token1).balanceOf(alice);
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
         (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
-            liquidityManager.mintUserPosition(request, bob, alice);
+            _mintUserPosition(request, bob, alice);
 
         assertEq(IERC721(address(positionManagerContract)).ownerOf(movement.tokenId), bob);
         assertEq(IERC20(token0).balanceOf(alice) - alice0Before, refund0);
@@ -32,52 +32,52 @@ contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
     function testUserPathRejectsInventoryNotPhysicallyReceived() public {
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
         vm.expectRevert();
-        liquidityManager.mintUserPosition(request, bob, alice);
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(request, bob, alice);
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPathRejectsZeroRecipientAndKeepsInventoryUnchanged() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
         vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
-        liquidityManager.mintUserPosition(request, address(0), alice);
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(request, address(0), alice);
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPathRejectsManagerAsNftRecipient() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
-        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), address(liquidityManager), alice);
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(_request(5 ether, 6 ether, 6 ether), address(liquidityManager), alice);
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPathRejectsManagerAsRefundRecipient() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
-        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, address(liquidityManager));
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, address(liquidityManager));
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPathRejectsDiamondAsNftRecipient() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         address boundDiamond = liquidityManager.staticsDiamond();
         vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
-        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), boundDiamond, alice);
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(_request(5 ether, 6 ether, 6 ether), boundDiamond, alice);
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPathRejectsDiamondAsRefundRecipient() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         address boundDiamond = liquidityManager.staticsDiamond();
         vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
-        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, boundDiamond);
-        assertEq(positionManagerContract.nextTokenId(), 1);
+        _mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, boundDiamond);
+        assertEq(positionManagerContract.nextTokenId(), firstUserPositionId);
     }
 
     function testUserPositionCannotBeTransferredIntoProtocolManagerCustody() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         (IStaticsLiquidityManager.PositionMovement memory movement,,) =
-            liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, alice);
+            _mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, alice);
 
         vm.prank(bob);
         vm.expectRevert();

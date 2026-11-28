@@ -5,12 +5,14 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketCollateral} from "./LibBasketCollateral.sol";
+import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibIndexMath} from "./LibIndexMath.sol";
 import {LibMorpho} from "./LibMorpho.sol";
+import {LibRewardPolicy} from "./LibRewardPolicy.sol";
 
 library LibBasketRewards {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.basket.rewards.v2");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.basket.rewards");
     uint256 internal constant RAY = 1e27;
     uint256 internal constant REWARD_ELIGIBILITY_DELAY = 24 hours;
     uint256 internal constant REWARD_BUCKET_SIZE = 1 hours;
@@ -55,6 +57,7 @@ library LibBasketRewards {
         mapping(uint256 positionId => mapping(uint256 basketId => PositionRewards rewards)) positions;
         mapping(uint256 basketId => mapping(address asset => uint256 amount)) totalClaimable;
         mapping(uint256 basketId => EligibilityBook book) eligibility;
+        mapping(uint256 basketId => mapping(uint40 eligibleEpoch => uint40 checkpointEpoch)) activationAliases;
     }
 
     error InvalidBasketRewardAsset(uint256 basketId, address asset);
@@ -86,8 +89,7 @@ library LibBasketRewards {
     }
 
     function canAccrue(uint256 basketId) internal view returns (bool) {
-        RewardStorage storage rs = rewardStorage();
-        return rs.totalEligibleShares[basketId] + _duePendingShares(rs.eligibility[basketId]) != 0;
+        return effectiveEligibleShares(basketId) != 0;
     }
 
     function effectiveEligibleShares(uint256 basketId) internal view returns (uint256) {
@@ -97,21 +99,45 @@ library LibBasketRewards {
 
     function accrueReserved(uint256 basketId, LibBasket.Basket storage configured, address asset, uint256 amount)
         internal
-        returns (uint256 indexRay)
     {
-        if (amount == 0) return 0;
+        if (amount == 0) return;
         if (!isRewardAsset(configured, asset)) revert InvalidBasketRewardAsset(basketId, asset);
         RewardStorage storage rs = rewardStorage();
         _rollMatured(rs, basketId, configured);
         uint256 total = rs.totalEligibleShares[basketId];
         if (total == 0) revert BasketHasNoEligibleShares(basketId);
-        RewardBook storage book = rs.books[basketId][asset];
+        _accrue(rs.books[basketId][asset], basketId, asset, amount, total);
+    }
+
+    /// @dev The asset is the configured constituent being settled by the caller.
+    function accrueMintRedemptionFee(
+        uint256 basketId,
+        LibBasket.Basket storage configured,
+        address asset,
+        uint256 grossFee
+    ) internal {
+        if (grossFee == 0) return;
+        LibCustody.moveReservation(LibCustody.basketAccount(basketId), LibCustody.feeAccount(), asset, grossFee);
+        uint256 stakerAmount;
+        uint16 shareBps = LibBasket.mintRedemptionStakerShareBps(basketId);
+        if (shareBps != 0 && !LibRewardPolicy.isRestricted(asset)) {
+            RewardStorage storage rs = rewardStorage();
+            _rollMatured(rs, basketId, configured);
+            uint256 total = rs.totalEligibleShares[basketId];
+            if (total != 0) {
+                stakerAmount = Math.mulDiv(grossFee, shareBps, LibBasket.BPS);
+                if (stakerAmount != 0) _accrue(rs.books[basketId][asset], basketId, asset, stakerAmount, total);
+            }
+        }
+        LibGlobalRewards.accrueReservedTreasuryFee(asset, grossFee - stakerAmount);
+    }
+
+    function _accrue(RewardBook storage book, uint256 basketId, address asset, uint256 amount, uint256 total) private {
         (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, total, book.indexRemainder);
         book.indexRay += delta;
         book.indexRemainder = remainder;
         book.indexedAmount += amount;
         emit IStaticsBasketRewards.BasketRewardAccrued(basketId, asset, amount, book.indexRay);
-        return book.indexRay;
     }
 
     function settle(uint256 positionId, uint256 basketId, LibBasket.Basket storage configured) internal {
@@ -124,7 +150,7 @@ library LibBasketRewards {
         for (uint256 i; i < length; ++i) {
             _settleAsset(rs, position, positionId, basketId, configured.assets[i], shares);
         }
-        _syncMatured(rs, position, positionId, basketId, configured);
+        _syncMatured(rs, position, basketId, configured);
     }
 
     function pending(uint256 positionId, uint256 basketId, LibBasket.Basket storage configured)
@@ -138,8 +164,14 @@ library LibBasketRewards {
         assets = rewardAssets(configured);
         uint256 length = assets.length;
         amounts = new uint256[](length);
+        uint256 impaired = LibBasket.basketStorage().impairedAssets[basketId];
+        uint40 checkpoint;
+        if (position.pendingShares != 0) {
+            checkpoint = _activationCheckpoint(rs, basketId, configured.token, position.eligibleAt);
+        }
         for (uint256 i; i < length; ++i) {
-            amounts[i] = _pendingAsset(rs, position, basketId, assets[i], shares);
+            if (i != 0 && impaired & (1 << (i - 1)) != 0) continue;
+            amounts[i] = _pendingAsset(rs, position, basketId, assets[i], shares, checkpoint);
         }
     }
 
@@ -148,17 +180,16 @@ library LibBasketRewards {
         PositionRewards storage position,
         uint256 basketId,
         address asset,
-        uint256 eligibleShares
+        uint256 eligibleShares,
+        uint40 checkpoint
     ) private view returns (uint256 amount) {
         amount = position.claimable[asset];
         RewardBook storage book = rs.books[basketId][asset];
         uint256 current = book.indexRay;
         uint256 prior = position.checkpoints[asset];
         if (eligibleShares != 0 && current > prior) amount += Math.mulDiv(eligibleShares, current - prior, RAY);
-        if (position.pendingShares == 0) return amount;
-        uint40 epoch = uint40(uint256(position.eligibleAt) / REWARD_BUCKET_SIZE);
-        if (book.activationRecorded[epoch] && current > book.activationIndexRay[epoch]) {
-            amount += Math.mulDiv(position.pendingShares, current - book.activationIndexRay[epoch], RAY);
+        if (checkpoint != 0 && current > book.activationIndexRay[checkpoint]) {
+            amount += Math.mulDiv(position.pendingShares, current - book.activationIndexRay[checkpoint], RAY);
         }
     }
 
@@ -272,9 +303,9 @@ library LibBasketRewards {
     ) private {
         uint256 shares = position.pendingShares;
         if (shares == 0) return;
-        uint40 epoch = uint40(uint256(position.eligibleAt) / REWARD_BUCKET_SIZE);
+        uint40 epoch = _activationCheckpoint(rs, basketId, configured.token, position.eligibleAt);
+        if (epoch == 0) return;
         RewardBook storage primary = rs.books[basketId][configured.token];
-        if (!primary.activationRecorded[epoch]) return;
         position.checkpoints[configured.token] = primary.activationIndexRay[epoch];
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
@@ -285,6 +316,17 @@ library LibBasketRewards {
         position.pendingShares = 0;
         position.pendingStartTime = 0;
         position.eligibleAt = 0;
+    }
+
+    function _activationCheckpoint(RewardStorage storage rs, uint256 basketId, address basketToken, uint40 eligibleAt)
+        private
+        view
+        returns (uint40)
+    {
+        uint40 epoch = uint40(uint256(eligibleAt) / REWARD_BUCKET_SIZE);
+        uint40 checkpoint = rs.activationAliases[basketId][epoch];
+        if (checkpoint != 0) return checkpoint;
+        return rs.books[basketId][basketToken].activationRecorded[epoch] ? epoch : 0;
     }
 
     function deactivateIfEmpty(uint256 positionId, uint256 basketId) internal {
@@ -465,19 +507,17 @@ library LibBasketRewards {
     function _syncMatured(
         RewardStorage storage rs,
         PositionRewards storage position,
-        uint256 positionId,
         uint256 basketId,
         LibBasket.Basket storage configured
     ) private {
         uint256 shares = position.pendingShares;
         if (shares == 0) return;
-        uint40 epoch = uint40(uint256(position.eligibleAt) / REWARD_BUCKET_SIZE);
-        RewardBook storage primary = rs.books[basketId][configured.token];
-        if (!primary.activationRecorded[epoch]) return;
-        _settleMaturedAsset(rs, position, positionId, basketId, configured.token, shares, epoch);
+        uint40 epoch = _activationCheckpoint(rs, basketId, configured.token, position.eligibleAt);
+        if (epoch == 0) return;
+        _settleMaturedAsset(rs, position, basketId, configured.token, shares, epoch);
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
-            _settleMaturedAsset(rs, position, positionId, basketId, configured.assets[i], shares, epoch);
+            _settleMaturedAsset(rs, position, basketId, configured.assets[i], shares, epoch);
         }
         position.eligibleShares += shares;
         position.pendingShares = 0;
@@ -488,7 +528,6 @@ library LibBasketRewards {
     function _settleMaturedAsset(
         RewardStorage storage rs,
         PositionRewards storage position,
-        uint256,
         uint256 basketId,
         address asset,
         uint256 shares,
@@ -519,9 +558,10 @@ library LibBasketRewards {
         uint256 elapsed = uint256(currentEpoch - nextEpoch) + 1;
         if (elapsed > REWARD_BUCKET_COUNT) elapsed = REWARD_BUCKET_COUNT;
         uint8 cursor = book.bucketCursor;
+        uint40 checkpoint;
         for (uint256 i; i < elapsed; ++i) {
             uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
-            _matureBucket(rs, basketId, configured, book, index, nextEpoch + uint40(i));
+            checkpoint = _matureBucket(rs, basketId, configured, book, index, nextEpoch + uint40(i), checkpoint);
         }
         if (uint256(currentEpoch - nextEpoch) + 1 >= REWARD_BUCKET_COUNT) {
             book.nextBucketEpoch = currentEpoch + 1;
@@ -538,24 +578,30 @@ library LibBasketRewards {
         LibBasket.Basket storage configured,
         EligibilityBook storage eligibility,
         uint8 index,
-        uint40 epoch
-    ) private {
+        uint40 epoch,
+        uint40 checkpoint
+    ) private returns (uint40) {
         uint256 shares = eligibility.pendingBuckets[index];
-        if (shares == 0) return;
-        _flushRemainders(rs, basketId, configured);
+        if (shares == 0) return checkpoint;
+        // All cohorts processed by one roll see the same pre-accrual reward indexes.
+        if (checkpoint == 0) {
+            _flushRemainders(rs, basketId, configured);
+            checkpoint = epoch;
+            RewardBook storage primary = rs.books[basketId][configured.token];
+            primary.activationRecorded[epoch] = true;
+            primary.activationIndexRay[epoch] = primary.indexRay;
+            uint256 length = configured.assets.length;
+            for (uint256 i; i < length; ++i) {
+                RewardBook storage book = rs.books[basketId][configured.assets[i]];
+                book.activationIndexRay[epoch] = book.indexRay;
+            }
+        } else {
+            rs.activationAliases[basketId][epoch] = checkpoint;
+        }
         eligibility.pendingBuckets[index] = 0;
         eligibility.pendingShares -= shares;
         rs.totalEligibleShares[basketId] += shares;
-        _recordActivation(rs.books[basketId][configured.token], epoch);
-        uint256 length = configured.assets.length;
-        for (uint256 i; i < length; ++i) {
-            _recordActivation(rs.books[basketId][configured.assets[i]], epoch);
-        }
-    }
-
-    function _recordActivation(RewardBook storage book, uint40 epoch) private {
-        book.activationIndexRay[epoch] = book.indexRay;
-        book.activationRecorded[epoch] = true;
+        return checkpoint;
     }
 
     function _flushRemainders(RewardStorage storage rs, uint256 basketId, LibBasket.Basket storage configured) private {

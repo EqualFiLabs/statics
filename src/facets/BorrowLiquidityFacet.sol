@@ -13,7 +13,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
@@ -24,6 +24,7 @@ import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLoanOrigination} from "../libraries/LibLoanOrigination.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
@@ -68,7 +69,6 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     error InvalidRecipient();
     error InvalidPoolCount(uint256 provided, uint256 required);
     error DuplicatePoolAsset(address asset);
-    error AssetNotInBasket(uint256 basketId, address asset);
     error LiquidityManagerNotInstalled();
     error InvalidLiquidityParameters(address asset);
     error AmountCapExceeded(address token, uint256 required, uint256 maximum);
@@ -192,7 +192,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
 
         for (uint256 i; i < length; ++i) {
             LiquidityParams calldata supplied = pools[i];
-            uint256 assetIndex = _assetIndex(configured, basketId, supplied.asset);
+            uint256 assetIndex = LibBasket.assetIndex(configured, basketId, supplied.asset);
             if (seen[assetIndex]) revert DuplicatePoolAsset(supplied.asset);
             seen[assetIndex] = true;
             result.pools[i] = _preparePool(ls, configured, basketId, supplied);
@@ -250,9 +250,9 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         ProvisionContext memory ctx,
         PreparedPool memory plan
     ) private returns (uint256 tokenId) {
-        (, uint256 basketReceived) = LibCustody.pushUnreserved(
-            ctx.basketToken, ctx.manager, plan.basketAmount, plan.basketAmount
-        );
+        LibBasketManagerSettlement.begin(plan.key, ctx.manager, ctx.refundRecipient);
+        (, uint256 basketReceived) =
+            LibCustody.pushUnreserved(ctx.basketToken, ctx.manager, plan.basketAmount, plan.basketAmount);
         (, uint256 assetReceived) =
             LibCustody.pushReserved(ctx.custodyAccount, plan.asset, ctx.manager, plan.assetAmount, plan.assetAmount);
         bool basketIsCurrency0 = Currency.unwrap(plan.key.currency0) == ctx.basketToken;
@@ -267,6 +267,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         });
         (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
             manager.mintUserPosition(request, ctx.nftRecipient, ctx.refundRecipient);
+        LibBasketManagerSettlement.end();
         tokenId = movement.tokenId;
         emit BorrowedLiquidityPositionMinted(
             ctx.loanId,
@@ -298,18 +299,6 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
                 LibCustody.pushReserved(custodyAccount, configured.assets[i], receiver, refund, refund);
             }
         }
-    }
-
-    function _assetIndex(LibBasket.Basket storage configured, uint256 basketId, address asset)
-        private
-        view
-        returns (uint256 index)
-    {
-        uint256 length = configured.assets.length;
-        for (uint256 i; i < length; ++i) {
-            if (configured.assets[i] == asset) return i;
-        }
-        revert AssetNotInBasket(basketId, asset);
     }
 
     function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing) private view {

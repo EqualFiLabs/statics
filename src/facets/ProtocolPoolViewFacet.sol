@@ -12,6 +12,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibBasketDeployment} from "../libraries/LibBasketDeployment.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibPermissionedPools} from "../libraries/LibPermissionedPools.sol";
 
@@ -24,7 +25,8 @@ contract ProtocolPoolViewFacet {
         (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset) =
             LibProtocolPools.resolve(poolId);
         bool registered = kind != IStaticsProtocolPools.ProtocolPoolKind.None;
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
+        _liquidityStorage();
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
         bool permissioned = kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral;
         pool.poolId = poolId;
         pool.key = key;
@@ -38,7 +40,7 @@ contract ProtocolPoolViewFacet {
 
         LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
         LibProtocolPools.PolFundingConfig storage polConfig = ps.polFunding[poolId];
-        pool.polActivated = kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || polConfig.activated;
+        pool.polActivated = polConfig.activated;
         pool.polShareOverridden = polConfig.overrideSet;
         if (pool.polActivated && !permissioned) {
             if (polConfig.overrideSet) {
@@ -85,7 +87,7 @@ contract ProtocolPoolViewFacet {
 
     function basketFeeAllocation() external view returns (IStaticsProtocolPools.BasketFeeAllocation memory allocation) {
         IStaticsSwapFeeHook.BasketFeeAllocation memory stored =
-            IStaticsSwapFeeHook(_liquidityStorage().hook).basketFeeAllocation();
+            IStaticsSwapFeeHook(LibBasketDeployment.deploymentStorage().basketHook).basketFeeAllocation();
         allocation = IStaticsProtocolPools.BasketFeeAllocation({
             polShareBps: stored.polShareBps,
             basketStakerShareBps: stored.basketStakerShareBps,
@@ -113,12 +115,11 @@ contract ProtocolPoolViewFacet {
         view
         returns (IStaticsProtocolPools.PoolFeeRateView memory feeRate)
     {
-        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = LibProtocolPools.enforceRegistered(poolId);
+        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
             revert PublicProtocolPoolRequired(poolId);
         }
-        IStaticsSwapFeeHook.PoolFeeRate memory stored =
-            IStaticsSwapFeeHook(_liquidityStorage().hook).poolFeeRate(poolId);
+        IStaticsSwapFeeHook.PoolFeeRate memory stored = IStaticsSwapFeeHook(address(key.hooks)).poolFeeRate(poolId);
         feeRate = IStaticsProtocolPools.PoolFeeRateView({
             inputFeePips: stored.inputFeePips, outputFeePips: stored.outputFeePips, overridden: stored.overridden
         });
@@ -127,6 +128,34 @@ contract ProtocolPoolViewFacet {
     function defaultProtocolPoolFeeRate() external view returns (IStaticsProtocolPools.PoolSwapFeeRate memory feeRate) {
         (uint16 inputFeePips, uint16 outputFeePips) = IStaticsSwapFeeHook(_liquidityStorage().hook).defaultFeeRate();
         feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeePips: inputFeePips, outputFeePips: outputFeePips});
+    }
+
+    function defaultProtocolPoolFeeRate(address hook)
+        external
+        view
+        returns (IStaticsProtocolPools.PoolSwapFeeRate memory feeRate)
+    {
+        (feeRate.inputFeePips, feeRate.outputFeePips) = IStaticsSwapFeeHook(hook).defaultFeeRate();
+    }
+
+    function basketFeeAllocation(address hook)
+        external
+        view
+        returns (IStaticsProtocolPools.BasketFeeAllocation memory allocation)
+    {
+        IStaticsSwapFeeHook.BasketFeeAllocation memory a = IStaticsSwapFeeHook(hook).basketFeeAllocation();
+        return IStaticsProtocolPools.BasketFeeAllocation(
+            a.polShareBps, a.basketStakerShareBps, a.staticsStakerShareBps, a.treasuryShareBps
+        );
+    }
+
+    function generalFeeAllocation(address hook)
+        external
+        view
+        returns (IStaticsProtocolPools.GeneralFeeAllocation memory allocation)
+    {
+        IStaticsSwapFeeHook.GeneralFeeAllocation memory a = IStaticsSwapFeeHook(hook).generalFeeAllocation();
+        return IStaticsProtocolPools.GeneralFeeAllocation(a.polShareBps, a.staticsStakerShareBps, a.treasuryShareBps);
     }
 
     function protocolPoolCreator(PoolId poolId) external view returns (address creator) {

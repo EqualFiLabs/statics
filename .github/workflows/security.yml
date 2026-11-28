@@ -26,11 +26,13 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -107,11 +109,13 @@ jobs:
         run: |
           git submodule sync
           git submodule update --init --depth=1 \
+            lib/createx \
             lib/forge-std \
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -136,3 +140,6 @@ jobs:
       - name: Run managed-POL fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
+      - name: Run Dollar oracle and USDG permit fork proofs
+        if: ${{ !cancelled() }}
+        run: forge test --match-path 'test/dollar/fork/Robinhood*.t.sol' -vv

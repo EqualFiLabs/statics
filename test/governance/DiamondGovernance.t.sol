@@ -24,15 +24,18 @@ import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketTokenFactory} from "../../src/liquidity/StaticsBasketTokenFactory.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -40,7 +43,7 @@ contract VersionFacet {
     }
 }
 
-contract DiamondGovernanceTest is Test {
+contract DiamondGovernanceTest is BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -59,6 +62,7 @@ contract DiamondGovernanceTest is Test {
 
     StaticsDiamond internal diamond;
     StaticsTimelock internal timelock;
+    StaticsBasketTokenFactory internal basketFactory;
 
     function setUp() public {
         DeployStatics deployer = new DeployStatics();
@@ -81,7 +85,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 54);
+        assertEq(loupe.facetAddresses().length, 61);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -292,7 +296,11 @@ contract DiamondGovernanceTest is Test {
         });
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
         pools[0] = IStaticsBasket.PoolLaunchParams({
-            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+            lpFee: 3_000,
+            tickSpacing: 10,
+            sqrtPriceAssetPerBasketX96: 1 << 96,
+            pairedAssetAmount: 1 ether,
+            activateManagedPol: true
         });
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 10 ether;
@@ -433,6 +441,9 @@ contract DiamondGovernanceTest is Test {
     }
 
     function _createBasket() private returns (uint256 basketId) {
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsProtocolPools.setPoolCreationFee, (1 ether)), "enable public pool creation"
+        );
         address[] memory assets = new address[](1);
         MockERC20 constituent = new MockERC20("Constituent", "C", 18);
         assets[0] = address(constituent);
@@ -454,7 +465,11 @@ contract DiamondGovernanceTest is Test {
         });
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
         pools[0] = IStaticsBasket.PoolLaunchParams({
-            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+            lpFee: 3_000,
+            tickSpacing: 10,
+            sqrtPriceAssetPerBasketX96: 1 << 96,
+            pairedAssetAmount: 1 ether,
+            activateManagedPol: true
         });
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 10 ether;
@@ -498,6 +513,14 @@ contract DiamondGovernanceTest is Test {
         _executeThroughTimelock(
             abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (address(manager))),
             "install basket liquidity manager"
+        );
+        basketFactory = _deployTestBasketFactory(address(diamond), poolManager, hook);
+        _executeThroughTimelock(
+            abi.encodeCall(
+                PublicHookPolicyFacet.installBasketHook,
+                (address(_deployTestBasketHook(poolManager, address(diamond), address(1))), address(basketFactory))
+            ),
+            "install modular public hook architecture"
         );
     }
 

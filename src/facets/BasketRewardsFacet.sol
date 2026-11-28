@@ -48,12 +48,17 @@ contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
         assets = LibBasketRewards.rewardAssets(configured);
         uint256 length = assets.length;
         amounts = new uint256[](length);
+        uint256 impaired = LibBasket.basketStorage().impairedAssets[basketId];
         bool hasRewards;
         for (uint256 i; i < length; ++i) {
             address asset = assets[i];
             uint256 amount = LibBasketRewards.clearClaim(positionId, basketId, asset);
             if (amount == 0) continue;
             hasRewards = true;
+            if (i != 0 && impaired & (1 << (i - 1)) != 0) {
+                emit BasketRewardForfeited(positionId, basketId, asset, amount);
+                continue;
+            }
             (, amounts[i]) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
             if (amounts[i] != amount) revert IncompatibleRewardTransfer(asset, amount, amounts[i]);
             emit BasketRewardClaimed(positionId, basketId, asset, receiver, amount);

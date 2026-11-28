@@ -84,7 +84,14 @@ abstract contract GeneralPoolLifecycleTestBase is CanonicalPoolTestBase {
         });
         IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
         key = quote.key;
-        poolId = pools.createPool(params, "");
+        uint256 fee = pools.poolCreationFee();
+        if (fee == 0) {
+            poolId = pools.createPool(params, "");
+        } else {
+            vm.deal(creator, creator.balance + fee);
+            vm.prank(creator);
+            poolId = pools.createPool{value: fee}(params, "");
+        }
     }
 
     // --- Full-range liquidity minted directly to a user through the PositionManager ---

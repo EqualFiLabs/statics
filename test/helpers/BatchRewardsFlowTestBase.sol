@@ -5,6 +5,7 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
@@ -19,7 +20,7 @@ abstract contract BatchRewardsFlowTestBase is RangeGaugeLifecycleTestBase {
 
     function setUp() public virtual override {
         super.setUp();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](2);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
         cut[0] = IDiamondCut.FacetCut(
             address(new GaugeIncentiveFacet()), IDiamondCut.FacetCutAction.Add, _newIncentiveSelectors()
         );
@@ -28,13 +29,18 @@ abstract contract BatchRewardsFlowTestBase is RangeGaugeLifecycleTestBase {
             IDiamondCut.FacetCutAction.Add,
             StaticsSelectors.gaugeIncentiveViews()
         );
+        cut[2] = IDiamondCut.FacetCut(
+            address(new GaugeAllocatorRewardFacet()),
+            IDiamondCut.FacetCutAction.Add,
+            StaticsSelectors.gaugeAllocatorRewards()
+        );
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         incentives = IStaticsGaugeIncentives(address(diamond));
         batch = IStaticsBatchRewards(address(diamond));
     }
 
     function _newIncentiveSelectors() private pure returns (bytes4[] memory selectors) {
-        bytes4[] memory all = StaticsSelectors.gaugeIncentiveActions();
+        bytes4[] memory all = StaticsSelectors.gaugeRoutingActions();
         selectors = new bytes4[](all.length - 2);
         uint256 n;
         for (uint256 i; i < all.length; ++i) {

@@ -160,11 +160,18 @@ not a reason for a protocol registry.
 
 Every configured basket constituent has one canonical BasketToken/constituent
 pool key with the immutable Statics hook and creator-selected static native LP
-fee and tick spacing. Basket creation atomically deploys the BasketToken, initializes every
-constituent pool, registers every key with the manager, mints the aggregate
-pool BasketTokens through ordinary backing and fee accounting, and opens an
-initial protocol-owned managed position from creator-supplied assets. All pool and
-custody changes roll back if any constituent cannot launch. The same path is
+fee and tick spacing. Basket creation deploys the BasketToken and initializes every
+constituent pool. POL starts disabled per pool. The creator may opt in at launch
+or later through `activateProtocolPoolPol`, paying the same governed activation
+fee as General pools. Activation is permanent and affects future fees only.
+
+Initial POL seeding is optional and requires explicit activation for that pool.
+A zero paired-asset amount creates the market without minting seed shares,
+contributing backing or opening a managed position. Users can subsequently mint
+fully backed tokens and provide ordinary LP liquidity. For positive seed amounts,
+launch mints the aggregate pool BasketTokens through ordinary backing and fee
+accounting and opens protocol-owned positions from creator-supplied assets.
+All pool and custody changes in a batch roll back if a constituent cannot launch. The same path is
 used for owner-created genesis baskets and public exact-fee creation.
 Creation includes a caller-selected deadline and measured aggregate
 constituent-debit caps. Launch prices use raw smallest-unit constituent amounts
@@ -173,7 +180,7 @@ quote rather than the protocol. Canonical v4 launch supports constituents that
 settle the exact requested transfer amount; incompatible transfer-tax behavior
 reverts the entire genesis transaction.
 
-Each launched pool is immediately swappable and available to the typed
+Each initialized pool can accept ordinary liquidity; swaps require funded liquidity. Pools are available to the typed
 borrow-to-liquidity path. Callers bound execution with token amount caps and
 deadlines.
 
@@ -214,7 +221,9 @@ deposited BasketToken positions, 30% to global Statics stakers, 5% to the fixed
 creator share, and 20% to treasury. The initial general-pool split is 40% to
 POL, 35% to global Statics stakers, 5% to the fixed creator share, and 20% to
 treasury; general pools have no basket-staker share. An unavailable basket-staker
-allocation redirects to PoolId-local POL. An unavailable global
+allocation redirects to PoolId-local POL only while its effective POL share is active
+and nonzero; otherwise it goes to Treasury. Inactive POL allocation also goes to
+Treasury. An unavailable global
 Statics-staker allocation redirects to treasury. The fixed creator allocation
 never falls back and always credits the current creator.
 

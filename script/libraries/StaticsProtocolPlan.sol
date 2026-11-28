@@ -17,12 +17,18 @@ struct StaticsProtocolParts {
     address positionPortfolio;
     address custody;
     address basketCreation;
+    address basketPreparation;
+    address basketSettlement;
+    address basketMarkets;
+    address basketArbitrageDeployment;
     address basketMint;
     address basketRedemption;
     address basketView;
     address basketCollateral;
     address basketRewards;
     address globalRewards;
+    address swapRewardFunding;
+    address publicHookPolicy;
     address batchRewards;
     address basketAdmin;
     address basketLiquidity;
@@ -56,6 +62,7 @@ struct StaticsProtocolParts {
     address marketTapeViews;
     address marketTapeObservations;
     address gaugeIncentiveActions;
+    address gaugeAllocatorRewards;
     address gaugeIncentiveViews;
     address genesisNFT;
     address morphoActions;
@@ -75,7 +82,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](32);
+        cut = new IDiamondCut.FacetCut[](35);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -87,7 +94,7 @@ library StaticsProtocolPlan {
         cut[8] = _add(parts.basketLiquidity, StaticsSelectors.phaseOneLiquidityIntegration());
         cut[9] = _add(parts.globalRewards, StaticsSelectors.globalRewards());
         cut[10] = _add(parts.interfaceInit, StaticsSelectors.interfaceInit());
-        cut[11] = _add(parts.protocolPoolCreation, StaticsSelectors.protocolPoolCreation());
+        cut[11] = _add(parts.protocolPoolCreation, StaticsSelectors.phaseOneProtocolPoolCreation());
         cut[12] = _add(parts.protocolPoolAdmin, StaticsSelectors.phaseOneProtocolPoolAdmin());
         cut[13] = _add(parts.protocolPoolMaintenance, StaticsSelectors.protocolPoolMaintenance());
         cut[14] = _add(parts.protocolPol, StaticsSelectors.protocolPol());
@@ -103,15 +110,18 @@ library StaticsProtocolPlan {
         cut[24] = _add(parts.rangeGaugeLiveness, StaticsSelectors.rangeGaugeLiveness());
         cut[25] = _add(parts.rangeGaugeView, StaticsSelectors.rangeGaugeViews());
         cut[26] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
-        cut[27] = _add(parts.gaugeIncentiveActions, StaticsSelectors.gaugeIncentiveActions());
+        cut[27] = _add(parts.gaugeIncentiveActions, StaticsSelectors.gaugeRoutingActions());
         cut[28] = _add(parts.gaugeIncentiveViews, StaticsSelectors.gaugeIncentiveViews());
         cut[29] = _add(parts.marketTapeViews, StaticsSelectors.marketTapeViews());
         cut[30] = _add(parts.marketTapeObservations, StaticsSelectors.marketTapeObservations());
         cut[31] = _add(parts.batchRewards, StaticsSelectors.batchRewards());
+        cut[32] = _add(parts.swapRewardFunding, StaticsSelectors.swapRewardFunding());
+        cut[33] = _add(parts.gaugeAllocatorRewards, StaticsSelectors.gaugeAllocatorRewards());
+        cut[34] = _add(parts.publicHookPolicy, StaticsSelectors.publicHookPolicy());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](19);
+        cut = new IDiamondCut.FacetCut[](23);
         cut[0] = _add(parts.governance, StaticsSelectors.phaseTwoGovernance());
         cut[1] = _add(parts.custody, StaticsSelectors.phaseTwoCustody());
         cut[2] = _add(parts.basketAdmin, StaticsSelectors.phaseTwoBasketAdmin());
@@ -131,6 +141,10 @@ library StaticsProtocolPlan {
         cut[16] = _add(parts.flashLoan, StaticsSelectors.flashLoan());
         cut[17] = _add(parts.genesisNFT, StaticsSelectors.genesisNFT());
         cut[18] = _add(parts.borrowLiquidity, StaticsSelectors.borrowLiquidity());
+        cut[19] = _add(parts.basketPreparation, StaticsSelectors.basketPreparation());
+        cut[20] = _add(parts.basketSettlement, StaticsSelectors.basketSettlement());
+        cut[21] = _add(parts.basketMarkets, StaticsSelectors.basketMarkets());
+        cut[22] = _add(parts.basketArbitrageDeployment, StaticsSelectors.basketArbitrageDeployment());
     }
 
     function phaseThree(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

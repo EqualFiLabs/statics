@@ -1,0 +1,545 @@
+{
+  "chainId": 4663,
+  "block": 88780151,
+  "blockHash": "0x9a02e5571f3b5b810fe8660144e6890c9e5666285d63264dfb76285cbe742639",
+  "diamond": "0x612aC07E3A60e16F1CC7B2c1Fd3DbEB474515DAa",
+  "owner": "0x603a8a2f22ac1d61e9c932a4f6fa23170cecb9ff",
+  "poolCreationFee": 0,
+  "legacyHook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+  "facets": [
+    {
+      "address": "0x52fa09822df807fb4296b5bcf38d997cdedca9cb",
+      "runtimeCodeHash": "0x2942f181bab416f194c3cd8e754c9cb23fa4ff0e6af168877fc7c8b6157b9430",
+      "selectors": [
+        "0x1f931c1c"
+      ]
+    },
+    {
+      "address": "0x1898ce85e50ae01aa8d91db58d5abacf48b18938",
+      "runtimeCodeHash": "0x1339e3ac7700b2e72d9ef4924abddea19802a9193a74b07c8721533f1822e485",
+      "selectors": [
+        "0x7a0ed627",
+        "0xadfca15e",
+        "0x52ef6b2c",
+        "0xcdffacc6",
+        "0x01ffc9a7"
+      ]
+    },
+    {
+      "address": "0x4b35e918d6c52f7936cad20ea432879b49bdc52d",
+      "runtimeCodeHash": "0xc857a61a8f27ac63bca68510dd51e8ce07a0a27cf98b3c8bd49fd3bc39004c3c",
+      "selectors": [
+        "0x8da5cb5b",
+        "0xf2fde38b"
+      ]
+    },
+    {
+      "address": "0xc4b8937f7bd4a3cdd426dddbaa31aea96ba98fc8",
+      "runtimeCodeHash": "0xff2c60afd9250d3aace6dea28e44d056679956b87316b45f32f8af0930c3a2e8",
+      "selectors": [
+        "0x452a9320",
+        "0x421f0a18",
+        "0xbdf2a43c",
+        "0x8a0dac4a",
+        "0x136439dd",
+        "0xfabc1cbc",
+        "0x29dcd088",
+        "0xa29698e0",
+        "0x18a076f6",
+        "0xd82416cf",
+        "0xbbddc50e",
+        "0xc566d305",
+        "0xf085f3ef",
+        "0x3f3a8414",
+        "0x13410426"
+      ]
+    },
+    {
+      "address": "0x81f809d9a9f3d2c97eee0a64b3e43260657529c4",
+      "runtimeCodeHash": "0xe1c8ca75a55da12ec37e1654208fa708164594fa1abc4d7ed40851ad9cc3abc1",
+      "selectors": [
+        "0x70a08231",
+        "0x6352211e",
+        "0x095ea7b3",
+        "0x081812fc",
+        "0xa22cb465",
+        "0xe985e9c5",
+        "0x23b872dd",
+        "0x42842e0e",
+        "0xb88d4fde",
+        "0x06fdde03",
+        "0x95d89b41",
+        "0xc87b56dd",
+        "0xf7e0ebf6",
+        "0xa126d601",
+        "0x899346c7",
+        "0xc4ca21e4",
+        "0x9b2889db",
+        "0x84b2fc50",
+        "0x1709beea",
+        "0xb290cc29",
+        "0xb01a58e8",
+        "0x68d94b71",
+        "0xcd347665",
+        "0x42fd3880",
+        "0xc396d82e",
+        "0xff9e7193",
+        "0xb45a3c0e"
+      ]
+    },
+    {
+      "address": "0x8b779a4d7d296c81501e6b2d8604be8312775608",
+      "runtimeCodeHash": "0xb8583d4a96af5351344210d335bc5df68c818ac84808ae4089d6f14cf329ee99",
+      "selectors": [
+        "0x2a55205a",
+        "0x24840dbe",
+        "0x4696f5ff",
+        "0xff05754e",
+        "0xd8ad9cf6",
+        "0xb6bf7e23",
+        "0x917ae00c",
+        "0xe1d3564b",
+        "0x38c8ae38",
+        "0x13cfa782"
+      ]
+    },
+    {
+      "address": "0xa01005e1f411ebfd501f9be1fb3846a9fdb66d18",
+      "runtimeCodeHash": "0x4ba686bd4b2c8216e9d8fe13fa4ddd30922e76a750dee3008c909b1aa81d213b",
+      "selectors": [
+        "0xf645a811",
+        "0xa25b47d3",
+        "0xf9cc2dbb",
+        "0x925b2a41",
+        "0x2533993c",
+        "0x02f9b7f0",
+        "0x4dc9b1b8"
+      ]
+    },
+    {
+      "address": "0x17eea08227940e32a665fed110570b8efc627a9f",
+      "runtimeCodeHash": "0x6c891024845b4b992d2a5ea9011bb76d9582981cdcc052e019b0434ff5cfb1ac",
+      "selectors": [
+        "0xf0f44260",
+        "0x61d027b3"
+      ]
+    },
+    {
+      "address": "0x2b2dda715006437bad495009f65dbd74415bfdb3",
+      "runtimeCodeHash": "0x4fcb9f284cc783a900b2fa443505d8f2ae1b7fc6d08261ec56603d115bf08622",
+      "selectors": [
+        "0x6734b9fd",
+        "0xede10642",
+        "0xf376e945",
+        "0x33827438",
+        "0x3cf72e14",
+        "0x9021bf70"
+      ]
+    },
+    {
+      "address": "0x344a8fe7fb49e412f30f5da5fcb4e3014413290c",
+      "runtimeCodeHash": "0xd1834b103091b848ff0528c312b663f11a51fd26418a457924e4262021ecd634",
+      "selectors": [
+        "0x6970cbff",
+        "0x7b0472f0",
+        "0x93d4f2c9",
+        "0x0ac5cf66",
+        "0x0e67301d",
+        "0x446c4e8a",
+        "0x03a2a98c",
+        "0x2cf6211c",
+        "0xa5676b1f",
+        "0x31f8c1dc",
+        "0x888f84ba",
+        "0x72f702f3",
+        "0x817b1cd2",
+        "0x71d933a0",
+        "0xa89d0024",
+        "0x6113bdbc",
+        "0x1fae1c21",
+        "0x9c75c87b",
+        "0xd1bb9aa8",
+        "0x0025e190",
+        "0xa55bacb6",
+        "0x11323e33",
+        "0x27a5001b"
+      ]
+    },
+    {
+      "address": "0xec3d15c90d07e57dbc12fc0fa38b7369af1a57e2",
+      "runtimeCodeHash": "0xf435467051d01b67170ebaf0b06eccf80b6bbb400db91e717aea8b2c8a2bc5b1",
+      "selectors": [
+        "0x81435681"
+      ]
+    },
+    {
+      "address": "0x5dfa73378e1a49acbddb5ed67ec0adb7035f3316",
+      "runtimeCodeHash": "0xce976fdf1e431d2c7e7c2e96819ef5d4cf1791643583cb963dc6db1b9c341570",
+      "selectors": [
+        "0x6893417a",
+        "0x68bb0543",
+        "0x0b024fe9"
+      ]
+    },
+    {
+      "address": "0xc0b7e2e0d9449521cd3836b81b83edc1bb04e3fc",
+      "runtimeCodeHash": "0x9c47a41fbfac02d7e401125387c17be8c3e19159f0412b07aab038d94477393b",
+      "selectors": [
+        "0xd2d6c44d",
+        "0x09103cec",
+        "0x9450a15f",
+        "0x9571d85f",
+        "0x9ac0bef1",
+        "0xbde055de",
+        "0x5e2268a8",
+        "0x259a522c"
+      ]
+    },
+    {
+      "address": "0x41e84eead6ef55cb4796af62ae25a8886c1b24ba",
+      "runtimeCodeHash": "0x7d6af5d61a222e33d1d5429b0fe9947a9a65073ed8fb8787c81f6f8256729637",
+      "selectors": [
+        "0xe582153a",
+        "0xe5ebf402"
+      ]
+    },
+    {
+      "address": "0xf81c3ba1e697314cd4f763803b5e9a129b684386",
+      "runtimeCodeHash": "0x81d5930bea56dccfb758f8d1ee53fef8fa06fda0440fbf0edbf79832c252aba6",
+      "selectors": [
+        "0x6e05f629",
+        "0xc5d2bab6",
+        "0x91c5bdcf",
+        "0xf32d81e2",
+        "0xa57dd70c",
+        "0x94de5ddd",
+        "0x673ace87",
+        "0x651a4ee4",
+        "0x15e75691",
+        "0xab7d5839",
+        "0x3a9171f2",
+        "0x4b4217ad"
+      ]
+    },
+    {
+      "address": "0x8d305b6a06ce9d4228aabd36a4bca7e31c4c4bee",
+      "runtimeCodeHash": "0x42c068bbb075f4960ab99166d4317d8dbe02ef24c82d4af86fd4415ef8e248d9",
+      "selectors": [
+        "0x24bce5cc",
+        "0xc2e65a77",
+        "0xbe74615f",
+        "0x5d2419fe",
+        "0x1d685d1b",
+        "0xec6839a7",
+        "0xe0953227",
+        "0xa43a83b8",
+        "0xdb6d0299",
+        "0x9ed3abd2",
+        "0x54db4b66",
+        "0x824d7070",
+        "0x4763f47f"
+      ]
+    },
+    {
+      "address": "0x63e22b137b2c1b94b6e077a6273e62a3aab2a9a6",
+      "runtimeCodeHash": "0x625f71649b86e2387cf9b09c45e107dad29758426890efa2cfb5acfb107801df",
+      "selectors": [
+        "0x4286d76b",
+        "0x30cf17fc",
+        "0x3de436e0",
+        "0x2afa2a2f",
+        "0x9055e46a",
+        "0xeb67578b",
+        "0xa2f1c470",
+        "0x85d13d7d",
+        "0x6347a985"
+      ]
+    },
+    {
+      "address": "0xbb909b6c090e0de475cebe825f50cc00350b84a4",
+      "runtimeCodeHash": "0x96ea2f9c67c7099f8b9a94193acd7776f70b43734373d5f8b689ac8d5b5e686d",
+      "selectors": [
+        "0x2a680c38",
+        "0x9214399d",
+        "0x30522a1f",
+        "0x67588722",
+        "0x9ccf81d0"
+      ]
+    },
+    {
+      "address": "0x92ac6026093e9540ed0a8f04cb954e2601c17ad8",
+      "runtimeCodeHash": "0x1bed600eb2d3948a60057dd2063c497db793dc8d301662de66453c901a0a34e0",
+      "selectors": [
+        "0x50f79844",
+        "0xf17f507e",
+        "0x6ac9843b"
+      ]
+    },
+    {
+      "address": "0xf2cda96c33f07888aa4380d29962be9f275d9e64",
+      "runtimeCodeHash": "0x10e7b1eb08647b80762aba1a3c986a596a8d938903e423c08a165ecded008f16",
+      "selectors": [
+        "0x572b0ce1",
+        "0xdb6542e2",
+        "0xcc11dc60",
+        "0x35f98a5a",
+        "0x08896ab0",
+        "0x55b07203",
+        "0x0e0c0df8"
+      ]
+    },
+    {
+      "address": "0x0d9c1f3547492c0b14af3e810685bd9c44f74729",
+      "runtimeCodeHash": "0x11bc956594cb50a54ffbfb236ac8504ad50f7ab443b635414dd3a10821cb688d",
+      "selectors": [
+        "0xab498ffa",
+        "0x13a61682",
+        "0x1da8cdb0"
+      ]
+    },
+    {
+      "address": "0x243c6e9324e32220e20b9cf329b017f6d36019fa",
+      "runtimeCodeHash": "0x878649af01c9d92ce7bad1953c730d6fb1adb22d0d05f78e9142cf6da26db154",
+      "selectors": [
+        "0x76b20b59",
+        "0x53fd1a3b",
+        "0x62fcda3e",
+        "0x178050c7",
+        "0x860fdf81"
+      ]
+    },
+    {
+      "address": "0x5c335c71623607fb7a86dc07636df90f14e92f52",
+      "runtimeCodeHash": "0xa9b3c9e286440812edc59cc5f0416cb15a77030a99e6e5d7e996e9929bdf2b3f",
+      "selectors": [
+        "0x014e41f6",
+        "0x748dfbb2"
+      ]
+    },
+    {
+      "address": "0xae2d0e47c31e38bdc44cf7cbfc70d49a23ae6ce8",
+      "runtimeCodeHash": "0xa2300c59ced43cf96b8ea478f5dd5ac4bf742dcf37535043fa6d137d1751b47d",
+      "selectors": [
+        "0x586f33ee",
+        "0xe5f8c55e",
+        "0xf56976cb",
+        "0x3d8f632f"
+      ]
+    },
+    {
+      "address": "0xf83576cb51b89aa172ef08a8dee8a79b20d4cda3",
+      "runtimeCodeHash": "0xddcc7968edbd80d522d902c41f2e6ea41fab1449f1d39052fea35bead4387acd",
+      "selectors": [
+        "0xfd58c1ff",
+        "0x8b63f484",
+        "0xb2ead4b8",
+        "0x1cd05d0d",
+        "0x8d113520"
+      ]
+    },
+    {
+      "address": "0xf0e21ba5f181fc39862fe5c40c51ef22ddcd4c68",
+      "runtimeCodeHash": "0x66362a39ad548c228bcdc46350b1bf56a9a39b5005a008b45d270fb585f6a3d6",
+      "selectors": [
+        "0x7e38b74a",
+        "0x8a8b7314",
+        "0x2c2e7252",
+        "0xe66c5e71",
+        "0x90e2155a",
+        "0x44b8ec08",
+        "0xfa043ab0",
+        "0x748d797c",
+        "0xab2ad2cd",
+        "0x929a644a",
+        "0xbcd4bb66",
+        "0x38440e62",
+        "0xa65fa769"
+      ]
+    },
+    {
+      "address": "0x30d0d1804cdff5f6402ae72985cd708f225259ed",
+      "runtimeCodeHash": "0x8b9edf285ae32d568e7f7454df0a7542857a47183b46038976ea01e9f39a2a06",
+      "selectors": [
+        "0xf02aca3b"
+      ]
+    },
+    {
+      "address": "0xb8d24fea83474a083b287ad5322e6d69a048546d",
+      "runtimeCodeHash": "0x4fa4fae0ef051bbbf698ac58832a3ff949c50b57a6b22630f5c27f07e506f9df",
+      "selectors": [
+        "0x4c559a5b",
+        "0xda95a8de",
+        "0xac68d1e1",
+        "0x80ff4847",
+        "0x0600d312",
+        "0x2c3b4d90",
+        "0xbd46b76e",
+        "0x44c32918",
+        "0x76ddfc16",
+        "0x37b49d89"
+      ]
+    },
+    {
+      "address": "0x7c09bc4522107108f5dd8673a769b52854fcbf7d",
+      "runtimeCodeHash": "0x6d89dfe603044cd82a60cf128db1024a33b36bd637e50d7fa7dc3a89d4caf593",
+      "selectors": [
+        "0x2b802f64",
+        "0x9f6fca47",
+        "0xdbdc6d01",
+        "0xf4942618",
+        "0xb1eb00fa",
+        "0xbfc313cc",
+        "0x4c10ac43",
+        "0x781931d6",
+        "0x25b11d6b",
+        "0xbf9ab88f",
+        "0x10bd1b4c",
+        "0x200d2f55",
+        "0x78b52ebf"
+      ]
+    },
+    {
+      "address": "0x1397007bcdf0b7b712ab34dabf7dd53417065133",
+      "runtimeCodeHash": "0xdcfaabb8824abf0a22f2dc16dfe1baf14f452e49142e2575c08c2b1984f9553d",
+      "selectors": [
+        "0x68a3f5d9"
+      ]
+    },
+    {
+      "address": "0x25aca4afc07b2213f21459550f66d57c998e5573",
+      "runtimeCodeHash": "0x43b491cccf8f7cc3212fb6d10175a9d167967ceb0fd43adbe2e7f8c050b83843",
+      "selectors": [
+        "0x75cae820",
+        "0xb1ce779c",
+        "0x45740159",
+        "0x4e7eae0c",
+        "0x3fe5e1ff"
+      ]
+    },
+    {
+      "address": "0x21081a0560e7288379b07631a68c88309220d213",
+      "runtimeCodeHash": "0xb0d6d97cf368a476a5d8bca02a34bf56c333d6f14890edb5badcd20c9e456f3a",
+      "selectors": [
+        "0x0f9b72e1",
+        "0xbd71cc89",
+        "0x23dbb931"
+      ]
+    }
+  ],
+  "legacyPools": [
+    {
+      "poolId": "0x13f24e6c80fc085440ae3a8f757b7b1b0dcaf414793dfe6dba9177a3023f325b",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "registrationBlock": 86350063,
+      "type": "public",
+      "pair": "ETH/USDG",
+      "initialized": true,
+      "activeLiquidity": "0",
+      "externalSwaps": 94,
+      "internalSwaps": 0,
+      "marketTapeSequence": 94,
+      "lastSwapTimestamp": 1791870380,
+      "decommissioned": false,
+      "lpFeePips": 50,
+      "tickSpacing": 1,
+      "activePolPositions": 0
+    },
+    {
+      "poolId": "0x20aa17212cfab902b3ac5ac7954058808a370cb6e3d8bb9f0b08a161838df19c",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x2d8d6f4a93acd7a916a5a654ec8b690ba3b3eadd",
+      "currency1": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "registrationBlock": 86350067,
+      "type": "public",
+      "pair": "STATICS/USDG",
+      "initialized": true,
+      "activeLiquidity": "5123602413014720",
+      "externalSwaps": 55,
+      "internalSwaps": 0,
+      "marketTapeSequence": 55,
+      "lastSwapTimestamp": 1791988377,
+      "decommissioned": false,
+      "lpFeePips": 200,
+      "tickSpacing": 10,
+      "activePolPositions": 0
+    },
+    {
+      "poolId": "0x21bad15821a79029edd044f6f3c4f5ba6d0e39e2107a9656639617fc45bebabd",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x2d8d6f4a93acd7a916a5a654ec8b690ba3b3eadd",
+      "currency1": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "registrationBlock": 86350071,
+      "type": "public",
+      "pair": "STATICS/NVDA",
+      "initialized": true,
+      "activeLiquidity": "0",
+      "externalSwaps": 43,
+      "internalSwaps": 0,
+      "marketTapeSequence": 43,
+      "lastSwapTimestamp": 1791918203,
+      "decommissioned": false,
+      "lpFeePips": 10000,
+      "tickSpacing": 200,
+      "activePolPositions": 0
+    },
+    {
+      "poolId": "0x6f0e4a348c87bd4289c9059a6ec4e3af63cba2958e1629665cb1a863892ace89",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "currency1": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "registrationBlock": 86350091,
+      "type": "public",
+      "pair": "USDG/NVDA",
+      "initialized": true,
+      "activeLiquidity": "0",
+      "externalSwaps": 0,
+      "internalSwaps": 0,
+      "marketTapeSequence": 0,
+      "lastSwapTimestamp": 0,
+      "decommissioned": false,
+      "lpFeePips": 50,
+      "tickSpacing": 1,
+      "activePolPositions": 0
+    },
+    {
+      "poolId": "0x02344f0e509814b3711f0f96bb0fd543c7867e816f255c7aff8f6e1429541b33",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0x2d8d6f4a93acd7a916a5a654ec8b690ba3b3eadd",
+      "registrationBlock": 86364847,
+      "type": "public",
+      "pair": "ETH/STATICS",
+      "initialized": true,
+      "activeLiquidity": "0",
+      "externalSwaps": 0,
+      "internalSwaps": 0,
+      "marketTapeSequence": 0,
+      "lastSwapTimestamp": 0,
+      "decommissioned": false,
+      "lpFeePips": 500,
+      "tickSpacing": 10,
+      "activePolPositions": 0
+    },
+    {
+      "poolId": "0xa154c24a950a79dbee640b6a0e942a67285e75e298717bc7b839f8d70c921986",
+      "hook": "0x2a8dfc6608dd8cc8dcb385f8876947f181c1d0ec",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0x2d8d6f4a93acd7a916a5a654ec8b690ba3b3eadd",
+      "registrationBlock": 86779873,
+      "type": "public",
+      "pair": "ETH/STATICS",
+      "initialized": true,
+      "activeLiquidity": "928123044152880726",
+      "externalSwaps": 0,
+      "internalSwaps": 0,
+      "marketTapeSequence": 0,
+      "lastSwapTimestamp": 0,
+      "decommissioned": false,
+      "lpFeePips": 100,
+      "tickSpacing": 1,
+      "activePolPositions": 0
+    }
+  ]
+}

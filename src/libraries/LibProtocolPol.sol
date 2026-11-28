@@ -14,23 +14,37 @@ import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibProtocolPools} from "./LibProtocolPools.sol";
 import {LibRangeGauge} from "./LibRangeGauge.sol";
+import {LibBasketManagerSettlement} from "./LibBasketManagerSettlement.sol";
 
 /// @notice Custody-constrained protocol LP portfolio operations.
 /// @dev Strategy selects explicit ranges and amounts. This library fixes every receiver to protocol
 /// custody and classifies native PositionManager fees as Treasury revenue before principal moves.
 library LibProtocolPol {
     error LiquidityManagerNotInstalled();
+    error ProtocolPolAlreadyActivated(PoolId poolId);
+    error OnlyPoolCreator(address caller, address creator);
     error ProtocolPolNotActivated(PoolId poolId);
     error ProtocolPolPositionNotFound(uint256 positionId);
     error ProtocolPolPositionPoolMismatch(uint256 positionId, PoolId expected, PoolId actual);
     error ProtocolPolManagerTransferMismatch(address asset, uint256 expected, uint256 spent, uint256 received);
     error ProtocolPolManagerReturnMismatch(address asset, uint256 reported, uint256 observed);
-    error ProtocolPolLiquidityMismatch(uint256 positionId, uint128 expected, uint128 actual);
 
     function isActivated(PoolId poolId, IStaticsProtocolPools.ProtocolPoolKind kind) internal view returns (bool) {
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) return true;
-        if (kind != IStaticsProtocolPools.ProtocolPoolKind.General) return false;
+        if (
+            kind != IStaticsProtocolPools.ProtocolPoolKind.General
+                && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
+        ) return false;
         return LibProtocolPools.protocolPoolStorage().polFunding[poolId].activated;
+    }
+
+    /// @dev Call after pool registration and collect the activation fee in the calling facet.
+    function activate(PoolId poolId, address caller, uint256 fee) internal {
+        LibProtocolPools.PolFundingConfig storage config = LibProtocolPools.protocolPoolStorage().polFunding[poolId];
+        if (config.activated) revert ProtocolPolAlreadyActivated(poolId);
+        address creator = LibProtocolPools.creatorOf(poolId);
+        if (caller != creator) revert OnlyPoolCreator(caller, creator);
+        config.activated = true;
+        emit IStaticsProtocolPools.ProtocolPolActivated(poolId, creator, fee);
     }
 
     function open(IStaticsProtocolPools.ProtocolPolOpenParams memory params)
@@ -42,6 +56,7 @@ library LibProtocolPol {
         if (!isActivated(params.poolId, kind)) revert ProtocolPolNotActivated(params.poolId);
 
         address manager = _currentManager();
+        LibBasketManagerSettlement.begin(key, manager, address(this));
         _fundManager(params.poolId, key, manager, params.amount0Maximum, params.amount1Maximum);
         uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
         if (key.currency0.isAddressZero()) before0 -= params.amount0Maximum;
@@ -59,6 +74,7 @@ library LibProtocolPol {
             }),
             address(this)
         );
+        LibBasketManagerSettlement.end();
         _reserveManagerReturns(params.poolId, key, before0, before1, movement.refund0, movement.refund1);
         _enforceInputAccounting(
             key.currency0, params.amount0Maximum, movement.spent0, movement.received0, movement.refund0
@@ -92,6 +108,7 @@ library LibProtocolPol {
     {
         (position,) = harvest(params.positionId, params.deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
+        LibBasketManagerSettlement.begin(key, position.manager, address(this));
         _fundManager(position.poolId, key, position.manager, params.amount0Limit, params.amount1Limit);
         uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
         if (key.currency0.isAddressZero()) before0 -= params.amount0Limit;
@@ -101,6 +118,7 @@ library LibProtocolPol {
         .increaseManagedPosition{value: key.currency0.isAddressZero() ? params.amount0Limit : 0}(
             _request(position.posmTokenId, params.liquidity, params.amount0Limit, params.amount1Limit, params.deadline)
         );
+        LibBasketManagerSettlement.end();
         _reserveManagerReturns(position.poolId, key, before0, before1, movement.refund0, movement.refund1);
         _enforceInputAccounting(
             key.currency0, params.amount0Limit, movement.spent0, movement.received0, movement.refund0
@@ -121,11 +139,13 @@ library LibProtocolPol {
         position = enforcePosition(positionId);
         LibRangeGauge.enforceProtocolPolBinding(position.posmTokenId, positionId);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
+        LibBasketManagerSettlement.begin(key, position.manager, address(this));
         uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
         uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
         if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
             .collectManagedPositionFees(_request(position.posmTokenId, 0, 0, 0, deadline));
+        LibBasketManagerSettlement.end();
         // Verify both source receipts before wrapping: currency1 may itself be WETH.
         LibPoolRewards.enforceReceipt(Currency.unwrap(key.currency0), before0, movement.received0);
         LibPoolRewards.enforceReceipt(Currency.unwrap(key.currency1), before1, movement.received1);
@@ -143,6 +163,7 @@ library LibProtocolPol {
     {
         (position,) = harvest(params.positionId, params.deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
+        LibBasketManagerSettlement.begin(key, position.manager, address(this));
         uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
         uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
         if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
@@ -152,6 +173,7 @@ library LibProtocolPol {
                     position.posmTokenId, params.liquidity, params.amount0Limit, params.amount1Limit, params.deadline
                 )
             );
+        LibBasketManagerSettlement.end();
         _reservePrincipalReturn(position.poolId, key.currency0, before0, movement.received0);
         _reservePrincipalReturn(position.poolId, key.currency1, before1, movement.received1);
         LibNativeReceipt.clear();
@@ -167,11 +189,13 @@ library LibProtocolPol {
     {
         (position,) = harvest(positionId, deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
+        LibBasketManagerSettlement.begin(key, position.manager, address(this));
         uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
         uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
         if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
             .exitManagedPosition(_request(position.posmTokenId, 0, amount0Minimum, amount1Minimum, deadline));
+        LibBasketManagerSettlement.end();
         _reservePrincipalReturn(position.poolId, key.currency0, before0, movement.received0);
         _reservePrincipalReturn(position.poolId, key.currency1, before1, movement.received1);
         LibNativeReceipt.clear();

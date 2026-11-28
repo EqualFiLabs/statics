@@ -23,11 +23,18 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         uint256 basketId;
         address basketToken;
         (basketId, basketToken) = _seedDecimalFlashBasket(tokenA, tokenB, decimalsA, decimalsB, flashFeeBps);
-        (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(basketId, shares);
-
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        vm.prank(alice);
-        IERC20(basketToken).transfer(address(receiver), shares);
+        uint256[] memory receiverBacking = baskets.quoteMint(basketId, shares);
+        tokenA.mint(alice, receiverBacking[0]);
+        tokenB.mint(alice, receiverBacking[1]);
+        vm.startPrank(alice);
+        tokenA.approve(address(diamond), receiverBacking[0]);
+        tokenB.approve(address(diamond), receiverBacking[1]);
+        baskets.mint(basketId, shares, address(receiver), receiverBacking);
+        vm.stopPrank();
+        // Redemptions round backing down; flash principal deliberately rounds up.
+        // Minting to the receiver can make those quotes differ by one base unit.
+        uint256[] memory amounts = baskets.quoteRedeem(basketId, shares);
         receiver.setReentryData(
             abi.encodeCall(IStaticsBasket.redeem, (basketId, shares, address(receiver), new uint256[](2)))
         );

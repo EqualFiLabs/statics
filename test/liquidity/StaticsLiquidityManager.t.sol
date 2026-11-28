@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {LiquidityManagerTestBase} from "../helpers/LiquidityManagerTestBase.sol";
@@ -16,14 +15,16 @@ contract StaticsLiquidityManagerTest is LiquidityManagerTestBase {
     }
 
     function testCanonicalKeyCannotBeSubstituted() public {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
+        uint256 basketBefore = IERC20(basketToken).balanceOf(address(diamond));
+        uint256 assetBefore = assetA.balanceOf(address(diamond));
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
         request.poolKey.fee = 500;
 
         vm.expectPartialRevert(StaticsLiquidityManager.ProtocolPoolNotRegistered.selector);
-        liquidityManager.mintUserPosition(request, bob, alice);
+        _mintUserPosition(request, bob, alice);
 
-        assertEq(IERC20(Currency.unwrap(canonicalKey.currency0)).balanceOf(address(liquidityManager)), 6 ether);
-        assertEq(IERC20(Currency.unwrap(canonicalKey.currency1)).balanceOf(address(liquidityManager)), 6 ether);
+        assertEq(IERC20(basketToken).balanceOf(address(diamond)), basketBefore);
+        assertEq(assetA.balanceOf(address(diamond)), assetBefore);
     }
 }

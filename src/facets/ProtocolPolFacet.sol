@@ -29,7 +29,6 @@ contract ProtocolPolFacet is ReentrancyGuard {
     error ActionPaused(uint256 action);
     error OnlyProtocolPolOperator(address caller);
     error InvalidProtocolPolOperator(address operator);
-    error GeneralPoolRequired(PoolId poolId);
     error PublicProtocolPoolRequired(PoolId poolId);
     error OnlyPoolCreator(address caller, address creator);
     error ProtocolPolAlreadyActivated(PoolId poolId);
@@ -146,18 +145,11 @@ contract ProtocolPolFacet is ReentrancyGuard {
     }
 
     function activateProtocolPoolPol(PoolId poolId) external payable nonReentrant {
-        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = LibProtocolPools.enforceRegistered(poolId);
-        if (kind != IStaticsProtocolPools.ProtocolPoolKind.General) revert GeneralPoolRequired(poolId);
-        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
-        LibProtocolPools.PolFundingConfig storage config = ps.polFunding[poolId];
-        if (config.activated) revert ProtocolPolAlreadyActivated(poolId);
-        address creator = ps.generalPools[poolId].creator;
-        if (msg.sender != creator) revert OnlyPoolCreator(msg.sender, creator);
-        uint256 fee = ps.polActivationFeeAmount;
+        _enforcePublicPool(poolId);
+        uint256 fee = LibProtocolPools.protocolPoolStorage().polActivationFeeAmount;
         if (msg.value != fee) revert IncorrectProtocolPolActivationFee(fee, msg.value);
-        config.activated = true;
+        LibProtocolPol.activate(poolId, msg.sender, fee);
         _sendActivationFee(fee);
-        emit IStaticsProtocolPools.ProtocolPolActivated(poolId, creator, fee);
     }
 
     function setProtocolPoolPolShare(PoolId poolId, uint16 shareBps) external {
@@ -181,7 +173,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         else if (asset == Currency.unwrap(key.currency1)) currency = key.currency1;
         else revert InvalidProtocolPolAsset(poolId, asset);
 
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         uint256 requested = maximumAmount == 0 || maximumAmount > pending ? pending : maximumAmount;
         uint256 beforeBalance = LibCurrency.balance(asset, address(this));
@@ -290,8 +282,8 @@ contract ProtocolPolFacet is ReentrancyGuard {
     }
 
     function _setPolShare(PoolId poolId, uint16 shareBps, bool overridden) private {
-        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = _enforcePublicPool(poolId);
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
+        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key,,) = _enforcePublicPool(poolId);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
         uint16 maximum;
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
             IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();

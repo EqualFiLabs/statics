@@ -9,6 +9,7 @@ pragma solidity 0.8.33;
 
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
+import {IStaticsBasketImpairment} from "../interfaces/IStaticsBasketImpairment.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsNonSwapRevenue} from "../interfaces/IStaticsNonSwapRevenue.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -91,6 +92,25 @@ contract GovernanceFacet is IStaticsGovernance, IStaticsNonSwapRevenue {
         }
         configured.status = IStaticsBasket.BasketStatus.Active;
         emit BasketQuarantineReleased(basketId);
+    }
+
+    function markBasketAssetImpaired(uint256 basketId, address asset) external {
+        LibDiamond.enforceIsContractOwner();
+        LibBasket.Basket storage configured = _getBasket(basketId);
+        if (configured.status == IStaticsBasket.BasketStatus.Pending) {
+            revert InvalidBasketStatus(basketId, configured.status);
+        }
+        uint256 bit = uint256(1) << LibBasket.assetIndex(configured, basketId, asset);
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        if (bs.impairedAssets[basketId] & bit != 0) {
+            revert IStaticsBasketImpairment.AssetAlreadyImpaired(basketId, asset);
+        }
+        bs.impairedAssets[basketId] |= bit;
+        if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
+            configured.status = IStaticsBasket.BasketStatus.ExitOnly;
+            emit BasketDecommissioned(basketId);
+        }
+        emit IStaticsBasketImpairment.BasketAssetImpaired(basketId, asset);
     }
 
     function decommissionBasket(uint256 basketId) external {

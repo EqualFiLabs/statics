@@ -72,9 +72,10 @@ jq -e '
   and .via_ir == true
   and .optimizer == true
   and .optimizer_runs == 999999
-  and .bytecode_hash == "none"
+  and .bytecode_hash == "ipfs"
+  and .cbor_metadata == true
 ' <<<"$compiler_config" >/dev/null || {
-  echo "Morpho compiler configuration no longer matches the Robinhood mainnet deployment" >&2
+  echo "Morpho compiler settings do not match the required IPFS metadata profile" >&2
   exit 1
 }
 

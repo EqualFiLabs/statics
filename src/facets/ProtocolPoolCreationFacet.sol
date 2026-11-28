@@ -29,7 +29,8 @@ import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 /// @notice Permissionless general-pool creation with deterministic quoting, sorted PoolKey policy,
 /// reciprocal normalized pricing, independent native creation fee gating, EIP-712 creator
-/// authorization (EOA and ERC-1271 via `SignatureChecker`), and unordered creator nonces.
+/// authorization (EOA and ERC-1271 via `SignatureChecker`), creator attribution, and
+/// unordered creator nonces.
 contract ProtocolPoolCreationFacet is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -46,6 +47,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
 
     error LiquidityIntegrationNotInstalled();
     error InvalidToken(address token);
+    error BasketTokenRequiresBasketHook(address token);
     error IdenticalTokens(address token);
     error DeadlineExpired(uint256 deadline);
     error InvalidTickSpacing(int24 tickSpacing);
@@ -83,14 +85,14 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         LibProtocolPools.enforceUnregistered(poolId);
 
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(quote.key.hooks));
         if (hook.poolRegistration(poolId).registered) revert PoolAlreadyRegisteredInHook(poolId);
         (uint160 initializedPrice,,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
         if (initializedPrice != 0) revert PoolAlreadyInitialized(poolId);
 
         _authorizeCreator(params, quote.authorizationDigest, creatorAuthorization);
         _collectCreationFee(quote.totalNativeFee);
-        bool overrideInitialFeeRate = _validateInitialFeeRate(hook, params.initialFeeRate);
+        bool overrideInitialFeeRate = _validateInitialFeeRate(IStaticsSwapFeeHook(ls.hook), params.initialFeeRate);
         _registerAndInitialize(ls, hook, params, quote, overrideInitialFeeRate);
     }
 
@@ -247,6 +249,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     }
 
     function _validateToken(address token) private view {
+        if (LibBasket.isBasketToken(token)) revert BasketTokenRequiresBasketHook(token);
         if (token != address(0) && token.code.length == 0) revert InvalidToken(token);
     }
 

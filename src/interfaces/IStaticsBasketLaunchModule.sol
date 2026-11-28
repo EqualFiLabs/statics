@@ -4,6 +4,19 @@ pragma solidity 0.8.33;
 import {IStaticsBasket} from "./IStaticsBasket.sol";
 
 interface IStaticsBasketLaunchModule {
+    struct PoolBatch {
+        uint256 basketId;
+        address payer;
+        uint256 firstPool;
+        uint256 poolCount;
+    }
+
+    function launchBasketPoolBatch(
+        PoolBatch calldata batch,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn
+    ) external returns (uint256 shares, uint256[] memory debits);
+
     function launchBasketPools(
         uint256 basketId,
         address payer,

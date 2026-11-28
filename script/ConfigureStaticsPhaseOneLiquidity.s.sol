@@ -570,13 +570,13 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _validatePhaseOneSelectors(address diamond) private view {
         IDiamondLoupe.Facet[] memory facets = IDiamondLoupe(diamond).facets();
-        if (facets.length != 32) revert UnexpectedFacetCount(32, facets.length);
+        if (facets.length != 35) revert UnexpectedFacetCount(35, facets.length);
 
         uint256 selectorCount = 0;
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 226) revert UnexpectedSelectorCount(226, selectorCount);
+        if (selectorCount != 229) revert UnexpectedSelectorCount(229, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {
@@ -592,7 +592,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     }
 
     function _phaseOneSelectorSets() private pure returns (bytes4[][] memory sets) {
-        sets = new bytes4[][](32);
+        sets = new bytes4[][](34);
         sets[0] = StaticsSelectors.diamondCut();
         sets[1] = StaticsSelectors.diamondLoupe();
         sets[2] = StaticsSelectors.ownership();
@@ -603,7 +603,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         sets[7] = StaticsSelectors.phaseOneLiquidityIntegration();
         sets[8] = StaticsSelectors.globalRewards();
         sets[9] = StaticsSelectors.interfaceInit();
-        sets[10] = StaticsSelectors.protocolPoolCreation();
+        sets[10] = StaticsSelectors.phaseOneProtocolPoolCreation();
         sets[11] = StaticsSelectors.phaseOneProtocolPoolAdmin();
         sets[12] = StaticsSelectors.protocolPoolMaintenance();
         sets[13] = StaticsSelectors.protocolPol();
@@ -625,6 +625,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         sets[29] = StaticsSelectors.marketTapeObservations();
         sets[30] = StaticsSelectors.positionMarket();
         sets[31] = StaticsSelectors.batchRewards();
+        sets[32] = StaticsSelectors.swapRewardFunding();
+        sets[33] = StaticsSelectors.publicHookPolicy();
     }
 
     function _containsSelector(IDiamondLoupe.Facet[] memory facets, bytes4 expected) private pure returns (bool) {

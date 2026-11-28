@@ -26,6 +26,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPermissionedPools} from "../libraries/LibPermissionedPools.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
+import {LibBasket} from "../libraries/LibBasket.sol";
 
 /// @notice Governance-created permissioned pools whose initial terms are exactly authorized by the creator.
 contract PermissionedPoolCreationFacet is ReentrancyGuard {
@@ -43,6 +44,7 @@ contract PermissionedPoolCreationFacet is ReentrancyGuard {
 
     error PermissionedLiquidityIntegrationNotInstalled();
     error InvalidToken(address token);
+    error BasketTokenRequiresBasketHook(address token);
     error IdenticalTokens(address token);
     error InvalidCreator(address creator);
     error InvalidController(address controller);
@@ -231,6 +233,7 @@ contract PermissionedPoolCreationFacet is ReentrancyGuard {
     }
 
     function _validateToken(address token) private view {
+        if (LibBasket.isBasketToken(token)) revert BasketTokenRequiresBasketHook(token);
         if (token == address(0) || token.code.length == 0) revert InvalidToken(token);
     }
 

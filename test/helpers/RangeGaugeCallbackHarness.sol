@@ -9,6 +9,9 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
 import {IStaticsMarketTape} from "../../src/interfaces/IStaticsMarketTape.sol";
 import {IStaticsSwapCallback} from "../../src/interfaces/IStaticsSwapCallback.sol";
+import {LibBasket} from "../../src/libraries/LibBasket.sol";
+import {LibBasketMarkets} from "../../src/libraries/LibBasketMarkets.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {LibBasketLiquidity} from "../../src/libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
@@ -79,10 +82,9 @@ contract RangeGaugeCallbackHarness is RangeGaugeCallbackFacet {
         returns (PoolId poolId)
     {
         poolId = key.toId();
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        ls.canonicalPools[basketId][asset].key = key;
-        ls.poolAssociations[poolId] =
-            LibBasketLiquidity.PoolAssociation({basketId: basketId, asset: asset, associated: true});
+        // Registry fixture only; token minting and settlement use the real Basket launch suites.
+        LibBasket.registerToken(Currency.unwrap(key.currency0), basketId);
+        LibBasketMarkets.register(key, address(this), basketId, asset);
     }
 
     function registerPermissionedPool(PoolKey calldata key, address creator) external returns (PoolId poolId) {

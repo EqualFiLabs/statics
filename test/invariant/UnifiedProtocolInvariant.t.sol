@@ -33,6 +33,7 @@ import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketRewards} from "src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
@@ -40,7 +41,10 @@ import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketTokenFactory} from "src/liquidity/StaticsBasketTokenFactory.sol";
+import {PublicHookPolicyFacet} from "src/facets/PublicHookPolicyFacet.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "test/helpers/BasketFactoryTestTools.sol";
 
 struct UnifiedHandlerConfig {
     address diamond;
@@ -574,7 +578,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     }
 }
 
-contract UnifiedProtocolInvariantTest is StdInvariant, Test {
+contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -600,6 +604,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     MockReentrantERC20 internal reentrant;
     MockETHUSDOracle internal peggedOracle;
     UnifiedProtocolHandler internal handler;
+    StaticsBasketTokenFactory internal basketFactory;
 
     uint256 internal firstBasketId;
     uint256 internal secondBasketId;
@@ -732,6 +737,13 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         assertEq(address(deployment.diamond).balance, 0);
     }
 
+    function testRecoveryThenRedemptionReconcilesBasketAndTreasuryRewards() public {
+        handler.recoverLoan(2235);
+        handler.redeemBasketFromSharedPosition(128, 4304);
+        assertGt(_basketRewardLiability(firstBasketId, address(senderExtra)), 0);
+        invariantEveryModuleReservationEqualsItsInternalBooks();
+    }
+
     function invariantEveryModuleReservationEqualsItsInternalBooks() public view {
         _assertBasketBooks(firstBasketId, firstBasketToken);
         _assertBasketBooks(secondBasketId, secondBasketToken);
@@ -746,9 +758,17 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), address(senderExtra)),
             globalRewards.treasuryAccrued(address(senderExtra))
+                + _basketRewardLiability(firstBasketId, address(senderExtra))
+                + _basketRewardLiability(secondBasketId, address(senderExtra))
         );
         assertEq(custody.reservedByAccount(custody.stakingCustodyAccount(), address(weth)), globalRewards.totalStaked());
         assertEq(staticsDollar.totalSupply(), IStaticsDollarCore(deployment.core).seniorLiabilities());
+    }
+
+    function _basketRewardLiability(uint256 basketId, address asset) private view returns (uint256) {
+        IStaticsBasketRewards.BasketRewardState memory state =
+            IStaticsBasketRewards(deployment.diamond).basketRewardState(basketId, asset);
+        return state.indexedReserve - state.crystallizedReserve + state.totalClaimable;
     }
 
     function invariantCrossModuleAndSiblingActionsRemainIsolated() public view {
@@ -910,7 +930,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         uint256[] memory maximums = new uint256[](3);
         for (uint256 i; i < 3; ++i) {
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceAssetPerBasketX96: 1 << 96,
+                pairedAssetAmount: 1 ether,
+                activateManagedPol: true
             });
             maximums[i] = 1_000_000 ether;
         }
@@ -945,6 +969,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
+        basketFactory = _deployTestBasketFactory(deployment.diamond, poolManager, hook);
+        PublicHookPolicyFacet(deployment.diamond)
+            .installBasketHook(
+                address(_deployTestBasketHook(poolManager, deployment.diamond, deployment.weth)), address(basketFactory)
+            );
     }
 
     receive() external payable {}

@@ -7,6 +7,9 @@ import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {DiamondCutFacet} from "../../src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/facets/DiamondLoupeFacet.sol";
+import {GaugeAllocatorRewardFacet} from "../../src/facets/GaugeAllocatorRewardFacet.sol";
+import {SwapRewardFundingFacet} from "../../src/facets/SwapRewardFundingFacet.sol";
+import {PublicHookPolicyFacet} from "../../src/facets/PublicHookPolicyFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
@@ -59,7 +62,9 @@ library StaticsPhaseOneVerifier {
         _validateFacetSet(diamond, StaticsSelectors.batchRewards(), keccak256(type(BatchRewardsFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.interfaceInit(), keccak256(type(StaticsInterfaceInit).runtimeCode));
         _validateFacetSet(
-            diamond, StaticsSelectors.protocolPoolCreation(), keccak256(type(ProtocolPoolCreationFacet).runtimeCode)
+            diamond,
+            StaticsSelectors.phaseOneProtocolPoolCreation(),
+            keccak256(type(ProtocolPoolCreationFacet).runtimeCode)
         );
         _validateFacetSet(
             diamond, StaticsSelectors.phaseOneProtocolPoolAdmin(), keccak256(type(ProtocolPoolAdminFacet).runtimeCode)
@@ -109,7 +114,16 @@ library StaticsPhaseOneVerifier {
             diamond, StaticsSelectors.marketTapeObservations(), keccak256(type(MarketTapeObservationFacet).runtimeCode)
         );
         _validateFacetSet(
-            diamond, StaticsSelectors.gaugeIncentiveActions(), keccak256(type(GaugeIncentiveFacet).runtimeCode)
+            diamond, StaticsSelectors.swapRewardFunding(), keccak256(type(SwapRewardFundingFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.publicHookPolicy(), keccak256(type(PublicHookPolicyFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.gaugeRoutingActions(), keccak256(type(GaugeIncentiveFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.gaugeAllocatorRewards(), keccak256(type(GaugeAllocatorRewardFacet).runtimeCode)
         );
         _validateFacetSet(
             diamond, StaticsSelectors.gaugeIncentiveViews(), keccak256(type(GaugeIncentiveViewFacet).runtimeCode)

@@ -17,6 +17,9 @@ interface IStaticsBasketRewards {
     event BasketRewardClaimed(
         uint256 indexed positionId, uint256 indexed basketId, address indexed asset, address receiver, uint256 amount
     );
+    event BasketRewardForfeited(
+        uint256 indexed positionId, uint256 indexed basketId, address indexed asset, uint256 amount
+    );
     event BasketRewardDustRouted(uint256 indexed basketId, address indexed asset, uint256 amount);
 
     function getBasketRewardAssets(uint256 basketId) external view returns (address[] memory assets);

@@ -50,7 +50,20 @@ def finding(path: str, node: str, start: int = 100) -> dict:
     }
 
 
+def reviewed_finding(finding: dict) -> dict:
+    record = {key: finding[key] for key in slither_baseline.BASELINE_FIELDS}
+    record["classification"] = "FALSE POSITIVE"
+    return record
+
+
 class SlitherBaselineTest(unittest.TestCase):
+    def test_rewriting_existing_evidence_restores_private_permissions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "current.json"
+            report.touch(mode=0o644)
+            slither_baseline.write_json({"findings": []}, report)
+            self.assertEqual(report.stat().st_mode & 0o777, 0o600)
+
     def test_verification_profiles_disable_dynamic_test_linking(self) -> None:
         with (ROOT / "foundry.toml").open("rb") as config_file:
             config = tomllib.load(config_file)
@@ -157,17 +170,14 @@ class SlitherBaselineTest(unittest.TestCase):
             },
         }
         normalized = slither_baseline.normalize(raw)
-        reviewed = normalized["findings"][0] | {
-            "classification": "FALSE POSITIVE",
-            "rationale": "The exact finding was reviewed against authenticated callers.",
-        }
+        reviewed = reviewed_finding(normalized["findings"][0])
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
             raw_path = directory_path / "raw.json"
             baseline_path = directory_path / "baseline.json"
             output_path = directory_path / "current.json"
             raw_path.write_text(json.dumps(raw), encoding="utf-8")
-            baseline_path.write_text(json.dumps({"schema": 2, "findings": [reviewed]}), encoding="utf-8")
+            baseline_path.write_text(json.dumps({"schema": 3, "findings": [reviewed]}), encoding="utf-8")
             args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=output_path)
 
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -208,16 +218,13 @@ class SlitherBaselineTest(unittest.TestCase):
         detector = finding("src/genesis/LibExactAssetTransfer.sol", "safeTransferFrom")
         baseline_raw = {"success": True, "results": {"detectors": [detector]}}
         current_raw = {"success": True, "results": {"detectors": [detector, detector]}}
-        reviewed = slither_baseline.normalize(baseline_raw)["findings"][0] | {
-            "classification": "FALSE POSITIVE",
-            "rationale": "The single source occurrence was reviewed.",
-        }
+        reviewed = reviewed_finding(slither_baseline.normalize(baseline_raw)["findings"][0])
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
             raw_path = directory_path / "raw.json"
             baseline_path = directory_path / "baseline.json"
             raw_path.write_text(json.dumps(current_raw), encoding="utf-8")
-            baseline_path.write_text(json.dumps({"schema": 2, "findings": [reviewed]}), encoding="utf-8")
+            baseline_path.write_text(json.dumps({"schema": 3, "findings": [reviewed]}), encoding="utf-8")
             args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
 
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -233,38 +240,76 @@ class SlitherBaselineTest(unittest.TestCase):
         expanded_detector["elements"].append(added_element)
         baseline_raw = {"success": True, "results": {"detectors": [baseline_detector]}}
         current_raw = {"success": True, "results": {"detectors": [expanded_detector]}}
-        reviewed = slither_baseline.normalize(baseline_raw)["findings"][0] | {
-            "classification": "FALSE POSITIVE",
-            "rationale": "The original source evidence set was reviewed.",
-        }
+        reviewed = reviewed_finding(slither_baseline.normalize(baseline_raw)["findings"][0])
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
             raw_path = directory_path / "raw.json"
             baseline_path = directory_path / "baseline.json"
             raw_path.write_text(json.dumps(current_raw), encoding="utf-8")
-            baseline_path.write_text(json.dumps({"schema": 2, "findings": [reviewed]}), encoding="utf-8")
+            baseline_path.write_text(json.dumps({"schema": 3, "findings": [reviewed]}), encoding="utf-8")
             args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
 
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(slither_baseline.command_check(args), 1)
 
-    def test_check_rejects_new_high_finding(self) -> None:
-        raw = {
-            "success": True,
-            "results": {
-                "detectors": [finding("src/genesis/LibExactAssetTransfer.sol", "safeTransferFrom")]
-            },
-        }
+    def test_check_blocks_unreviewed_high_and_medium_without_logging_details(self) -> None:
+        path = "src/genesis/LibExactAssetTransfer.sol"
+        high = finding(path, "privateHighFinding")
+        medium = finding(path, "privateMediumFinding") | {"impact": "Medium"}
+        raw = {"success": True, "results": {"detectors": [high, medium]}}
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
             raw_path = directory_path / "raw.json"
             baseline_path = directory_path / "baseline.json"
+            output_path = directory_path / "current.json"
             raw_path.write_text(json.dumps(raw), encoding="utf-8")
-            baseline_path.write_text(json.dumps({"schema": 2, "findings": []}), encoding="utf-8")
-            args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
+            baseline_path.write_text(json.dumps({"schema": 3, "findings": []}), encoding="utf-8")
+            args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=output_path)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
 
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 self.assertEqual(slither_baseline.command_check(args), 1)
+
+            log = stdout.getvalue() + stderr.getvalue()
+            self.assertIn("Blocking findings: 2 new, 0 expanded, 2 unresolved", log)
+            private = json.loads(output_path.read_text(encoding="utf-8"))
+            for record in private["findings"]:
+                self.assertEqual(record["classification"], "INVESTIGATE")
+                self.assertNotIn(record["id"], log)
+                self.assertNotIn(record["summary"], log)
+            self.assertNotIn(path, log)
+
+    def test_baseline_rejects_private_fields_and_nonreviewed_dispositions(self) -> None:
+        finding_record = {
+            "id": "1" * 24,
+            "check": "fixture",
+            "impact": "High",
+            "classification": "FALSE POSITIVE",
+            "occurrences": 1,
+        }
+        cases = (
+            ({"rationale": "private evidence"}, "minimal reviewed fields"),
+            ({"classification": "CONFIRMED"}, "reviewed disposition"),
+            ({"classification": "INVESTIGATE"}, "reviewed disposition"),
+            ({"occurrences": True}, "positive occurrence count"),
+            ({"id": "*"}, "exact id"),
+        )
+        for fields, message in cases:
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
+                slither_baseline.validate_baseline({"schema": 3, "findings": [finding_record | fields]})
+
+    def test_check_rejects_changed_detector_metadata(self) -> None:
+        detector = finding("src/genesis/LibExactAssetTransfer.sol", "safeTransferFrom")
+        raw = {"success": True, "results": {"detectors": [detector]}}
+        report = slither_baseline.normalize(raw)
+        reviewed = reviewed_finding(report["findings"][0]) | {"impact": "Medium"}
+        with self.assertRaisesRegex(ValueError, "metadata changed"):
+            slither_baseline.apply_reviewed_decisions(report, {reviewed["id"]: reviewed})
+
+    def test_tracked_baseline_contains_only_reviewed_minimal_records(self) -> None:
+        baseline = slither_baseline.load_json(slither_baseline.BASELINE_PATH)
+        self.assertTrue(slither_baseline.validate_baseline(baseline))
 
     def test_check_rejects_legacy_baseline_schema(self) -> None:
         raw = {"success": True, "results": {"detectors": []}}
@@ -276,7 +321,20 @@ class SlitherBaselineTest(unittest.TestCase):
             baseline_path.write_text(json.dumps({"schema": 1, "findings": []}), encoding="utf-8")
             args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
 
-            with self.assertRaisesRegex(ValueError, "schema 2"):
+            with self.assertRaisesRegex(ValueError, "schema 3"):
+                slither_baseline.command_check(args)
+
+    def test_check_rejects_unsuccessful_slither_json(self) -> None:
+        raw = {"success": False, "error": "compiler failed", "results": {"detectors": []}}
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            raw_path = directory_path / "raw.json"
+            baseline_path = directory_path / "baseline.json"
+            raw_path.write_text(json.dumps(raw), encoding="utf-8")
+            baseline_path.write_text(json.dumps({"schema": 3, "findings": []}), encoding="utf-8")
+            args = argparse.Namespace(raw=raw_path, baseline=baseline_path, output=None)
+
+            with self.assertRaisesRegex(ValueError, "unsuccessful analysis"):
                 slither_baseline.command_check(args)
 
 

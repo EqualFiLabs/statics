@@ -104,7 +104,8 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     /// forge-config: default.fuzz.runs = 256
     function testFuzzDuplicateMarketRejectedRegardlessOfPrice(uint160 rawPrice) public {
         IStaticsProtocolPools.CreatePoolParams memory first = _params(address(assetA), address(assetB));
-        PoolId poolId = pools.createPool(first, "");
+        uint256 creationFee = pools.poolCreationFee();
+        PoolId poolId = _createCommitted(first, creationFee);
 
         // Keep the requested price within the valid normalized range for this token ordering so the
         // creation reaches the duplicate-registration check rather than price validation. A different
@@ -120,15 +121,16 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
                 IStaticsProtocolPools.ProtocolPoolKind.General
             )
         );
-        pools.createPool(second, "");
+        pools.createPool{value: creationFee}(second, "");
     }
 
     function testSamePairDifferentLpFeeCreatesDistinctPoolIds() public {
         IStaticsProtocolPools.CreatePoolParams memory first = _params(address(assetA), address(assetB));
         IStaticsProtocolPools.CreatePoolParams memory second = _params(address(assetA), address(assetB));
         second.lpFee = 500;
-        PoolId firstPoolId = pools.createPool(first, "");
-        PoolId secondPoolId = pools.createPool(second, "");
+        uint256 creationFee = pools.poolCreationFee();
+        PoolId firstPoolId = _createCommitted(first, creationFee);
+        PoolId secondPoolId = _createCommitted(second, creationFee);
         assertNotEq(PoolId.unwrap(firstPoolId), PoolId.unwrap(secondPoolId));
     }
 
@@ -149,6 +151,18 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
+    }
+
+    function _createCommitted(IStaticsProtocolPools.CreatePoolParams memory params, uint256 creationFee)
+        private
+        returns (PoolId poolId)
+    {
+        if (creationFee != 0) {
+            bytes32 digest = pools.quotePool(params).authorizationDigest;
+
+            vm.roll(block.number + 1);
+        }
+        poolId = pools.createPool{value: creationFee}(params, "");
     }
 }
 
@@ -274,6 +288,14 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
-        poolId = pools.createPool(params, "");
+        uint256 creationFee = pools.poolCreationFee();
+        if (creationFee != 0) {
+            bytes32 digest = pools.quotePool(params).authorizationDigest;
+
+            vm.roll(block.number + 1);
+        }
+        vm.deal(creator, creator.balance + creationFee);
+        vm.prank(creator);
+        poolId = pools.createPool{value: creationFee}(params, "");
     }
 }
